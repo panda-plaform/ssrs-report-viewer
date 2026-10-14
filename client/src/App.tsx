@@ -7,6 +7,7 @@ import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
 import type { ExecutionParameterSeed } from './executionParameterSeed'
 import {
+  isViewerSessionExpiredError,
   navigateDocumentMap,
   type FindResponse,
   type RenderResponse,
@@ -156,8 +157,20 @@ function App() {
     [],
   )
 
-  const handleSurfaceError = useCallback((message: string) => {
-    setSurfaceError(message || null)
+  const handleSurfaceError = useCallback((error: unknown) => {
+    if (isViewerSessionExpiredError(error)) {
+      setRender(null)
+      setBusy(false)
+      setSurfaceError(error.message)
+      return
+    }
+
+    if (typeof error === 'string') {
+      setSurfaceError(error || null)
+      return
+    }
+
+    setSurfaceError(error instanceof Error ? error.message : null)
   }, [])
 
   const handleDocumentMapNavigate = useCallback(
@@ -172,12 +185,12 @@ function App() {
         const next = await navigateDocumentMap(render.sessionId, id)
         setRender(next)
       } catch (err) {
-        setSurfaceError(err instanceof Error ? err.message : 'Document Map navigation failed')
+        handleSurfaceError(err)
       } finally {
         setBusy(false)
       }
     },
-    [busy, render?.sessionId],
+    [busy, handleSurfaceError, render?.sessionId],
   )
 
   const mode = viewerModeFromReportPath(selectedReportPath)
@@ -237,7 +250,7 @@ function App() {
                 sessionId={render.sessionId}
                 busy={busy}
                 onResult={handleFindResult}
-                onError={setSurfaceError}
+                onError={handleSurfaceError}
                 onBusyChange={setBusy}
               />
             </div>

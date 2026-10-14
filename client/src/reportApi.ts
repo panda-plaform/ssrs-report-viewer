@@ -48,6 +48,20 @@ export type RenderResponse = {
   parameters: ParameterSubmission[]
 }
 
+/** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
+export class ViewerSessionExpiredError extends Error {
+  readonly statusCode = 410 as const
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'ViewerSessionExpiredError'
+  }
+}
+
+export function isViewerSessionExpiredError(error: unknown): error is ViewerSessionExpiredError {
+  return error instanceof ViewerSessionExpiredError
+}
+
 async function readProblemDetail(response: Response): Promise<string> {
   let detail = `HTTP ${response.status}`
   try {
@@ -59,6 +73,19 @@ async function readProblemDetail(response: Response): Promise<string> {
   return detail
 }
 
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) {
+    return
+  }
+
+  const detail = await readProblemDetail(response)
+  if (response.status === 410) {
+    throw new ViewerSessionExpiredError(detail)
+  }
+
+  throw new Error(detail)
+}
+
 export async function fetchParameters(
   path: string,
   currentValues?: ParameterSubmission[],
@@ -68,9 +95,7 @@ export async function fetchParameters(
     query.set('values', JSON.stringify(currentValues))
   }
   const response = await fetch(`/api/reports/parameters?${query}`)
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
+  await throwIfNotOk(response)
   return (await response.json()) as ParametersResponse
 }
 
@@ -83,9 +108,7 @@ export async function viewReport(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reportPath, parameters }),
   })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
+  await throwIfNotOk(response)
   return (await response.json()) as RenderResponse
 }
 
@@ -100,9 +123,7 @@ async function postSessionAction(
     init.body = JSON.stringify(body)
   }
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, init)
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
+  await throwIfNotOk(response)
   return (await response.json()) as RenderResponse
 }
 
@@ -123,7 +144,8 @@ export function refreshReport(sessionId: string): Promise<RenderResponse> {
 }
 
 export function toggleDrilldown(sessionId: string, toggleId: string): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'toggle', { toggleId })
+  // Glossary path; /toggle remains as a server-side alias.
+  return postSessionAction(sessionId, 'drilldown', { toggleId })
 }
 
 export function drillthroughReport(
@@ -179,9 +201,7 @@ function fileNameFromContentDisposition(header: string | null, fallback: string)
 export async function downloadExport(sessionId: string, format: ExportFormat): Promise<void> {
   const query = new URLSearchParams({ format })
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/export?${query}`)
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
+  await throwIfNotOk(response)
 
   const blob = await response.blob()
   const fallback =
@@ -221,9 +241,7 @@ async function postFind(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ findValue }),
   })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
+  await throwIfNotOk(response)
   return (await response.json()) as FindResponse
 }
 

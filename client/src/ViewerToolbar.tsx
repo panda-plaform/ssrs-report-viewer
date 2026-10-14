@@ -23,7 +23,7 @@ type Props = {
   zoomPercent: number
   busy: boolean
   onUpdated: (result: RenderResponse) => void
-  onError: (message: string) => void
+  onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
 }
 
@@ -58,7 +58,7 @@ export function ViewerToolbar({
       setGotoValue(String(result.pageInfo.currentPage))
       onUpdated(result)
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Viewer Session action failed')
+      onError(err instanceof Error ? err : 'Viewer Session action failed')
     } finally {
       onBusyChange(false)
     }
@@ -75,7 +75,7 @@ export function ViewerToolbar({
     try {
       await downloadExport(sessionId, format)
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Export failed')
+      onError(err instanceof Error ? err : 'Export failed')
     } finally {
       setBusyFormat(null)
       onBusyChange(false)

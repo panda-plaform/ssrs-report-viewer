@@ -24,7 +24,7 @@ type Props = {
   busy: boolean
   error: string | null
   onHtmlReplaced: (result: RenderResponse, options?: HtmlReplacedOptions) => void
-  onError: (message: string) => void
+  onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
 }
 
@@ -76,7 +76,7 @@ export function ReportSurface({
         const result = await work()
         onHtmlReplaced(result, options)
       } catch (err) {
-        onError(err instanceof Error ? err.message : failureLabel)
+        onError(err instanceof Error ? err : failureLabel)
       } finally {
         onBusyChange(false)
       }
@@ -214,7 +214,7 @@ export function ReportSurface({
       const result = await goBack(sessionId)
       onHtmlReplaced(result, { syncOpenReport: true })
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Back failed')
+      onError(err instanceof Error ? err : 'Back failed')
     } finally {
       onBusyChange(false)
     }
