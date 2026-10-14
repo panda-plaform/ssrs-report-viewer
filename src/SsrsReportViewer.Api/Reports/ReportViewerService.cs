@@ -122,6 +122,30 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
+    public async Task<ExportResult> ExportAsync(
+        string sessionId,
+        string format,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeExportFormat(format);
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var deviceInfo = new DeviceInfo(
+                    HtmlFragment: true,
+                    Toolbar: false,
+                    ZoomPercent: session.ZoomPercent,
+                    Section: session.CurrentPage);
+
+                var render = await _ssrs.RenderAsync(session.Execution, normalized, deviceInfo, ct);
+                var fileName = BuildExportFileName(session.ReportPath, normalized);
+                return new ExportResult(render.Content, render.MimeType, fileName);
+            },
+            cancellationToken);
+    }
+
     public Task<FindResult> FindAsync(
         string sessionId,
         string findValue,
@@ -210,6 +234,42 @@ public sealed class ReportViewerService
             render.DocumentMap);
     }
 
+    private static string NormalizeExportFormat(string format)
+    {
+        if (string.IsNullOrWhiteSpace(format))
+        {
+            throw new UnsupportedExportFormatException(format ?? string.Empty);
+        }
+
+        var normalized = format.Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "PDF" => "PDF",
+            "EXCELOPENXML" => "EXCELOPENXML",
+            "CSV" => "CSV",
+            _ => throw new UnsupportedExportFormatException(format),
+        };
+    }
+
+    private static string BuildExportFileName(string reportPath, string format)
+    {
+        var leaf = reportPath.Trim('/').Split('/').LastOrDefault();
+        if (string.IsNullOrWhiteSpace(leaf))
+        {
+            leaf = "report";
+        }
+
+        var extension = format switch
+        {
+            "PDF" => "pdf",
+            "EXCELOPENXML" => "xlsx",
+            "CSV" => "csv",
+            _ => "bin",
+        };
+
+        return $"{leaf}.{extension}";
+    }
+
     private static string PrepareHtml(RenderResult render, string resourceRoot, string? replacementRoot)
     {
         var html = Encoding.UTF8.GetString(render.Content);
@@ -249,3 +309,16 @@ public sealed record ViewReportResult(
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 
 public sealed record PageInfo(int CurrentPage, int PageCount);
+
+public sealed record ExportResult(byte[] Content, string MimeType, string FileName);
+
+public sealed class UnsupportedExportFormatException : Exception
+{
+    public UnsupportedExportFormatException(string format)
+        : base($"Unsupported Export format '{format}'. Use PDF, EXCELOPENXML, or CSV.")
+    {
+        Format = format;
+    }
+
+    public string Format { get; }
+}
