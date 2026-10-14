@@ -6,6 +6,7 @@ import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
 import {
+  isViewerSessionExpiredError,
   navigateDocumentMap,
   type FindResponse,
   type RenderResponse,
@@ -66,8 +67,9 @@ function App() {
   }, [])
 
   function handleSelectReport(path: string) {
+    // Load parameters for the new path without wiping an open Viewer Session surface
+    // until the user explicitly Views Report (or a session op expires / fails hard).
     setSelectedReportPath(path)
-    clearSurface()
   }
 
   function handleViewed(result: RenderResponse) {
@@ -96,8 +98,20 @@ function App() {
     setRender(result)
   }, [])
 
-  const handleSurfaceError = useCallback((message: string) => {
-    setSurfaceError(message || null)
+  const handleSurfaceError = useCallback((error: unknown) => {
+    if (isViewerSessionExpiredError(error)) {
+      setRender(null)
+      setBusy(false)
+      setSurfaceError(error.message)
+      return
+    }
+
+    if (typeof error === 'string') {
+      setSurfaceError(error || null)
+      return
+    }
+
+    setSurfaceError(error instanceof Error ? error.message : null)
   }, [])
 
   const handleDocumentMapNavigate = useCallback(
@@ -112,12 +126,12 @@ function App() {
         const next = await navigateDocumentMap(render.sessionId, id)
         setRender(next)
       } catch (err) {
-        setSurfaceError(err instanceof Error ? err.message : 'Document Map navigation failed')
+        handleSurfaceError(err)
       } finally {
         setBusy(false)
       }
     },
-    [busy, render?.sessionId],
+    [busy, handleSurfaceError, render?.sessionId],
   )
 
   return (
@@ -161,7 +175,7 @@ function App() {
                 sessionId={render.sessionId}
                 busy={busy}
                 onResult={handleFindResult}
-                onError={setSurfaceError}
+                onError={handleSurfaceError}
                 onBusyChange={setBusy}
               />
             </div>

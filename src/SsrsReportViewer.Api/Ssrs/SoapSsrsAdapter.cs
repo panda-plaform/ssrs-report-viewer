@@ -95,11 +95,17 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             valuesElement = SsrsSoapTransport.Nil(Mgmt + "Values");
         }
 
+        // Omit HistoryID entirely. SSRS maps HistoryID to internal snapshotID (DateTime);
+        // <HistoryID xsi:nil="true"/> and empty HistoryID both fault as ParameterTypeMismatch.
+        //
+        // ForRendering=true runs parameter queries against the report data source (valid values).
+        // Use it only when cascading Values are supplied; otherwise metadata-only (false) avoids
+        // ProcessingAborted when the data source login is broken.
+        var forRendering = valuesForCascading is { Count: > 0 };
         var body = new XElement(
             Mgmt + "GetItemParameters",
             new XElement(Mgmt + "ItemPath", NormalizePath(reportPath)),
-            SsrsSoapTransport.Nil(Mgmt + "HistoryID"),
-            new XElement(Mgmt + "ForRendering", true),
+            new XElement(Mgmt + "ForRendering", forRendering),
             valuesElement,
             SsrsSoapTransport.Nil(Mgmt + "Credentials"));
 
@@ -121,10 +127,10 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         string reportPath,
         CancellationToken cancellationToken = default)
     {
+        // Omit HistoryID — same snapshotID DateTime fault as GetItemParameters when nil/empty.
         var body = new XElement(
             Exec + "LoadReport",
-            new XElement(Exec + "Report", NormalizePath(reportPath)),
-            SsrsSoapTransport.Nil(Exec + "HistoryID"));
+            new XElement(Exec + "Report", NormalizePath(reportPath)));
 
         try
         {
