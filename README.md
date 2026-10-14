@@ -38,6 +38,8 @@ npm run dev
 
 Health: `GET /api/health` → `{ "status": "Healthy" }`.
 
+Catalog: `GET /api/catalog?path=/` → `{ path, folders[{ name, path }], reports[{ name, path }] }` (browse only; no Viewer Session).
+
 ## Tests
 
 HTTP API tests use a fake SSRS adapter (no live ReportServer):

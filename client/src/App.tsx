@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CatalogBrowser } from './CatalogBrowser'
 import './App.css'
 
 type HealthResponse = {
@@ -47,13 +48,11 @@ function App() {
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
-      <p className="lede">
-        React shell for the proxied Report Viewer. Catalog and View Report arrive in later
-        tickets.
-      </p>
+      <p className="lede">Browse the Catalog for Folders and Reports. Viewing a Report is a later ticket.</p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
       </p>
+      {apiStatus === 'ok' && <CatalogBrowser />}
     </main>
   )
 }

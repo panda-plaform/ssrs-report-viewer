@@ -11,12 +11,14 @@ namespace SsrsReportViewer.Api.Tests;
 /// </summary>
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
+    public FakeSsrsAdapter Fake { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<ISsrsAdapter>();
-            services.AddSingleton<ISsrsAdapter, FakeSsrsAdapter>();
+            services.AddSingleton<ISsrsAdapter>(Fake);
         });
     }
 }
