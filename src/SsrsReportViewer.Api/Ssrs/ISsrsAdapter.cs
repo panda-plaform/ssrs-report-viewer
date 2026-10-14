@@ -38,4 +38,12 @@ public interface ISsrsAdapter
         string format,
         string streamId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Toggles Drilldown show/hide for an item on the current Execution (ReportExecution2005 ToggleItem).
+    /// </summary>
+    Task ToggleItemAsync(
+        ExecutionHandle execution,
+        string toggleId,
+        CancellationToken cancellationToken = default);
 }

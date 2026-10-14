@@ -17,6 +17,7 @@ function App() {
   const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
   const [render, setRender] = useState<RenderResponse | null>(null)
   const [surfaceError, setSurfaceError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +55,7 @@ function App() {
   const clearSurface = useCallback(() => {
     setRender(null)
     setSurfaceError(null)
+    setBusy(false)
   }, [])
 
   function handleSelectReport(path: string) {
@@ -66,11 +68,21 @@ function App() {
     setRender(result)
   }
 
+  const handleHtmlReplaced = useCallback((result: RenderResponse) => {
+    setSurfaceError(null)
+    setRender(result)
+  }, [])
+
+  const handleSurfaceError = useCallback((message: string) => {
+    setSurfaceError(message)
+  }, [])
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede">
-        Browse the Catalog, enter Report Parameters, then View Report to open a Viewer Session.
+        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown and External
+        Links on the report surface.
       </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
@@ -91,7 +103,11 @@ function App() {
           <ReportSurface
             html={render?.html ?? null}
             sessionId={render?.sessionId ?? null}
+            busy={busy}
             error={surfaceError}
+            onHtmlReplaced={handleHtmlReplaced}
+            onError={handleSurfaceError}
+            onBusyChange={setBusy}
           />
         </>
       )}
