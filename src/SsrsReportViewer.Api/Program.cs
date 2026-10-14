@@ -276,6 +276,83 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/sort", async (
+    string sessionId,
+    SortRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.SortItem))
+    {
+        return Results.Problem(
+            detail: "sortItem is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Sort request");
+    }
+
+    if (!TryParseSortDirection(request.Direction, out var direction))
+    {
+        return Results.Problem(
+            detail: "direction must be Ascending, Descending, or None.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Sort request");
+    }
+
+    try
+    {
+        var result = await viewer.SortAsync(
+            sessionId,
+            request.SortItem,
+            direction,
+            request.Clear ?? false,
+            guard,
+            cancellationToken);
+        return Results.Ok(new
+        {
+            sessionId = result.SessionId,
+            html = result.Html,
+            pageInfo = new
+            {
+                currentPage = result.PageInfo.CurrentPage,
+                pageCount = result.PageInfo.PageCount,
+            },
+        });
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
+static bool TryParseSortDirection(string? value, out SortDirection direction)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        direction = SortDirection.Ascending;
+        return true;
+    }
+
+    return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
+}
+
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
     FindRequest request,

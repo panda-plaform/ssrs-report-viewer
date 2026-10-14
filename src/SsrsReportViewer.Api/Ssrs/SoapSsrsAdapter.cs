@@ -84,6 +84,18 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter
             "SOAP ToggleItem is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
     }
 
+public Task<SortResult> SortAsync(
+        ExecutionHandle execution,
+        string sortItem,
+        SortDirection direction,
+        bool clear,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP Sort is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
     public Task<int> FindStringAsync(
         ExecutionHandle execution,
         int startPage,
