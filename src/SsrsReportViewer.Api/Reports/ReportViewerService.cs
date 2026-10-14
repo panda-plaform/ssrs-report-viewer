@@ -23,18 +23,22 @@ public sealed class ReportViewerService
 
     public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
+        bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading,
         CancellationToken cancellationToken) =>
-        _ssrs.GetParametersAsync(reportPath, valuesForCascading, cancellationToken);
+        _ssrs.GetParametersAsync(reportPath, forRendering, valuesForCascading, cancellationToken);
 
     public async Task<ViewReportResult> ViewReportAsync(
         string reportPath,
         IReadOnlyList<ParameterValue> parameters,
         CancellationToken cancellationToken)
     {
-        // Metadata only — do not pass submitted values (that would force ForRendering=true and
-        // hit data-source parameter queries before LoadReport).
-        var definitions = await _ssrs.GetParametersAsync(reportPath, valuesForCascading: null, cancellationToken);
+        // Metadata only — ForRendering=false avoids data-source parameter queries before LoadReport.
+        var definitions = await _ssrs.GetParametersAsync(
+            reportPath,
+            forRendering: false,
+            valuesForCascading: null,
+            cancellationToken);
         var missing = definitions
             .Where(d => d.Required)
             .Where(d =>
@@ -177,7 +181,11 @@ public sealed class ReportViewerService
             sessionId,
             async (session, ct) =>
             {
-                var definitions = await _ssrs.GetParametersAsync(reportPath, valuesForCascading: null, ct);
+                var definitions = await _ssrs.GetParametersAsync(
+                    reportPath,
+                    forRendering: false,
+                    valuesForCascading: null,
+                    ct);
                 var missing = definitions
                     .Where(d => d.Required)
                     .Where(d =>
