@@ -103,6 +103,28 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
+    public async Task GetParameters_propagates_SOAP_fault_when_forRendering_true()
+    {
+        // Query-driven Valid Values must not swallow ProcessingAborted as an empty list.
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <soap:Fault>
+                  <faultcode>soap:Server</faultcode>
+                  <faultstring>ProcessingAbortedException: An error has occurred during report processing.</faultstring>
+                </soap:Fault>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        using var adapter = CreateAdapter(soap);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            adapter.GetParametersAsync("/Example Reports/Report List", forRendering: true));
+    }
+
+    [Fact]
     public async Task GetParameters_includes_cascading_Values_when_supplied_with_ForRendering_true()
     {
         const string soap = """

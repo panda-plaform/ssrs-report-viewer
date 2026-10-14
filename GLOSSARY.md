@@ -32,8 +32,8 @@ A named input defined by a Report, including type and valid-value metadata.
 A label and value pair offered for a Report Parameter, whether static in the report or from an SSRS parameter query.
 
 **Select All**:
-Report Viewer chrome for multi-value Valid Value lists that selects or clears every Valid Value.
-_Avoid_: A submitted Report Parameter value
+Report Viewer chrome for choosing every Valid Value on a multi-value Report Parameter at once.
+_Avoid_: Select-all parameter value
 
 **Drilldown**:
 Toggling show/hide of an item inside the same Report (SSRS toggle).

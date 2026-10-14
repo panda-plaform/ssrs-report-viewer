@@ -387,7 +387,7 @@ function ParameterField({
       {parameter.multiValue && parameter.validValues.length > 0 ? (
         <fieldset className="parameter-multivalue" disabled={valueDisabled}>
           <legend className="visually-hidden">{label}</legend>
-          <label className="parameter-check parameter-select-all">
+          <label className="parameter-check">
             <input
               ref={selectAllRef}
               type="checkbox"
