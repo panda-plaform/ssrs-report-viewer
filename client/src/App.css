@@ -314,6 +314,19 @@
   font-size: 0.85rem;
 }
 
+.parameter-null {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.parameter-field :disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .parameters-actions button {
   padding: 0.45rem 0.9rem;
   border: 1px solid #2f6f3e;
