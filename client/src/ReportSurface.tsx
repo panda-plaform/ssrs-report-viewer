@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
+  navigateBookmark,
   sortReport,
   toggleDrilldown,
   type PageInfo,
@@ -20,7 +21,7 @@ type Props = {
 
 /**
  * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
- * Drilldown → session toggle; Sort → session sort; External Links → new browsing context.
+ * Drilldown → session toggle; Sort → session sort; Bookmark → session bookmark; External Links → new browsing context.
  */
 export function ReportSurface({
   html,
@@ -92,7 +93,7 @@ export function ReportSurface({
         return
       }
 
-      if (action === 'sort') {
+            if (action === 'sort') {
         event.preventDefault()
         event.stopPropagation()
 
@@ -119,6 +120,30 @@ export function ReportSurface({
           onHtmlReplaced(result)
         } catch (err) {
           onError(err instanceof Error ? err.message : 'Sort failed')
+        } finally {
+          onBusyChange(false)
+        }
+        return
+      }
+if (action === 'bookmark') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (busy) {
+          return
+        }
+
+        const bookmarkId = anchor.getAttribute('data-ssrs-bookmark-id')
+        if (!bookmarkId || !sessionId) {
+          return
+        }
+
+        onBusyChange(true)
+        try {
+          const result = await navigateBookmark(sessionId, bookmarkId)
+          onHtmlReplaced(result)
+        } catch (err) {
+          onError(err instanceof Error ? err.message : 'Bookmark navigation failed')
         } finally {
           onBusyChange(false)
         }
@@ -155,7 +180,7 @@ export function ReportSurface({
 
   return (
     <section className="report-surface" aria-labelledby="report-surface-heading">
-      <header className="report-surface-header">
+      <header className="report-surface-header no-print">
         <h2 id="report-surface-heading">Report</h2>
         {pageInfo && (
           <p className="report-page" aria-label="Report Page">
@@ -174,7 +199,7 @@ export function ReportSurface({
         )}
       </header>
       {error && (
-        <p className="report-surface-error" role="alert">
+        <p className="report-surface-error no-print" role="alert">
           {error}
         </p>
       )}

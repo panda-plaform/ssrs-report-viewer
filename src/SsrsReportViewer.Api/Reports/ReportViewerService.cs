@@ -53,29 +53,78 @@ public sealed class ReportViewerService
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
         await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, cancellationToken);
 
-        var session = _sessions.Create(reportPath, execution);
-        var resourceRoot = $"/api/sessions/{session.Id}/resources/";
-        var deviceInfo = new DeviceInfo(
-            HtmlFragment: true,
-            Toolbar: false,
-            ZoomPercent: session.ZoomPercent,
-            Section: session.CurrentPage,
-            ReplacementRoot: $"/api/sessions/{session.Id}/actions/",
-            ResourceStreamRoot: resourceRoot);
-
-        var render = await _ssrs.RenderAsync(execution, "HTML4.0", deviceInfo, cancellationToken);
-        session.CurrentPage = render.CurrentPage;
-        session.PageCount = render.PageCount;
-
-        var html = PrepareHtml(render, resourceRoot, deviceInfo.ReplacementRoot);
-
-        return new ViewReportResult(
-            session.Id,
-            html,
-            new PageInfo(render.CurrentPage, render.PageCount));
+        var session = _sessions.Create(reportPath, execution, parameters);
+        return await RenderSessionAsync(session, cancellationToken);
     }
 
-    public async Task<ViewReportResult> ToggleAsync(
+    public async Task<ViewReportResult> SetZoomAsync(
+        string sessionId,
+        int zoomPercent,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (zoomPercent is < 10 or > 500)
+        {
+            throw new InvalidViewerInteractionException($"Zoom percent '{zoomPercent}' is out of range (10-500).");
+        }
+
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                session.ZoomPercent = zoomPercent;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ViewReportResult> SetPageAsync(
+        string sessionId,
+        string action,
+        int? page,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var target = ResolveTargetPage(session, action, page);
+                if (target < 1 || target > Math.Max(1, session.PageCount))
+                {
+                    throw new InvalidViewerInteractionException(
+                        $"Report Page '{target}' is outside 1–{Math.Max(1, session.PageCount)}.");
+                }
+
+                session.CurrentPage = target;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ViewReportResult> RefreshAsync(
+        string sessionId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var execution = await _ssrs.LoadReportAsync(session.ReportPath, ct);
+                await _ssrs.SetParametersAsync(
+                    execution,
+                    session.Parameters,
+                    _options.DefaultCulture,
+                    ct);
+                session.ReplaceExecution(execution);
+                session.CurrentPage = 1;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public Task<ViewReportResult> ToggleAsync(
         string sessionId,
         string toggleId,
         ViewerSessionGuard guard,
@@ -86,30 +135,12 @@ public sealed class ReportViewerService
             throw new ArgumentException("toggleId is required.", nameof(toggleId));
         }
 
-        return await guard.ExecuteAsync(
+        return guard.ExecuteAsync(
             sessionId,
             async (session, ct) =>
             {
                 await _ssrs.ToggleItemAsync(session.Execution, toggleId, ct);
-
-                var resourceRoot = $"/api/sessions/{session.Id}/resources/";
-                var replacementRoot = $"/api/sessions/{session.Id}/actions/";
-                var deviceInfo = new DeviceInfo(
-                    HtmlFragment: true,
-                    Toolbar: false,
-                    ZoomPercent: session.ZoomPercent,
-                    Section: session.CurrentPage,
-                    ReplacementRoot: replacementRoot,
-                    ResourceStreamRoot: resourceRoot);
-
-                var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, ct);
-                session.CurrentPage = render.CurrentPage;
-
-                var html = PrepareHtml(render, resourceRoot, replacementRoot);
-                return new ViewReportResult(
-                    session.Id,
-                    html,
-                    new PageInfo(render.CurrentPage, render.PageCount));
+                return await RenderSessionAsync(session, ct);
             },
             cancellationToken);
     }
@@ -151,14 +182,42 @@ public sealed class ReportViewerService
                     session.PageCount = sort.PageCount;
                 }
 
-                var render = await RenderSessionHtmlAsync(session, ct);
-                return new ViewReportResult(
-                    session.Id,
-                    render.Html,
-                    new PageInfo(session.CurrentPage, session.PageCount));
+                return await RenderSessionAsync(session, ct);
             },
             cancellationToken);
     }
+    public Task<ViewReportResult> NavigateDocumentMapAsync(
+        string sessionId,
+        string documentMapId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateDocumentMapAsync(session.Execution, documentMapId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public Task<ViewReportResult> NavigateBookmarkAsync(
+        string sessionId,
+        string bookmarkId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateBookmarkAsync(session.Execution, bookmarkId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
     public async Task<ExportResult> ExportAsync(
         string sessionId,
         string format,
@@ -238,14 +297,14 @@ public sealed class ReportViewerService
             session.CurrentPage = foundPage;
         }
 
-        var render = await RenderSessionHtmlAsync(session, cancellationToken);
+        var render = await RenderSessionAsync(session, cancellationToken);
         return new FindResult(
             render.Html,
             found,
             new PageInfo(session.CurrentPage, session.PageCount));
     }
 
-    private async Task<(string Html, RenderResult Render)> RenderSessionHtmlAsync(
+    private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken)
     {
@@ -264,7 +323,24 @@ public sealed class ReportViewerService
         session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
-        return (html, render);
+        return new ViewReportResult(
+            session.Id,
+            html,
+            new PageInfo(render.CurrentPage, render.PageCount),
+            session.ZoomPercent,
+            render.DocumentMap);
+    }
+
+    private static int ResolveTargetPage(ViewerSession session, string action, int? page)
+    {
+        var normalized = action.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "next" => session.CurrentPage + 1,
+            "previous" or "prev" => session.CurrentPage - 1,
+            "goto" => page ?? throw new InvalidViewerInteractionException("page is required for goto."),
+            _ => throw new InvalidViewerInteractionException($"Unknown page action '{action}'."),
+        };
     }
 
     private static string NormalizeExportFormat(string format)
@@ -307,6 +383,11 @@ public sealed class ReportViewerService
     {
         var html = Encoding.UTF8.GetString(render.Content);
         html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        if (!string.IsNullOrEmpty(replacementRoot))
+        {
+            html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
+        }
+
         return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
 
@@ -328,7 +409,12 @@ public sealed class ReportViewerService
     }
 }
 
-public sealed record ViewReportResult(string SessionId, string Html, PageInfo PageInfo);
+public sealed record ViewReportResult(
+    string SessionId,
+    string Html,
+    PageInfo PageInfo,
+    int ZoomPercent,
+    IReadOnlyList<DocumentMapNode>? DocumentMap);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 
@@ -345,4 +431,12 @@ public sealed class UnsupportedExportFormatException : Exception
     }
 
     public string Format { get; }
+}
+
+public sealed class InvalidViewerInteractionException : Exception
+{
+    public InvalidViewerInteractionException(string message)
+        : base(message)
+    {
+    }
 }

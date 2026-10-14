@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
-import type { FindResponse, RenderResponse } from './reportApi'
+import {
+  navigateDocumentMap,
+  type FindResponse,
+  type RenderResponse,
+} from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -80,6 +85,8 @@ function App() {
       sessionId: render.sessionId,
       html: result.html,
       pageInfo: result.pageInfo,
+      zoomPercent: render.zoomPercent,
+      documentMap: render.documentMap,
     })
   }
 
@@ -92,14 +99,35 @@ function App() {
     setSurfaceError(message || null)
   }, [])
 
+  const handleDocumentMapNavigate = useCallback(
+    async (id: string) => {
+      if (!render?.sessionId || busy) {
+        return
+      }
+
+      setBusy(true)
+      setSurfaceError(null)
+      try {
+        const next = await navigateDocumentMap(render.sessionId, id)
+        setRender(next)
+      } catch (err) {
+        setSurfaceError(err instanceof Error ? err.message : 'Document Map navigation failed')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [busy, render?.sessionId],
+  )
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, Sort,
-        External Links, Export, and Print. Export downloads the current Execution; Print uses the
-        browser on the HTML surface (PDF Export for high fidelity).
-      </p>
+
+    param($m)
+    # prefer integrate side for App if still conflicting - but we want both features in lede
+    "        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh, Find, Drilldown, Sort, Document Map, Bookmark Action Links, Export, and Print.`r`n"
+        </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
       </p>
@@ -120,7 +148,15 @@ function App() {
           </div>
           {render?.sessionId && (
             <div className="no-print">
-              <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
+              <ViewerToolbar
+                sessionId={render.sessionId}
+                pageInfo={render.pageInfo}
+                zoomPercent={render.zoomPercent}
+                busy={busy}
+                onUpdated={setRender}
+                onError={handleSurfaceError}
+                onBusyChange={setBusy}
+              />
               <FindToolbar
                 sessionId={render.sessionId}
                 busy={busy}
@@ -130,16 +166,40 @@ function App() {
               />
             </div>
           )}
-          <ReportSurface
-            html={render?.html ?? null}
-            sessionId={render?.sessionId ?? null}
-            pageInfo={render?.pageInfo ?? null}
-            busy={busy}
-            error={surfaceError}
-            onHtmlReplaced={handleHtmlReplaced}
-            onError={handleSurfaceError}
-            onBusyChange={setBusy}
-          />
+          {render ? (
+            <div className="viewer-layout">
+              <div className="no-print">
+                <DocumentMapSidebar
+                  nodes={render.documentMap}
+                  busy={busy}
+                  onNavigate={(id) => {
+                    void handleDocumentMapNavigate(id)
+                  }}
+                />
+              </div>
+              <ReportSurface
+                html={render.html}
+                sessionId={render.sessionId}
+                pageInfo={render.pageInfo}
+                busy={busy}
+                error={surfaceError}
+                onHtmlReplaced={handleHtmlReplaced}
+                onError={handleSurfaceError}
+                onBusyChange={setBusy}
+              />
+            </div>
+          ) : (
+            <ReportSurface
+              html={null}
+              sessionId={null}
+              pageInfo={null}
+              busy={busy}
+              error={surfaceError}
+              onHtmlReplaced={handleHtmlReplaced}
+              onError={handleSurfaceError}
+              onBusyChange={setBusy}
+            />
+          )}
         </>
       )}
     </main>

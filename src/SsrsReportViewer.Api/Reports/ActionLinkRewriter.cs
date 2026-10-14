@@ -4,7 +4,7 @@ namespace SsrsReportViewer.Api.Reports;
 
 /// <summary>
 /// Rewrites SSRS Action Link URL shapes so the browser never targets ReportServer (ADR-0003).
-/// Drilldown / Sort links become data-attribute markers for Report Viewer delegation; External Links stay absolute.
+/// Drilldown / Sort / Bookmark links become data-attribute markers for Report Viewer delegation; External Links stay absolute.
 /// </summary>
 public static partial class ActionLinkRewriter
 {
@@ -23,6 +23,13 @@ public static partial class ActionLinkRewriter
                 var toggleId = Uri.UnescapeDataString(match.Groups["id"].Value);
                 var label = match.Groups["label"].Value;
                 return DrilldownAnchor(toggleId, label);
+            });
+
+            rewritten = ReplacementRootBookmarkRegex().Replace(rewritten, match =>
+            {
+                var bookmarkId = Uri.UnescapeDataString(match.Groups["id"].Value);
+                var label = match.Groups["label"].Value;
+                return BookmarkAnchor(bookmarkId, label);
             });
         }
 
@@ -104,6 +111,8 @@ public static partial class ActionLinkRewriter
         var clearValue = clear ? "true" : "false";
         return $"<a href=\"#\" data-ssrs-action=\"sort\" data-ssrs-sort-item=\"{EscapeAttr(sortItem)}\" data-ssrs-sort-direction=\"{EscapeAttr(direction)}\" data-ssrs-sort-clear=\"{clearValue}\">{label}</a>";
     }
+    private static string BookmarkAnchor(string bookmarkId, string label) =>
+        $"<a href=\"#\" data-ssrs-action=\"bookmark\" data-ssrs-bookmark-id=\"{EscapeAttr(bookmarkId)}\">{label}</a>";
 
     private static string ExternalAnchor(string href, string label) =>
         $"<a href=\"{EscapeAttr(href)}\" data-ssrs-action=\"external\" target=\"_blank\" rel=\"noopener noreferrer\">{label}</a>";
@@ -131,6 +140,11 @@ public static partial class ActionLinkRewriter
         """<a\s+href="(?<root>[^"]*?)\?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootToggleRegex();
+
+    [GeneratedRegex(
+        """<a\s+href="[^"]*?/actions/bookmark/(?<id>[^"?#]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex ReplacementRootBookmarkRegex();
 
     [GeneratedRegex(
         """<a\s+href="[^"]*ReportServer[^"]*[?&](?:amp;)?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",

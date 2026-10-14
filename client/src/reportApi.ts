@@ -31,11 +31,18 @@ export type PageInfo = {
 }
 
 export type SortDirection = 'Ascending' | 'Descending' | 'None'
+export type DocumentMapNode = {
+  id: string
+  label: string
+  children: DocumentMapNode[]
+}
 
 export type RenderResponse = {
   sessionId: string
   html: string
   pageInfo: PageInfo
+  zoomPercent: number
+  documentMap: DocumentMapNode[] | null
 }
 
 async function readProblemDetail(response: Response): Promise<string> {
@@ -73,6 +80,38 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
+async function postSessionAction(
+  sessionId: string,
+  action: string,
+  body: unknown,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+
+export function setZoom(sessionId: string, zoomPercent: number): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'zoom', { zoomPercent })
+}
+
+export function setReportPage(
+  sessionId: string,
+  action: 'next' | 'previous' | 'goto',
+  page?: number,
+): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'page', { action, page })
+}
+
+export function refreshReport(sessionId: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'refresh', {})
+}
+
 export async function toggleDrilldown(
   sessionId: string,
   toggleId: string,
@@ -87,6 +126,37 @@ export async function toggleDrilldown(
   }
   return (await response.json()) as RenderResponse
 }
+
+export async function navigateDocumentMap(
+  sessionId: string,
+  id: string,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/document-map`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+
+export async function navigateBookmark(
+  sessionId: string,
+  id: string,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/bookmark`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+
 export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
 
 function fileNameFromContentDisposition(header: string | null, fallback: string): string {

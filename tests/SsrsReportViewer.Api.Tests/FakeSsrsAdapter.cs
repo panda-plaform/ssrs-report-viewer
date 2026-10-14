@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 using SsrsReportViewer.Api.Ssrs;
@@ -17,6 +17,11 @@ public sealed record FakeReportParameter(
     IReadOnlyList<string>? Dependencies = null);
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
+
+public sealed record FakeDocumentMapNode(
+    string Id,
+    string Label,
+    IReadOnlyList<FakeDocumentMapNode>? Children = null);
 
 /// <summary>
 /// In-memory SSRS adapter for API tests. Catalog + Report Parameter + Execution behaviors.
@@ -68,17 +73,28 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         IReadOnlyList<FakeReportParameter> parameters,
         string html = "<div class=\"report\">ok</div>",
         IReadOnlyList<FakeStream>? streams = null,
-        IReadOnlyList<string>? pageHtml = null)
+        IReadOnlyList<FakeDocumentMapNode>? documentMap = null,
+        IReadOnlyDictionary<string, string>? documentMapHtml = null,
+        IReadOnlyDictionary<string, string>? bookmarkHtml = null,
+        IReadOnlyList<string>? pageHtml = null,
+        int pageCount = 1)
     {
         var path = NormalizePath(reportPath);
         var pages = pageHtml is { Count: > 0 }
             ? pageHtml.ToList()
-            : [html];
+            : Enumerable.Repeat(html, Math.Max(1, pageCount)).ToList();
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
             pages,
-            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal));
+            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal),
+            documentMap?.ToList(),
+            documentMapHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(documentMapHtml, StringComparer.Ordinal),
+            bookmarkHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(bookmarkHtml, StringComparer.Ordinal));
     }
 
     public Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default)
@@ -186,7 +202,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             page = pageCount;
         }
 
-        var html = exec.Report.PageHtml[page - 1];
+        var html = exec.ActiveHtml ?? exec.Report.PageHtml[page - 1];
         foreach (var (name, values) in exec.Parameters)
         {
             html = html.Replace($"{{{{{name}}}}}", string.Join(",", values), StringComparison.OrdinalIgnoreCase);
@@ -230,9 +246,20 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             html += $"<!-- resources:{deviceInfo.ResourceStreamRoot} -->";
         }
 
+        // Expose DeviceInfo Zoom / Section and Execution id so HTTP tests can assert SSRS re-render.
+        html =
+            $"<div data-exec=\"{exec.Id}\" data-zoom=\"{deviceInfo.ZoomPercent}\" data-page=\"{page}\">{html}</div>";
+
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
-        return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: pageCount, CurrentPage: page));
+        var documentMap = ToDocumentMap(exec.Report.DocumentMap);
+        return Task.FromResult(new RenderResult(
+            bytes,
+            "text/html",
+            streamIds,
+            PageCount: pageCount,
+            CurrentPage: page,
+            DocumentMap: documentMap));
     }
 
     public Task<int> FindStringAsync(
@@ -245,6 +272,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         cancellationToken.ThrowIfCancellationRequested();
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
+        // Find repositions by page; drop Document Map / Bookmark HTML overrides.
+        exec.ActiveHtml = null;
 
         if (string.IsNullOrEmpty(findValue))
         {
@@ -382,6 +411,58 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         return new StreamResult(stream.Content, stream.MimeType);
     }
 
+    public Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.DocumentMapHtml.TryGetValue(documentMapId, out var html))
+        {
+            html = $"<div class=\"report\" data-section=\"{documentMapId}\">Document Map {documentMapId}</div>";
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    public Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.BookmarkHtml.TryGetValue(bookmarkId, out var html))
+        {
+            throw new InvalidOperationException($"Unknown Bookmark '{bookmarkId}'.");
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    private static IReadOnlyList<DocumentMapNode>? ToDocumentMap(IReadOnlyList<FakeDocumentMapNode>? nodes)
+    {
+        if (nodes is null || nodes.Count == 0)
+        {
+            return null;
+        }
+
+        return nodes.Select(MapNode).ToArray();
+    }
+
+    private static DocumentMapNode MapNode(FakeDocumentMapNode node) =>
+        new(
+            node.Id,
+            node.Label,
+            (node.Children ?? []).Select(MapNode).ToArray());
+
     private SeededReport RequireReport(string reportPath)
     {
         var path = NormalizePath(reportPath);
@@ -421,7 +502,10 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         string Path,
         IReadOnlyList<FakeReportParameter> Parameters,
         IReadOnlyList<string> PageHtml,
-        Dictionary<string, FakeStream> Streams);
+        Dictionary<string, FakeStream> Streams,
+        IReadOnlyList<FakeDocumentMapNode>? DocumentMap,
+        Dictionary<string, string> DocumentMapHtml,
+        Dictionary<string, string> BookmarkHtml);
 
     private sealed record ActiveSort(string SortItem, SortDirection Direction);
 
@@ -437,6 +521,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         public Dictionary<string, IReadOnlyList<string>> Parameters { get; } = Parameters;
         public HashSet<string> ToggledItems { get; } = ToggledItems;
         public ActiveSort? ActiveSort { get; set; } = ActiveSort;
+        public string? ActiveHtml { get; set; }
     }
 
     [GeneratedRegex(@"\{toggle:([^}]+)\}", RegexOptions.CultureInvariant)]
