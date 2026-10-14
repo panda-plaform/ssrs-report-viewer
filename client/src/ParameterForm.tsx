@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { seedFormFromExecution } from './executionParameterSeed'
 import {
   fetchParameters,
   viewReport,
+  type ParameterSubmission,
   type ReportParameter,
   type RenderResponse,
 } from './reportApi'
@@ -9,8 +11,15 @@ import { toParameterSubmissions } from './parameterSubmissions'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
+type ExecutionParameterSeed = {
+  key: number
+  reportPath: string
+  parameters: ParameterSubmission[]
+}
+
 type Props = {
   reportPath: string
+  executionSeed?: ExecutionParameterSeed | null
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onBackToCatalog?: () => void
@@ -83,6 +92,7 @@ function mergeCascadedValues(
 
 export function ParameterForm({
   reportPath,
+  executionSeed = null,
   onViewed,
   onClearSurface,
   onBackToCatalog,
@@ -96,6 +106,8 @@ export function ParameterForm({
   const skipCascadeRef = useRef(true)
   const valuesRef = useRef(values)
   const nullCheckedRef = useRef(nullChecked)
+  const executionSeedRef = useRef(executionSeed)
+  const appliedSeedKeyRef = useRef<number | null>(null)
 
   useEffect(() => {
     valuesRef.current = values
@@ -103,8 +115,13 @@ export function ParameterForm({
   }, [values, nullChecked])
 
   useEffect(() => {
+    executionSeedRef.current = executionSeed
+  }, [executionSeed])
+
+  useEffect(() => {
     let cancelled = false
     skipCascadeRef.current = true
+    appliedSeedKeyRef.current = null
 
     async function load() {
       setLoadState('loading')
@@ -113,9 +130,18 @@ export function ParameterForm({
       try {
         const response = await fetchParameters(reportPath)
         if (!cancelled) {
+          const seed = executionSeedRef.current
+          const useSeed = seed !== null && seed.reportPath === reportPath
+          const seeded = useSeed
+            ? seedFormFromExecution(response.parameters, seed.parameters)
+            : {
+                values: initialValues(response.parameters),
+                nullChecked: initialNullChecked(response.parameters),
+              }
           setParameters(response.parameters)
-          setValues(initialValues(response.parameters))
-          setNullChecked(initialNullChecked(response.parameters))
+          setValues(seeded.values)
+          setNullChecked(seeded.nullChecked)
+          appliedSeedKeyRef.current = useSeed ? seed.key : null
           setLoadState('ok')
         }
       } catch (err) {
@@ -134,6 +160,22 @@ export function ParameterForm({
       cancelled = true
     }
   }, [reportPath])
+
+  useEffect(() => {
+    if (loadState !== 'ok' || !executionSeed || executionSeed.reportPath !== reportPath) {
+      return
+    }
+
+    if (appliedSeedKeyRef.current === executionSeed.key) {
+      return
+    }
+
+    skipCascadeRef.current = true
+    const seeded = seedFormFromExecution(parameters, executionSeed.parameters)
+    setValues(seeded.values)
+    setNullChecked(seeded.nullChecked)
+    appliedSeedKeyRef.current = executionSeed.key
+  }, [executionSeed, loadState, parameters, reportPath])
 
   const cascadeKey = useMemo(
     () => dependencyFingerprint(parameters, values, nullChecked),

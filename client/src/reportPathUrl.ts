@@ -24,3 +24,8 @@ export function catalogSearch(): string {
 export function viewerModeFromReportPath(reportPath: string | null): ViewerMode {
   return reportPath ? 'report' : 'catalog'
 }
+
+/** True when Drillthrough/Back should replaceState `?path=` to match the open Report. */
+export function openReportPathDiffers(currentSearch: string, nextReportPath: string): boolean {
+  return readReportPathFromSearch(currentSearch) !== nextReportPath
+}

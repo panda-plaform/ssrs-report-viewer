@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildReportPathSearch,
   catalogSearch,
+  openReportPathDiffers,
   readReportPathFromSearch,
   viewerModeFromReportPath,
 } from './reportPathUrl'
@@ -55,5 +56,19 @@ describe('viewerModeFromReportPath', () => {
 
   it('is report when a Report path is present', () => {
     expect(viewerModeFromReportPath('/Sales/Monthly')).toBe('report')
+  })
+})
+
+describe('openReportPathDiffers', () => {
+  it('is true when Drillthrough/Back target differs from current ?path=', () => {
+    expect(openReportPathDiffers('?path=%2FSales%2FMonthly', '/Sales/Detail')).toBe(true)
+  })
+
+  it('is false when the open Report path is already in the URL', () => {
+    expect(openReportPathDiffers('?path=%2FSales%2FDetail', '/Sales/Detail')).toBe(false)
+  })
+
+  it('is true when Catalog has no path and a Report becomes open', () => {
+    expect(openReportPathDiffers('', '/Sales/Detail')).toBe(true)
   })
 })

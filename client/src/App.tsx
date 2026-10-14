@@ -8,15 +8,24 @@ import { ViewerToolbar } from './ViewerToolbar'
 import {
   navigateDocumentMap,
   type FindResponse,
+  type ParameterSubmission,
   type RenderResponse,
 } from './reportApi'
+import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   buildReportPathSearch,
   catalogSearch,
+  openReportPathDiffers,
   readReportPathFromSearch,
   viewerModeFromReportPath,
 } from './reportPathUrl'
 import './App.css'
+
+type ExecutionParameterSeed = {
+  key: number
+  reportPath: string
+  parameters: ParameterSubmission[]
+}
 
 type HealthResponse = {
   status: string
@@ -33,6 +42,7 @@ function App() {
   const [render, setRender] = useState<RenderResponse | null>(null)
   const [surfaceError, setSurfaceError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [executionSeed, setExecutionSeed] = useState<ExecutionParameterSeed | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -71,6 +81,7 @@ function App() {
     setRender(null)
     setSurfaceError(null)
     setBusy(false)
+    setExecutionSeed(null)
   }, [])
 
   const clearReportView = useCallback(() => {
@@ -133,10 +144,32 @@ function App() {
     })
   }
 
-  const handleHtmlReplaced = useCallback((result: RenderResponse) => {
-    setSurfaceError(null)
-    setRender(result)
-  }, [])
+  const handleHtmlReplaced = useCallback(
+    (result: RenderResponse, options?: HtmlReplacedOptions) => {
+      setSurfaceError(null)
+      setRender(result)
+
+      if (!options?.syncOpenReport) {
+        return
+      }
+
+      if (openReportPathDiffers(window.location.search, result.reportPath)) {
+        window.history.replaceState(
+          { reportPath: result.reportPath },
+          '',
+          buildReportPathSearch(result.reportPath),
+        )
+      }
+
+      setSelectedReportPath(result.reportPath)
+      setExecutionSeed((previous) => ({
+        key: (previous?.key ?? 0) + 1,
+        reportPath: result.reportPath,
+        parameters: result.parameters,
+      }))
+    },
+    [],
+  )
 
   const handleSurfaceError = useCallback((message: string) => {
     setSurfaceError(message || null)
@@ -197,6 +230,7 @@ function App() {
               </div>
               <ParameterForm
                 reportPath={selectedReportPath}
+                executionSeed={executionSeed}
                 onViewed={handleViewed}
                 onClearSurface={clearSurface}
                 onBackToCatalog={handleBackToCatalog}

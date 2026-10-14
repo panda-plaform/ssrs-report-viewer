@@ -11,6 +11,11 @@ import {
   type SortDirection,
 } from './reportApi'
 
+export type HtmlReplacedOptions = {
+  /** Drillthrough / in-app Back: sync `?path=` (replaceState) and reseed parameters. */
+  syncOpenReport?: boolean
+}
+
 type Props = {
   html: string | null
   sessionId: string | null
@@ -18,7 +23,7 @@ type Props = {
   canGoBack: boolean
   busy: boolean
   error: string | null
-  onHtmlReplaced: (result: RenderResponse) => void
+  onHtmlReplaced: (result: RenderResponse, options?: HtmlReplacedOptions) => void
   onError: (message: string) => void
   onBusyChange: (busy: boolean) => void
 }
@@ -60,6 +65,7 @@ export function ReportSurface({
     async function runSessionAction(
       work: () => Promise<RenderResponse>,
       failureLabel: string,
+      options?: HtmlReplacedOptions,
     ): Promise<void> {
       if (busy) {
         return
@@ -68,7 +74,7 @@ export function ReportSurface({
       onBusyChange(true)
       try {
         const result = await work()
-        onHtmlReplaced(result)
+        onHtmlReplaced(result, options)
       } catch (err) {
         onError(err instanceof Error ? err.message : failureLabel)
       } finally {
@@ -131,6 +137,7 @@ export function ReportSurface({
         await runSessionAction(
           () => drillthroughReport(activeSessionId, reportPath, parameters),
           'Drillthrough failed',
+          { syncOpenReport: true },
         )
         return
       }
@@ -205,7 +212,7 @@ export function ReportSurface({
     onBusyChange(true)
     try {
       const result = await goBack(sessionId)
-      onHtmlReplaced(result)
+      onHtmlReplaced(result, { syncOpenReport: true })
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Back failed')
     } finally {
