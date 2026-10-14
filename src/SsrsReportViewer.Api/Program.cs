@@ -242,13 +242,13 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
         return Results.File(stream.Content, stream.MimeType);
     }));
 
-// Drilldown toggle (glossary alias: Drilldown ↔ ReportExecution2005 ToggleItem). Path stays /toggle.
-app.MapPost("/api/sessions/{sessionId}/toggle", async (
+// Drilldown (glossary) — keep /toggle as backward-compatible alias for ToggleItem.
+async Task<IResult> DrilldownToggleAsync(
     string sessionId,
     ToggleRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
-    CancellationToken cancellationToken) =>
+    CancellationToken cancellationToken)
 {
     if (string.IsNullOrWhiteSpace(request.ToggleId))
     {
@@ -263,7 +263,10 @@ app.MapPost("/api/sessions/{sessionId}/toggle", async (
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
     });
-});
+}
+
+app.MapPost("/api/sessions/{sessionId}/drilldown", DrilldownToggleAsync);
+app.MapPost("/api/sessions/{sessionId}/toggle", DrilldownToggleAsync);
 
 app.MapPost("/api/sessions/{sessionId}/sort", async (
     string sessionId,

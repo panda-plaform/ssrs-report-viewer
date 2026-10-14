@@ -5,7 +5,7 @@ type Props = {
   sessionId: string
   busy: boolean
   onResult: (result: FindResponse) => void
-  onError: (message: string) => void
+  onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
 }
 
@@ -37,7 +37,7 @@ export function FindToolbar({ sessionId, busy, onResult, onError, onBusyChange }
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Find failed'
-      onError(message)
+      onError(error instanceof Error ? error : message)
       setStatus(message)
     } finally {
       onBusyChange(false)

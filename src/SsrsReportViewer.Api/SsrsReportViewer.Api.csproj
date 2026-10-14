@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,5 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>1df0120e-2e82-4a35-9253-135157c9e23b</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SsrsReportViewer.Api.Tests" />
+  </ItemGroup>
 
 </Project>

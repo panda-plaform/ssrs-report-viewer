@@ -60,7 +60,37 @@ public sealed class ToggleEndpointTests : IClassFixture<ApiFactory>
         Assert.Contains("data-ssrs-action=\"drilldown\"", toggled.Html, StringComparison.Ordinal);
     }
 
+    
     [Fact]
+    public async Task Post_drilldown_alias_matches_toggle_behavior()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <div class="report">
+                    <a href="{ReplacementRoot}?rc:Toggle=Details1">Toggle Details</a>
+                    <div class="detail" data-toggle="Details1" data-state="{toggle:Details1}">detail-body</div>
+                  </div>
+                  """);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(rendered);
+
+        var drilldown = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/drilldown",
+            new { toggleId = "Details1" });
+
+        Assert.Equal(HttpStatusCode.OK, drilldown.StatusCode);
+        var body = await drilldown.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(body);
+        Assert.Contains("data-state=\"expanded\"", body.Html, StringComparison.Ordinal);
+    }
+
+[Fact]
     public async Task Post_toggle_returns_problem_details_when_session_missing()
     {
         var response = await _client.PostAsJsonAsync(
