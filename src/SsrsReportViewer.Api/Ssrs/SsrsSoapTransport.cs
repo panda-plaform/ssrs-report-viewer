@@ -15,8 +15,12 @@ public sealed class SsrsSoapTransport : IDisposable
     public const string ManagementNamespace =
         "http://schemas.microsoft.com/sqlserver/reporting/2010/03/01/ReportServer";
 
+    /// <summary>
+    /// ReportExecution2005 target namespace as advertised by ReportExecution2005.asmx?wsdl.
+    /// (Not the older docs URI …/reporting/2005/06/01/reportingservices — that SOAPAction is rejected.)
+    /// </summary>
     public const string ExecutionNamespace =
-        "http://schemas.microsoft.com/sqlserver/reporting/2005/06/01/reportingservices";
+        "http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices";
 
     private static readonly XNamespace SoapNs = "http://schemas.xmlsoap.org/soap/envelope/";
     private static readonly XNamespace XsiNs = "http://www.w3.org/2001/XMLSchema-instance";
