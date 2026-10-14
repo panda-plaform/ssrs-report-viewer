@@ -55,6 +55,25 @@ export function ReportSurface({
       return
     }
 
+    async function runSessionAction(
+      work: () => Promise<RenderResponse>,
+      failureLabel: string,
+    ): Promise<void> {
+      if (busy || !sessionId) {
+        return
+      }
+
+      onBusyChange(true)
+      try {
+        const result = await work()
+        onHtmlReplaced(result)
+      } catch (err) {
+        onError(err instanceof Error ? err.message : failureLabel)
+      } finally {
+        onBusyChange(false)
+      }
+    }
+
     async function handleClick(event: MouseEvent) {
       const root = containerRef.current
       if (!root) {
@@ -76,39 +95,24 @@ export function ReportSurface({
       if (action === 'drilldown') {
         event.preventDefault()
         event.stopPropagation()
-
-        if (busy) {
-          return
-        }
-
         const toggleId = anchor.getAttribute('data-ssrs-toggle-id')
-        if (!toggleId || !sessionId) {
+        if (!toggleId) {
           return
         }
 
-        onBusyChange(true)
-        try {
-          const result = await toggleDrilldown(sessionId, toggleId)
-          onHtmlReplaced(result)
-        } catch (err) {
-          onError(err instanceof Error ? err.message : 'Drilldown toggle failed')
-        } finally {
-          onBusyChange(false)
-        }
+        await runSessionAction(
+          () => toggleDrilldown(sessionId, toggleId),
+          'Drilldown toggle failed',
+        )
         return
       }
 
       if (action === 'drillthrough') {
         event.preventDefault()
         event.stopPropagation()
-
-        if (busy) {
-          return
-        }
-
         const reportPath = anchor.getAttribute('data-ssrs-report-path')
         const paramsAttr = anchor.getAttribute('data-ssrs-parameters')
-        if (!reportPath || !sessionId) {
+        if (!reportPath) {
           return
         }
 
@@ -122,31 +126,20 @@ export function ReportSurface({
           }
         }
 
-        onBusyChange(true)
-        try {
-          const result = await drillthroughReport(sessionId, reportPath, parameters)
-          onHtmlReplaced(result)
-        } catch (err) {
-          onError(err instanceof Error ? err.message : 'Drillthrough failed')
-        } finally {
-          onBusyChange(false)
-        }
+        await runSessionAction(
+          () => drillthroughReport(sessionId, reportPath, parameters),
+          'Drillthrough failed',
+        )
         return
       }
 
-      
       if (action === 'sort') {
         event.preventDefault()
         event.stopPropagation()
-
-        if (busy) {
-          return
-        }
-
         const sortItem = anchor.getAttribute('data-ssrs-sort-item')
         const directionAttr = anchor.getAttribute('data-ssrs-sort-direction') ?? 'Ascending'
         const clear = anchor.getAttribute('data-ssrs-sort-clear') === 'true'
-        if (!sortItem || !sessionId) {
+        if (!sortItem) {
           return
         }
 
@@ -156,39 +149,25 @@ export function ReportSurface({
             : 'Ascending'
         ) as SortDirection
 
-        onBusyChange(true)
-        try {
-          const result = await sortReport(sessionId, sortItem, direction, clear)
-          onHtmlReplaced(result)
-        } catch (err) {
-          onError(err instanceof Error ? err.message : 'Sort failed')
-        } finally {
-          onBusyChange(false)
-        }
+        await runSessionAction(
+          () => sortReport(sessionId, sortItem, direction, clear),
+          'Sort failed',
+        )
         return
       }
-if (action === 'bookmark') {
+
+      if (action === 'bookmark') {
         event.preventDefault()
         event.stopPropagation()
-
-        if (busy) {
-          return
-        }
-
         const bookmarkId = anchor.getAttribute('data-ssrs-bookmark-id')
-        if (!bookmarkId || !sessionId) {
+        if (!bookmarkId) {
           return
         }
 
-        onBusyChange(true)
-        try {
-          const result = await navigateBookmark(sessionId, bookmarkId)
-          onHtmlReplaced(result)
-        } catch (err) {
-          onError(err instanceof Error ? err.message : 'Bookmark navigation failed')
-        } finally {
-          onBusyChange(false)
-        }
+        await runSessionAction(
+          () => navigateBookmark(sessionId, bookmarkId),
+          'Bookmark navigation failed',
+        )
         return
       }
 
@@ -247,7 +226,7 @@ if (action === 'bookmark') {
         )}
         {sessionId && (
           <p className="report-session" aria-label="Viewer Session id">
-            Session {sessionId}
+            Viewer Session {sessionId}
           </p>
         )}
         {canGoBack && (

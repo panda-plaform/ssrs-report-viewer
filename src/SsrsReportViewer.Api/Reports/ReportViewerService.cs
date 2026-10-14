@@ -306,12 +306,7 @@ public sealed class ReportViewerService
             sessionId,
             async (session, ct) =>
             {
-                var deviceInfo = new DeviceInfo(
-                    HtmlFragment: true,
-                    Toolbar: false,
-                    ZoomPercent: session.ZoomPercent,
-                    Section: session.CurrentPage);
-
+                var deviceInfo = CreateDeviceInfo(session, includeActionRoots: false);
                 var render = await _ssrs.RenderAsync(session.Execution, normalized, deviceInfo, ct);
                 var fileName = BuildExportFileName(session.ReportPath, normalized);
                 return new ExportResult(render.Content, render.MimeType, fileName);
@@ -387,13 +382,7 @@ public sealed class ReportViewerService
     {
         var resourceRoot = $"/api/sessions/{session.Id}/resources/";
         var replacementRoot = $"/api/sessions/{session.Id}/actions/";
-        var deviceInfo = new DeviceInfo(
-            HtmlFragment: true,
-            Toolbar: false,
-            ZoomPercent: session.ZoomPercent,
-            Section: session.CurrentPage,
-            ReplacementRoot: replacementRoot,
-            ResourceStreamRoot: resourceRoot);
+        var deviceInfo = CreateDeviceInfo(session, includeActionRoots: true);
 
         var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, cancellationToken);
         session.CurrentPage = render.CurrentPage;
@@ -407,6 +396,25 @@ public sealed class ReportViewerService
             session.ZoomPercent,
             session.CanGoBack,
             render.DocumentMap);
+    }
+
+    private static DeviceInfo CreateDeviceInfo(ViewerSession session, bool includeActionRoots)
+    {
+        string? resourceRoot = null;
+        string? replacementRoot = null;
+        if (includeActionRoots)
+        {
+            resourceRoot = $"/api/sessions/{session.Id}/resources/";
+            replacementRoot = $"/api/sessions/{session.Id}/actions/";
+        }
+
+        return new DeviceInfo(
+            HtmlFragment: true,
+            Toolbar: false,
+            ZoomPercent: session.ZoomPercent,
+            Section: session.CurrentPage,
+            ReplacementRoot: replacementRoot,
+            ResourceStreamRoot: resourceRoot);
     }
 
     private static int ResolveTargetPage(ViewerSession session, string action, int? page)

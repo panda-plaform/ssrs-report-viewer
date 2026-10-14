@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchParameters,
   viewReport,
@@ -29,15 +29,64 @@ function initialValues(parameters: ReportParameter[]): Record<string, string[]> 
   return values
 }
 
+function toSubmissions(
+  parameters: ReportParameter[],
+  values: Record<string, string[]>,
+): ParameterSubmission[] {
+  return parameters.map((parameter) => ({
+    name: parameter.name,
+    values: (values[parameter.name] ?? []).filter((value) => value.trim().length > 0),
+  }))
+}
+
+function dependencyFingerprint(
+  parameters: ReportParameter[],
+  values: Record<string, string[]>,
+): string {
+  const dependencyNames = new Set(parameters.flatMap((p) => p.dependencies ?? []))
+  if (dependencyNames.size === 0) {
+    return ''
+  }
+
+  return parameters
+    .filter((p) => dependencyNames.has(p.name))
+    .map((p) => `${p.name}=${(values[p.name] ?? []).join('\u001f')}`)
+    .join('|')
+}
+
+function mergeCascadedValues(
+  parameters: ReportParameter[],
+  previous: Record<string, string[]>,
+): Record<string, string[]> {
+  const next = { ...previous }
+  for (const parameter of parameters) {
+    const current = next[parameter.name] ?? []
+    if (parameter.validValues.length === 0) {
+      continue
+    }
+
+    const allowed = new Set(parameter.validValues.map((v) => v.value))
+    const filtered = current.filter((value) => allowed.has(value))
+    if (filtered.length !== current.length) {
+      next[parameter.name] = filtered.length > 0 ? filtered : parameter.multiValue ? [] : ['']
+    }
+  }
+  return next
+}
+
 export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [parameters, setParameters] = useState<ReportParameter[]>([])
   const [values, setValues] = useState<Record<string, string[]>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const skipCascadeRef = useRef(true)
+  const valuesRef = useRef(values)
+  valuesRef.current = values
 
   useEffect(() => {
     let cancelled = false
+    skipCascadeRef.current = true
 
     async function load() {
       setLoadState('loading')
@@ -66,6 +115,46 @@ export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
     }
   }, [reportPath])
 
+  const cascadeKey = useMemo(
+    () => dependencyFingerprint(parameters, values),
+    [parameters, values],
+  )
+
+  useEffect(() => {
+    if (loadState !== 'ok' || !cascadeKey) {
+      return
+    }
+
+    if (skipCascadeRef.current) {
+      skipCascadeRef.current = false
+      return
+    }
+
+    let cancelled = false
+
+    async function refreshCascading() {
+      try {
+        const submissions = toSubmissions(parameters, valuesRef.current)
+        const response = await fetchParameters(reportPath, submissions)
+        if (cancelled) {
+          return
+        }
+
+        setParameters(response.parameters)
+        setValues((current) => mergeCascadedValues(response.parameters, current))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to refresh cascading parameters')
+        }
+      }
+    }
+
+    void refreshCascading()
+    return () => {
+      cancelled = true
+    }
+  }, [cascadeKey, loadState, parameters, reportPath])
+
   function setSingleValue(name: string, value: string) {
     setValues((current) => ({ ...current, [name]: [value] }))
   }
@@ -84,10 +173,7 @@ export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
     setSubmitting(true)
     setError(null)
 
-    const submissions: ParameterSubmission[] = parameters.map((parameter) => ({
-      name: parameter.name,
-      values: (values[parameter.name] ?? []).filter((value) => value.trim().length > 0),
-    }))
+    const submissions = toSubmissions(parameters, values)
 
     try {
       const result = await viewReport(reportPath, submissions)

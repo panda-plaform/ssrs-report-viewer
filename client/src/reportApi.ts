@@ -57,8 +57,14 @@ async function readProblemDetail(response: Response): Promise<string> {
   return detail
 }
 
-export async function fetchParameters(path: string): Promise<ParametersResponse> {
+export async function fetchParameters(
+  path: string,
+  currentValues?: ParameterSubmission[],
+): Promise<ParametersResponse> {
   const query = new URLSearchParams({ path })
+  if (currentValues && currentValues.length > 0) {
+    query.set('values', JSON.stringify(currentValues))
+  }
   const response = await fetch(`/api/reports/parameters?${query}`)
   if (!response.ok) {
     throw new Error(await readProblemDetail(response))
@@ -84,13 +90,14 @@ export async function viewReport(
 async function postSessionAction(
   sessionId: string,
   action: string,
-  body: unknown,
+  body?: unknown,
 ): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  })
+  const init: RequestInit = { method: 'POST' }
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = JSON.stringify(body)
+  }
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, init)
   if (!response.ok) {
     throw new Error(await readProblemDetail(response))
   }
@@ -113,79 +120,37 @@ export function refreshReport(sessionId: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'refresh', {})
 }
 
-export async function toggleDrilldown(
-  sessionId: string,
-  toggleId: string,
-): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/toggle`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ toggleId }),
-  })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
+export function toggleDrilldown(sessionId: string, toggleId: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'toggle', { toggleId })
 }
 
-export async function drillthroughReport(
+export function drillthroughReport(
   sessionId: string,
   reportPath: string,
   parameters: ParameterSubmission[],
 ): Promise<RenderResponse> {
-  const response = await fetch(
-    `/api/sessions/${encodeURIComponent(sessionId)}/drillthrough`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportPath, parameters }),
-    },
-  )
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
+  return postSessionAction(sessionId, 'drillthrough', { reportPath, parameters })
 }
 
-export async function goBack(sessionId: string): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/back`, {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
+export function goBack(sessionId: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'back')
 }
 
+export function navigateDocumentMap(sessionId: string, id: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'document-map', { id })
+}
 
-export async function navigateDocumentMap(
+export function navigateBookmark(sessionId: string, id: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'bookmark', { id })
+}
+
+export function sortReport(
   sessionId: string,
-  id: string,
+  sortItem: string,
+  direction: SortDirection,
+  clear = false,
 ): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/document-map`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
-  })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
-}
-
-export async function navigateBookmark(
-  sessionId: string,
-  id: string,
-): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/bookmark`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
-  })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
+  return postSessionAction(sessionId, 'sort', { sortItem, direction, clear })
 }
 
 export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
@@ -267,21 +232,3 @@ export function findInReport(sessionId: string, findValue: string): Promise<Find
 export function findNextInReport(sessionId: string, findValue: string): Promise<FindResponse> {
   return postFind(sessionId, 'find/next', findValue)
 }
-
-export async function sortReport(
-  sessionId: string,
-  sortItem: string,
-  direction: SortDirection,
-  clear = false,
-): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/sort`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sortItem, direction, clear }),
-  })
-  if (!response.ok) {
-    throw new Error(await readProblemDetail(response))
-  }
-  return (await response.json()) as RenderResponse
-}
-

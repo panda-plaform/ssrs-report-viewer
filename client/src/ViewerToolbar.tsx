@@ -65,6 +65,11 @@ export function ViewerToolbar({
   }
 
   async function handleExport(format: ExportFormat) {
+    if (busy) {
+      return
+    }
+
+    onBusyChange(true)
     setBusyFormat(format)
     onError('')
     try {
@@ -73,6 +78,7 @@ export function ViewerToolbar({
       onError(err instanceof Error ? err.message : 'Export failed')
     } finally {
       setBusyFormat(null)
+      onBusyChange(false)
     }
   }
 

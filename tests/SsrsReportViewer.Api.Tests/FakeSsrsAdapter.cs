@@ -14,7 +14,8 @@ public sealed record FakeReportParameter(
     bool Required,
     IReadOnlyList<string>? DefaultValues = null,
     IReadOnlyList<(string Label, string Value)>? ValidValues = null,
-    IReadOnlyList<string>? Dependencies = null);
+    IReadOnlyList<string>? Dependencies = null,
+    IReadOnlyDictionary<string, IReadOnlyList<(string Label, string Value)>>? CascadingByDependencyValue = null);
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
 
@@ -48,6 +49,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
+    /// <summary>Optional delay applied inside ToggleItemAsync (busy serialization tests).</summary>
+    public TimeSpan ToggleDelay { get; set; } = TimeSpan.Zero;
+
     public void Reset()
     {
         _catalog.Clear();
@@ -55,6 +59,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         _executions.Clear();
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
+        ToggleDelay = TimeSpan.Zero;
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
     }
@@ -128,21 +133,50 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         var report = RequireReport(reportPath);
 
         IReadOnlyList<ReportParameterDefinition> defs = report.Parameters
-            .Select(p => new ReportParameterDefinition(
-                p.Name,
-                p.DataType,
-                p.Nullable,
-                p.MultiValue,
-                p.Required,
-                p.Prompt,
-                p.DefaultValues ?? [],
-                (p.ValidValues ?? []).Select(v => new ReportParameterValidValue(v.Label, v.Value)).ToArray(),
-                p.Dependencies ?? []))
+            .Select(p =>
+            {
+                var valid = ResolveValidValues(p, valuesForCascading);
+                return new ReportParameterDefinition(
+                    p.Name,
+                    p.DataType,
+                    p.Nullable,
+                    p.MultiValue,
+                    p.Required,
+                    p.Prompt,
+                    p.DefaultValues ?? [],
+                    valid.Select(v => new ReportParameterValidValue(v.Label, v.Value)).ToArray(),
+                    p.Dependencies ?? []);
+            })
             .ToArray();
 
-        // Cascading is best-effort: presence of valuesForCascading is enough for the seam.
-        _ = valuesForCascading;
         return Task.FromResult(defs);
+    }
+
+    private static IReadOnlyList<(string Label, string Value)> ResolveValidValues(
+        FakeReportParameter parameter,
+        IReadOnlyList<ParameterValue>? valuesForCascading)
+    {
+        if (parameter.CascadingByDependencyValue is null ||
+            valuesForCascading is null ||
+            valuesForCascading.Count == 0 ||
+            parameter.Dependencies is null ||
+            parameter.Dependencies.Count == 0)
+        {
+            return parameter.ValidValues ?? [];
+        }
+
+        var dependencyName = parameter.Dependencies[0];
+        var dependency = valuesForCascading.FirstOrDefault(v =>
+            string.Equals(v.Name, dependencyName, StringComparison.OrdinalIgnoreCase));
+        var key = dependency?.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+        if (key is null)
+        {
+            return parameter.ValidValues ?? [];
+        }
+
+        return parameter.CascadingByDependencyValue.TryGetValue(key, out var cascaded)
+            ? cascaded
+            : [];
     }
 
     public Task<ExecutionHandle> LoadReportAsync(string reportPath, CancellationToken cancellationToken = default)
@@ -346,7 +380,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         return new RenderResult(bytes, mime, StreamIds: [], PageCount: 1, CurrentPage: 1);
     }
 
-    public Task ToggleItemAsync(
+    public async Task ToggleItemAsync(
         ExecutionHandle execution,
         string toggleId,
         CancellationToken cancellationToken = default)
@@ -360,12 +394,15 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             throw new ArgumentException("toggleId is required.", nameof(toggleId));
         }
 
+        if (ToggleDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(ToggleDelay, cancellationToken);
+        }
+
         if (!exec.ToggledItems.Add(toggleId))
         {
             exec.ToggledItems.Remove(toggleId);
         }
-
-        return Task.CompletedTask;
     }
 
     public Task<SortResult> SortAsync(

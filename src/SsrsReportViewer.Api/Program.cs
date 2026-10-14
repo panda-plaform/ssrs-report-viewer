@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SsrsReportViewer.Api.Reports;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
@@ -66,13 +67,15 @@ app.MapGet("/api/catalog", async (string? path, ISsrsAdapter ssrs, CancellationT
 
 app.MapGet("/api/reports/parameters", async (
     string? path,
+    string? values,
     ReportViewerService viewer,
     CancellationToken cancellationToken) =>
 {
     var reportPath = NormalizeCatalogPath(path);
     try
     {
-        var parameters = await viewer.GetParametersAsync(reportPath, valuesForCascading: null, cancellationToken);
+        var valuesForCascading = ParseParameterValuesJson(values);
+        var parameters = await viewer.GetParametersAsync(reportPath, valuesForCascading, cancellationToken);
         return Results.Ok(new
         {
             path = reportPath,
@@ -144,41 +147,11 @@ app.MapPost("/api/sessions/{sessionId}/zoom", async (
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
-{
-    try
+    await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (InvalidViewerInteractionException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Viewer Session interaction");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
+    }));
 
 app.MapPost("/api/sessions/{sessionId}/page", async (
     string sessionId,
@@ -195,39 +168,11 @@ app.MapPost("/api/sessions/{sessionId}/page", async (
             title: "Invalid Report Page request");
     }
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (InvalidViewerInteractionException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Viewer Session interaction");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+    });
 });
 
 app.MapPost("/api/sessions/{sessionId}/refresh", async (
@@ -235,34 +180,11 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
-{
-    try
+    await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
+    }));
 
 app.MapPost("/api/sessions/{sessionId}/document-map", async (
     string sessionId,
@@ -279,32 +201,11 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
             title: "Invalid Document Map request");
     }
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+    });
 });
 
 app.MapPost("/api/sessions/{sessionId}/bookmark", async (
@@ -322,32 +223,11 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
             title: "Invalid Bookmark request");
     }
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+    });
 });
 
 app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
@@ -356,35 +236,13 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
-{
-    try
+    await ExecuteViewerSessionAsync(async () =>
     {
         var stream = await viewer.GetResourceAsync(sessionId, streamId, guard, cancellationToken);
         return Results.File(stream.Content, stream.MimeType);
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
+    }));
 
+// Drilldown toggle (glossary alias: Drilldown ↔ ReportExecution2005 ToggleItem). Path stays /toggle.
 app.MapPost("/api/sessions/{sessionId}/toggle", async (
     string sessionId,
     ToggleRequest request,
@@ -400,34 +258,12 @@ app.MapPost("/api/sessions/{sessionId}/toggle", async (
             title: "Invalid Drilldown toggle request");
     }
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+    });
 });
-
 
 app.MapPost("/api/sessions/{sessionId}/sort", async (
     string sessionId,
@@ -452,7 +288,7 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             title: "Invalid Sort request");
     }
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
         var result = await viewer.SortAsync(
             sessionId,
@@ -461,80 +297,31 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             request.Clear ?? false,
             guard,
             cancellationToken);
-        return Results.Ok(new
-        {
-            sessionId = result.SessionId,
-            html = result.Html,
-            pageInfo = new
-            {
-                currentPage = result.PageInfo.CurrentPage,
-                pageCount = result.PageInfo.PageCount,
-            },
-        });
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+        return Results.Ok(ToSessionPayload(result));
+    });
 });
+
 app.MapGet("/api/sessions/{sessionId}/export", async (
     string sessionId,
     string? format,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
-{
-    try
+    await ExecuteViewerSessionAsync(async () =>
     {
-        var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
-        return Results.File(export.Content, export.MimeType, export.FileName);
-    }
-    catch (UnsupportedExportFormatException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Unsupported Export format");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
+        try
+        {
+            var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
+            return Results.File(export.Content, export.MimeType, export.FileName);
+        }
+        catch (UnsupportedExportFormatException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Unsupported Export format");
+        }
+    }));
 
 app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
     string sessionId,
@@ -556,46 +343,28 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
         .Select(p => new ParameterValue(p.Name, p.Values ?? []))
         .ToArray();
 
-    try
+    return await ExecuteViewerSessionAsync(async () =>
     {
-        var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    }
-    catch (RequiredParameterMissingException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Required Report Parameters missing");
-    }
-    catch (ReportNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Report not found");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
+        try
+        {
+            var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
+            return Results.Ok(ToSessionPayload(result));
+        }
+        catch (RequiredParameterMissingException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Required Report Parameters missing");
+        }
+        catch (ReportNotFoundException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Report not found");
+        }
+    });
 });
 
 app.MapPost("/api/sessions/{sessionId}/back", async (
@@ -603,41 +372,21 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
-{
-    try
+    await ExecuteViewerSessionAsync(async () =>
     {
-        var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    }
-    catch (BackStackEmptyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Drillthrough back stack empty");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
+        try
+        {
+            var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
+            return Results.Ok(ToSessionPayload(result));
+        }
+        catch (BackStackEmptyException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Drillthrough back stack empty");
+        }
+    }));
 
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
@@ -654,8 +403,11 @@ app.MapPost("/api/sessions/{sessionId}/find", async (
             title: "Invalid Find request");
     }
 
-    return await ExecuteFindAsync(
-        () => viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken));
+    return await ExecuteViewerSessionAsync(async () =>
+    {
+        var result = await viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
+        return Results.Ok(ToFindPayload(result));
+    });
 });
 
 app.MapPost("/api/sessions/{sessionId}/find/next", async (
@@ -673,49 +425,52 @@ app.MapPost("/api/sessions/{sessionId}/find/next", async (
             title: "Invalid Find request");
     }
 
-    return await ExecuteFindAsync(
-        () => viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken));
+    return await ExecuteViewerSessionAsync(async () =>
+    {
+        var result = await viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
+        return Results.Ok(ToFindPayload(result));
+    });
 });
 
-static async Task<IResult> ExecuteFindAsync(Func<Task<FindResult>> action)
+/// <summary>
+/// Maps Viewer Session lifecycle faults to ProblemDetails (404 / 410 / 409).
+/// </summary>
+static async Task<IResult> ExecuteViewerSessionAsync(Func<Task<IResult>> action)
 {
     try
     {
-        var result = await action();
-        return Results.Ok(new
-        {
-            html = result.Html,
-            found = result.Found,
-            pageInfo = new
-            {
-                currentPage = result.PageInfo.CurrentPage,
-                pageCount = result.PageInfo.PageCount,
-            },
-        });
+        return await action();
     }
-    catch (ViewerSessionNotFoundException ex)
+    catch (InvalidViewerInteractionException ex)
     {
         return Results.Problem(
             detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Viewer Session interaction");
     }
-    catch (ViewerSessionExpiredException ex)
+    catch (Exception ex) when (TryViewerSessionProblem(ex) is { } problem)
     {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
+        return problem;
     }
 }
 
+static IResult? TryViewerSessionProblem(Exception ex) =>
+    ex switch
+    {
+        ViewerSessionNotFoundException e => Results.Problem(
+            detail: e.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found"),
+        ViewerSessionExpiredException e => Results.Problem(
+            detail: e.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired"),
+        ViewerSessionBusyException e => Results.Problem(
+            detail: e.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy"),
+        _ => null,
+    };
 
 static bool TryParseSortDirection(string? value, out SortDirection direction)
 {
@@ -727,6 +482,7 @@ static bool TryParseSortDirection(string? value, out SortDirection direction)
 
     return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
 }
+
 static string NormalizeCatalogPath(string? path)
 {
     if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
@@ -735,6 +491,34 @@ static string NormalizeCatalogPath(string? path)
     }
 
     return "/" + path.Trim().Trim('/');
+}
+
+static IReadOnlyList<ParameterValue>? ParseParameterValuesJson(string? values)
+{
+    if (string.IsNullOrWhiteSpace(values))
+    {
+        return null;
+    }
+
+    try
+    {
+        var parsed = JsonSerializer.Deserialize<ViewReportParameter[]>(
+            values,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (parsed is null || parsed.Length == 0)
+        {
+            return null;
+        }
+
+        return parsed
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name))
+            .Select(p => new ParameterValue(p.Name, p.Values ?? []))
+            .ToArray();
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
 }
 
 static object ToSessionPayload(ViewReportResult result) =>
@@ -750,6 +534,18 @@ static object ToSessionPayload(ViewReportResult result) =>
         zoomPercent = result.ZoomPercent,
         documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
         canGoBack = result.CanGoBack,
+    };
+
+static object ToFindPayload(FindResult result) =>
+    new
+    {
+        html = result.Html,
+        found = result.Found,
+        pageInfo = new
+        {
+            currentPage = result.PageInfo.CurrentPage,
+            pageCount = result.PageInfo.PageCount,
+        },
     };
 
 static object MapDocumentMapNode(DocumentMapNode node) =>

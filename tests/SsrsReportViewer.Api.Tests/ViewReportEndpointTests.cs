@@ -200,6 +200,51 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_parameters_with_values_returns_cascading_valid_values()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Cascading",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "North"), ("South", "South")]),
+                new FakeReportParameter(
+                    Name: "City",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "City",
+                    Required: true,
+                    Dependencies: ["Region"],
+                    ValidValues: [],
+                    CascadingByDependencyValue: new Dictionary<string, IReadOnlyList<(string Label, string Value)>>(
+                        StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["North"] = [("Seattle", "SEA"), ("Portland", "PDX")],
+                        ["South"] = [("Austin", "AUS")],
+                    }),
+            ]);
+
+        var response = await _client.GetAsync(
+            "/api/reports/parameters?path=/Sales/Cascading&values=" +
+            Uri.EscapeDataString("""[{"name":"Region","values":["North"]}]"""));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        var city = Assert.Single(body.Parameters, p => p.Name == "City");
+        Assert.Equal(2, city.ValidValues?.Length);
+        Assert.Contains(city.ValidValues!, v => v.Value == "SEA");
+        Assert.Contains(city.ValidValues!, v => v.Value == "PDX");
+    }
+
+    [Fact]
     public async Task Concurrent_session_ops_serialize_extras_are_conflict()
     {
         _factory.Fake.SeedReport(
@@ -223,6 +268,46 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
 
         var firstResponse = await first;
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        // Second concurrent mutating op must not corrupt the Execution after the first completes.
+        var after = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
+        Assert.Equal(new byte[] { 1 }, await after.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task Concurrent_toggle_ops_block_without_corrupting_execution()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """<a data-ssrs-action="drilldown" data-ssrs-toggle-id="t1">x</a>""",
+            streams: []);
+        _factory.Fake.ToggleDelay = TimeSpan.FromMilliseconds(400);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var payload = JsonContent.Create(new { toggleId = "t1" });
+        var first = _client.PostAsync($"/api/sessions/{body.SessionId}/toggle", payload);
+        await Task.Delay(50);
+        var second = await _client.PostAsync(
+            $"/api/sessions/{body.SessionId}/toggle",
+            JsonContent.Create(new { toggleId = "t1" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var problem = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Viewer Session busy", problem.GetProperty("title").GetString());
+
+        var firstResponse = await first;
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        var firstBody = await firstResponse.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(firstBody);
+        Assert.Equal(body.SessionId, firstBody.SessionId);
+        Assert.False(string.IsNullOrWhiteSpace(firstBody.Html));
     }
 
     private sealed record ParametersResponse(string Path, ParameterResponse[] Parameters);
