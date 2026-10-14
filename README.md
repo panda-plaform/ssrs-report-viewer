@@ -46,6 +46,10 @@ View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values
 
 Resources: `GET /api/sessions/{sessionId}/resources/{streamId}` (RenderStream proxy; idle TTL / busy rules apply).
 
+Export (current Execution for a Viewer Session): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment.
+
+Print: Report Viewer toolbar calls `window.print()` with print CSS focused on the HTML report surface (use PDF Export for high fidelity).
+
 ## Tests
 
 HTTP API tests use a fake SSRS adapter (no live ReportServer):

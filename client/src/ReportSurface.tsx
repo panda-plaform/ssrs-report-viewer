@@ -116,7 +116,7 @@ export function ReportSurface({
 
   return (
     <section className="report-surface" aria-labelledby="report-surface-heading">
-      <header className="report-surface-header">
+      <header className="report-surface-header no-print">
         <h2 id="report-surface-heading">Report</h2>
         {pageInfo && (
           <p className="report-page" aria-label="Report Page">
@@ -135,7 +135,7 @@ export function ReportSurface({
         )}
       </header>
       {error && (
-        <p className="report-surface-error" role="alert">
+        <p className="report-surface-error no-print" role="alert">
           {error}
         </p>
       )}

@@ -25,7 +25,7 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public string ReportPath { get; }
 
-    public ExecutionHandle Execution { get; }
+    public ExecutionHandle Execution { get; set; }
 
     public DateTimeOffset LastActivityUtc { get; private set; }
 

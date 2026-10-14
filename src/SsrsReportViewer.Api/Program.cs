@@ -234,6 +234,48 @@ app.MapPost("/api/sessions/{sessionId}/toggle", async (
     }
 });
 
+app.MapGet("/api/sessions/{sessionId}/export", async (
+    string sessionId,
+    string? format,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
+        return Results.File(export.Content, export.MimeType, export.FileName);
+    }
+    catch (UnsupportedExportFormatException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Unsupported Export format");
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
     FindRequest request,
