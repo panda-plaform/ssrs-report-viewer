@@ -44,6 +44,8 @@ export type RenderResponse = {
   zoomPercent: number
   documentMap: DocumentMapNode[] | null
   canGoBack: boolean
+  reportPath: string
+  parameters: ParameterSubmission[]
 }
 
 async function readProblemDetail(response: Response): Promise<string> {

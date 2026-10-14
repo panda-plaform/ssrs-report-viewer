@@ -88,6 +88,8 @@ function App() {
       zoomPercent: render.zoomPercent,
       documentMap: render.documentMap,
       canGoBack: render.canGoBack,
+      reportPath: render.reportPath,
+      parameters: render.parameters,
     })
   }
 

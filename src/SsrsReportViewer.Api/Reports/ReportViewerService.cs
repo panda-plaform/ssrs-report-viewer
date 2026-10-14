@@ -395,7 +395,9 @@ public sealed class ReportViewerService
             new PageInfo(render.CurrentPage, render.PageCount),
             session.ZoomPercent,
             session.CanGoBack,
-            render.DocumentMap);
+            render.DocumentMap,
+            session.ReportPath,
+            session.Parameters);
     }
 
     private static DeviceInfo CreateDeviceInfo(ViewerSession session, bool includeActionRoots)
@@ -501,7 +503,9 @@ public sealed record ViewReportResult(
     PageInfo PageInfo,
     int ZoomPercent,
     bool CanGoBack,
-    IReadOnlyList<DocumentMapNode>? DocumentMap);
+    IReadOnlyList<DocumentMapNode>? DocumentMap,
+    string ReportPath,
+    IReadOnlyList<ParameterValue> Parameters);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 

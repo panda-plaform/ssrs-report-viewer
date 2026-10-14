@@ -19,6 +19,79 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_drillthrough_includes_open_report_path_and_applied_parameters()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Parent",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div>Parent {{Region}}</div>");
+        _factory.Fake.SeedReport(
+            "/Sales/Child",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+                new FakeReportParameter(
+                    Name: "Year",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Year",
+                    Required: true),
+            ],
+            html: "<div>Child {{Region}} {{Year}}</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Parent",
+                parameters = new[] { new { name = "Region", values = new[] { "West" } } },
+            });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+        Assert.Equal("/Sales/Parent", parent.ReportPath);
+        var parentRegion = Assert.Single(parent.Parameters!, p => p.Name == "Region");
+        Assert.Equal(["West"], parentRegion.Values);
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new
+            {
+                reportPath = "/Sales/Child",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "North" } },
+                    new { name = "Year", values = new[] { "2025" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        var child = await drillthrough.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.Equal("/Sales/Child", child.ReportPath);
+        Assert.NotNull(child.Parameters);
+        Assert.Equal(2, child.Parameters.Length);
+        Assert.Equal(["North"], Assert.Single(child.Parameters, p => p.Name == "Region").Values);
+        Assert.Equal(["2025"], Assert.Single(child.Parameters, p => p.Name == "Year").Values);
+        Assert.Contains("Child North 2025", child.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Post_drillthrough_switches_to_child_execution_and_pushes_back_stack()
     {
         _factory.Fake.SeedReport(
@@ -196,5 +269,12 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
             "Expected ProblemDetails-shaped body");
     }
 
-    private sealed record SessionHtmlResponse(string SessionId, string Html, bool CanGoBack);
+    private sealed record SessionHtmlResponse(
+        string SessionId,
+        string Html,
+        bool CanGoBack,
+        string? ReportPath = null,
+        AppliedParameter[]? Parameters = null);
+
+    private sealed record AppliedParameter(string Name, string[] Values);
 }

@@ -534,6 +534,10 @@ static object ToSessionPayload(ViewReportResult result) =>
         zoomPercent = result.ZoomPercent,
         documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
         canGoBack = result.CanGoBack,
+        reportPath = result.ReportPath,
+        parameters = result.Parameters
+            .Select(p => new { name = p.Name, values = p.Values.ToArray() })
+            .ToArray(),
     };
 
 static object ToFindPayload(FindResult result) =>
