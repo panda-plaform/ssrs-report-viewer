@@ -13,6 +13,7 @@ type Props = {
   reportPath: string
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
+  onBackToCatalog?: () => void
 }
 
 function initialValues(parameters: ReportParameter[]): Record<string, string[]> {
@@ -74,7 +75,12 @@ function mergeCascadedValues(
   return next
 }
 
-export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
+export function ParameterForm({
+  reportPath,
+  onViewed,
+  onClearSurface,
+  onBackToCatalog,
+}: Props) {
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [parameters, setParameters] = useState<ReportParameter[]>([])
   const [values, setValues] = useState<Record<string, string[]>>({})
@@ -187,10 +193,9 @@ export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
   }
 
   return (
-    <section className="parameters" aria-labelledby="parameters-heading">
+    <section className="parameters parameters-bar" aria-labelledby="parameters-heading">
       <header className="parameters-header">
         <h2 id="parameters-heading">Report Parameters</h2>
-        <p className="parameters-path">{reportPath}</p>
       </header>
 
       {loadState === 'loading' && (
@@ -200,9 +205,14 @@ export function ParameterForm({ reportPath, onViewed, onClearSurface }: Props) {
       )}
 
       {loadState === 'error' && (
-        <p className="parameters-status parameters-error" role="alert">
-          {error}
-        </p>
+        <div className="parameters-load-error" role="alert">
+          <p className="parameters-status parameters-error">{error}</p>
+          {onBackToCatalog && (
+            <button type="button" className="back-to-catalog" onClick={onBackToCatalog}>
+              Back to Catalog
+            </button>
+          )}
+        </div>
       )}
 
       {loadState === 'ok' && (
