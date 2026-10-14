@@ -39,6 +39,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
     public int ActiveExecutionCount => _executions.Count;
 
+    /// <summary>Execution id from the most recent LoadReportAsync call.</summary>
+    public string? LastLoadedExecutionId { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -49,6 +52,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         _executions.Clear();
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
+        LastLoadedExecutionId = null;
     }
 
     public void ResetCatalog() => Reset();
@@ -140,6 +144,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations++;
 
         var id = Guid.NewGuid().ToString("N");
+        LastLoadedExecutionId = id;
         _executions[id] = new FakeExecution(
             id,
             report,
