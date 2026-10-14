@@ -21,16 +21,35 @@ public sealed class ReportViewerService
         _options = options.Value;
     }
 
-    public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
+    public async Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
         bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading,
-        CancellationToken cancellationToken) =>
-        _ssrs.GetParametersAsync(
+        CancellationToken cancellationToken)
+    {
+        if (valuesForCascading is null)
+        {
+            return await _ssrs.GetParametersAsync(
+                reportPath,
+                forRendering,
+                valuesForCascading: null,
+                cancellationToken);
+        }
+
+        // Cascading Values from the client omit non-prompted params; supply their defaults
+        // so GetItemParameters still resolves dependents (US8).
+        var metadata = await _ssrs.GetParametersAsync(
+            reportPath,
+            forRendering: false,
+            valuesForCascading: null,
+            cancellationToken);
+        var enriched = MergeNonPromptedDefaultsForCascading(metadata, valuesForCascading);
+        return await _ssrs.GetParametersAsync(
             reportPath,
             forRendering,
-            valuesForCascading,
+            enriched,
             cancellationToken);
+    }
 
     public async Task<ViewReportResult> ViewReportAsync(
         string reportPath,
@@ -65,7 +84,11 @@ public sealed class ReportViewerService
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
         await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, cancellationToken);
 
-        var session = _sessions.Create(reportPath, execution, resolved);
+        // Session / client payload: prompted only. SetParameters already got full resolved.
+        var session = _sessions.Create(
+            reportPath,
+            execution,
+            FilterPromptedParameters(definitions, resolved));
         return await RenderSessionAsync(session, cancellationToken);
     }
 
@@ -123,10 +146,16 @@ public sealed class ReportViewerService
             sessionId,
             async (session, ct) =>
             {
+                var definitions = await GetParametersAsync(
+                    session.ReportPath,
+                    forRendering: false,
+                    valuesForCascading: null,
+                    ct);
+                var resolved = ResolveParametersForExecution(definitions, session.Parameters);
                 var execution = await _ssrs.LoadReportAsync(session.ReportPath, ct);
                 await _ssrs.SetParametersAsync(
                     execution,
-                    session.Parameters,
+                    resolved,
                     _options.DefaultCulture,
                     ct);
                 session.ReplaceExecution(execution);
@@ -212,7 +241,10 @@ public sealed class ReportViewerService
                 var resolved = ResolveParametersForExecution(definitions, parameters);
                 var execution = await _ssrs.LoadReportAsync(reportPath, ct);
                 await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, ct);
-                session.DrillthroughTo(reportPath, execution, resolved);
+                session.DrillthroughTo(
+                    reportPath,
+                    execution,
+                    FilterPromptedParameters(definitions, resolved));
 
                 return await RenderSessionAsync(session, ct);
             },
@@ -239,10 +271,16 @@ public sealed class ReportViewerService
                 catch (ExecutionNotFoundException)
                 {
                     // Prior Execution dropped on SSRS — reload path + parameters (Drilldown may reset).
+                    var definitions = await GetParametersAsync(
+                        entry.ReportPath,
+                        forRendering: false,
+                        valuesForCascading: null,
+                        ct);
+                    var resolved = ResolveParametersForExecution(definitions, entry.Parameters);
                     var execution = await _ssrs.LoadReportAsync(entry.ReportPath, ct);
                     await _ssrs.SetParametersAsync(
                         execution,
-                        entry.Parameters,
+                        resolved,
                         _options.DefaultCulture,
                         ct);
                     session.Restore(entry, execution);
@@ -517,6 +555,8 @@ public sealed class ReportViewerService
     /// <summary>
     /// Empty Values means SSRS NULL only for nullable parameters. Blank non-nullables must not
     /// clear LoadReport defaults (SetExecutionParameters with Name and no Value).
+    /// Non-prompted definitions omitted by the client are included from their DefaultValues so
+    /// SetParameters does not rely only on LoadReport leftovers.
     /// </summary>
     internal static IReadOnlyList<ParameterValue> ResolveParametersForExecution(
         IReadOnlyList<ReportParameterDefinition> definitions,
@@ -524,9 +564,11 @@ public sealed class ReportViewerService
     {
         var byName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
         var resolved = new List<ParameterValue>(submitted.Count);
+        var submittedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var parameter in submitted)
         {
+            submittedNames.Add(parameter.Name);
             byName.TryGetValue(parameter.Name, out var definition);
             var values = parameter.Values
                 .Where(v => !string.IsNullOrWhiteSpace(v))
@@ -552,7 +594,62 @@ public sealed class ReportViewerService
             // Else omit — keep whatever LoadReport already applied.
         }
 
+        foreach (var definition in definitions)
+        {
+            if (definition.PromptUser || submittedNames.Contains(definition.Name))
+            {
+                continue;
+            }
+
+            if (definition.DefaultValues.Count > 0)
+            {
+                resolved.Add(new ParameterValue(definition.Name, definition.DefaultValues));
+            }
+        }
+
         return resolved;
+    }
+
+    /// <summary>
+    /// Client / Viewer Session parameter bar: only Report Parameters SSRS prompts for.
+    /// </summary>
+    internal static IReadOnlyList<ParameterValue> FilterPromptedParameters(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> resolved)
+    {
+        var promptedNames = definitions
+            .Where(d => d.PromptUser)
+            .Select(d => d.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return resolved.Where(p => promptedNames.Contains(p.Name)).ToArray();
+    }
+
+    /// <summary>
+    /// Adds non-prompted DefaultValues when the cascading client payload omitted them.
+    /// </summary>
+    internal static IReadOnlyList<ParameterValue> MergeNonPromptedDefaultsForCascading(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> submitted)
+    {
+        var byName = new Dictionary<string, ParameterValue>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parameter in submitted)
+        {
+            byName[parameter.Name] = parameter;
+        }
+
+        foreach (var definition in definitions)
+        {
+            if (definition.PromptUser ||
+                definition.DefaultValues.Count == 0 ||
+                byName.ContainsKey(definition.Name))
+            {
+                continue;
+            }
+
+            byName[definition.Name] = new ParameterValue(definition.Name, definition.DefaultValues);
+        }
+
+        return byName.Values.ToArray();
     }
 }
 
