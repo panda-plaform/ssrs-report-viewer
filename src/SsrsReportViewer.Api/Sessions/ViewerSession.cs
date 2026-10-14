@@ -10,8 +10,7 @@ public sealed record BackStackEntry(
     IReadOnlyList<ParameterValue> Parameters,
     ExecutionHandle Execution,
     int ZoomPercent,
-    int CurrentPage,
-    int PageCount);
+    int CurrentPage);
 
 /// <summary>
 /// In-memory Viewer Session bound to one SSRS Execution (plus Drillthrough back stack).
@@ -53,19 +52,46 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public bool CanGoBack => _backStack.Count > 0;
 
-    /// <summary>
-    /// Rebind the current Execution without touching the Drillthrough back stack (Refresh / tests).
-    /// </summary>
-    public void ReplaceExecution(ExecutionHandle execution) => Execution = execution;
-
     public void Touch(DateTimeOffset utcNow) => LastActivityUtc = utcNow;
 
     public bool IsExpired(DateTimeOffset utcNow, TimeSpan idleTimeout) =>
         utcNow - LastActivityUtc > idleTimeout;
 
-    /// <summary>
-    /// Test / Export arrange helper: rebind the current Execution without touching the back stack.
-    /// </summary>
+    public void PushBackStack()
+    {
+        _backStack.Push(new BackStackEntry(
+            ReportPath,
+            Parameters,
+            Execution,
+            ZoomPercent,
+            CurrentPage));
+    }
+
+    public bool TryPopBackStack(out BackStackEntry? entry)
+    {
+        if (_backStack.Count == 0)
+        {
+            entry = null;
+            return false;
+        }
+
+        entry = _backStack.Pop();
+        return true;
+    }
+
+    public BackStackEntry PopBack()
+    {
+        if (!TryPopBackStack(out var entry) || entry is null)
+        {
+            throw new BackStackEmptyException(Id);
+        }
+
+        return entry;
+    }
+
+    public void ReplaceExecution(ExecutionHandle execution) =>
+        SwitchTo(ReportPath, execution, Parameters);
+
     public void SwitchTo(
         string reportPath,
         ExecutionHandle execution,
@@ -84,28 +110,13 @@ public sealed class ViewerSession : IAsyncDisposable
         ExecutionHandle execution,
         IReadOnlyList<ParameterValue> parameters)
     {
-        _backStack.Push(new BackStackEntry(
-            ReportPath,
-            Parameters,
-            Execution,
-            ZoomPercent,
-            CurrentPage,
-            PageCount));
-
+        PushBackStack();
         SwitchTo(reportPath, execution, parameters);
         CurrentPage = 1;
-        PageCount = 1;
     }
 
-    public BackStackEntry PopBack()
-    {
-        if (_backStack.Count == 0)
-        {
-            throw new BackStackEmptyException(Id);
-        }
-
-        return _backStack.Pop();
-    }
+    public void Restore(BackStackEntry entry) =>
+        Restore(entry, entry.Execution);
 
     public void Restore(BackStackEntry entry, ExecutionHandle execution)
     {
@@ -114,7 +125,6 @@ public sealed class ViewerSession : IAsyncDisposable
         Parameters = entry.Parameters;
         ZoomPercent = entry.ZoomPercent;
         CurrentPage = entry.CurrentPage;
-        PageCount = entry.PageCount;
     }
 
     /// <summary>

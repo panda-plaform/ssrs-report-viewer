@@ -59,10 +59,10 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         LastRenderedExecutionId = null;
     }
 
+    public void ResetCatalog() => Reset();
+
     /// <summary>Simulates SSRS dropping an Execution (idle churn).</summary>
     public bool DropExecution(string executionId) => _executions.TryRemove(executionId, out _);
-
-    public void ResetCatalog() => Reset();
 
     public void SeedCatalog(
         string folder,
