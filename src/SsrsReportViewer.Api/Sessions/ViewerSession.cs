@@ -33,6 +33,8 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public int CurrentPage { get; set; } = 1;
 
+    public int PageCount { get; set; } = 1;
+
     public void Touch(DateTimeOffset utcNow) => LastActivityUtc = utcNow;
 
     public bool IsExpired(DateTimeOffset utcNow, TimeSpan idleTimeout) =>

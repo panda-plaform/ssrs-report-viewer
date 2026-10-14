@@ -65,6 +65,7 @@ public sealed class ReportViewerService
 
         var render = await _ssrs.RenderAsync(execution, "HTML4.0", deviceInfo, cancellationToken);
         session.CurrentPage = render.CurrentPage;
+        session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, deviceInfo.ReplacementRoot);
 
@@ -125,7 +126,6 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-
     public async Task<ExportResult> ExportAsync(
         string sessionId,
         string format,
@@ -148,6 +148,90 @@ public sealed class ReportViewerService
                 return new ExportResult(render.Content, render.MimeType, fileName);
             },
             cancellationToken);
+    }
+
+    public Task<FindResult> FindAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: false, ct),
+            cancellationToken);
+
+    public Task<FindResult> FindNextAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: true, ct),
+            cancellationToken);
+
+    private async Task<FindResult> FindOnSessionAsync(
+        ViewerSession session,
+        string findValue,
+        bool nextMatch,
+        CancellationToken cancellationToken)
+    {
+        var pageCount = Math.Max(1, session.PageCount);
+        var currentPage = Math.Clamp(session.CurrentPage, 1, pageCount);
+
+        int startPage;
+        int endPage;
+        if (nextMatch)
+        {
+            startPage = currentPage >= pageCount ? 1 : currentPage + 1;
+            endPage = currentPage;
+        }
+        else
+        {
+            startPage = 1;
+            endPage = pageCount;
+        }
+
+        var foundPage = await _ssrs.FindStringAsync(
+            session.Execution,
+            startPage,
+            endPage,
+            findValue,
+            cancellationToken);
+
+        var found = foundPage > 0;
+        if (found)
+        {
+            session.CurrentPage = foundPage;
+        }
+
+        var render = await RenderSessionHtmlAsync(session, cancellationToken);
+        return new FindResult(
+            render.Html,
+            found,
+            new PageInfo(session.CurrentPage, session.PageCount));
+    }
+
+    private async Task<(string Html, RenderResult Render)> RenderSessionHtmlAsync(
+        ViewerSession session,
+        CancellationToken cancellationToken)
+    {
+        var resourceRoot = $"/api/sessions/{session.Id}/resources/";
+        var replacementRoot = $"/api/sessions/{session.Id}/actions/";
+        var deviceInfo = new DeviceInfo(
+            HtmlFragment: true,
+            Toolbar: false,
+            ZoomPercent: session.ZoomPercent,
+            Section: session.CurrentPage,
+            ReplacementRoot: replacementRoot,
+            ResourceStreamRoot: resourceRoot);
+
+        var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, cancellationToken);
+        session.CurrentPage = render.CurrentPage;
+        session.PageCount = render.PageCount;
+
+        var html = PrepareHtml(render, resourceRoot, replacementRoot);
+        return (html, render);
     }
 
     private static string NormalizeExportFormat(string format)
@@ -212,6 +296,8 @@ public sealed class ReportViewerService
 }
 
 public sealed record ViewReportResult(string SessionId, string Html, PageInfo PageInfo);
+
+public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 
 public sealed record PageInfo(int CurrentPage, int PageCount);
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
-import type { RenderResponse } from './reportApi'
+import type { FindResponse, RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -69,6 +70,19 @@ function App() {
     setRender(result)
   }
 
+  function handleFindResult(result: FindResponse) {
+    if (!render) {
+      return
+    }
+
+    setSurfaceError(null)
+    setRender({
+      sessionId: render.sessionId,
+      html: result.html,
+      pageInfo: result.pageInfo,
+    })
+  }
+
   const handleHtmlReplaced = useCallback((result: RenderResponse) => {
     setSurfaceError(null)
     setRender(result)
@@ -82,9 +96,9 @@ function App() {
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown, External Links,
-        Export, and Print. Export downloads the current Execution; Print uses the browser on the HTML
-        surface (PDF Export for high fidelity).
+        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, External
+        Links, Export, and Print. Export downloads the current Execution; Print uses the browser on
+        the HTML surface (PDF Export for high fidelity).
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
@@ -105,11 +119,21 @@ function App() {
             )}
           </div>
           {render?.sessionId && (
-            <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
+            <div className="no-print">
+              <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
+              <FindToolbar
+                sessionId={render.sessionId}
+                busy={busy}
+                onResult={handleFindResult}
+                onError={setSurfaceError}
+                onBusyChange={setBusy}
+              />
+            </div>
           )}
           <ReportSurface
             html={render?.html ?? null}
             sessionId={render?.sessionId ?? null}
+            pageInfo={render?.pageInfo ?? null}
             busy={busy}
             error={surfaceError}
             onHtmlReplaced={handleHtmlReplaced}

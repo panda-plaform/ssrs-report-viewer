@@ -276,6 +276,83 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/find", async (
+    string sessionId,
+    FindRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.FindValue))
+    {
+        return Results.Problem(
+            detail: "findValue is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Find request");
+    }
+
+    return await ExecuteFindAsync(
+        () => viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken));
+});
+
+app.MapPost("/api/sessions/{sessionId}/find/next", async (
+    string sessionId,
+    FindRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.FindValue))
+    {
+        return Results.Problem(
+            detail: "findValue is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Find request");
+    }
+
+    return await ExecuteFindAsync(
+        () => viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken));
+});
+
+static async Task<IResult> ExecuteFindAsync(Func<Task<FindResult>> action)
+{
+    try
+    {
+        var result = await action();
+        return Results.Ok(new
+        {
+            html = result.Html,
+            found = result.Found,
+            pageInfo = new
+            {
+                currentPage = result.PageInfo.CurrentPage,
+                pageCount = result.PageInfo.PageCount,
+            },
+        });
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+}
+
 static string NormalizeCatalogPath(string? path)
 {
     if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
@@ -295,3 +372,5 @@ public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]
 public sealed record ViewReportParameter(string Name, string[]? Values);
 
 public sealed record ToggleRequest(string? ToggleId);
+
+public sealed record FindRequest(string? FindValue);
