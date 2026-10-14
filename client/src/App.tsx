@@ -5,27 +5,20 @@ import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
+import type { ExecutionParameterSeed } from './executionParameterSeed'
 import {
   navigateDocumentMap,
   type FindResponse,
-  type ParameterSubmission,
   type RenderResponse,
 } from './reportApi'
 import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   buildReportPathSearch,
-  catalogSearch,
   openReportPathDiffers,
   readReportPathFromSearch,
   viewerModeFromReportPath,
 } from './reportPathUrl'
 import './App.css'
-
-type ExecutionParameterSeed = {
-  key: number
-  reportPath: string
-  parameters: ParameterSubmission[]
-}
 
 type HealthResponse = {
   status: string
@@ -84,11 +77,6 @@ function App() {
     setExecutionSeed(null)
   }, [])
 
-  const clearReportView = useCallback(() => {
-    setSelectedReportPath(null)
-    clearSurface()
-  }, [clearSurface])
-
   const syncFromLocation = useCallback(() => {
     const path = readReportPathFromSearch(window.location.search)
     setSelectedReportPath(path)
@@ -112,13 +100,10 @@ function App() {
     clearSurface()
   }
 
-  function handleBackToCatalog() {
-    window.history.pushState(
-      { reportPath: null },
-      '',
-      `${window.location.pathname}${catalogSearch()}`,
-    )
-    clearReportView()
+  function handleReturnToCatalog() {
+    // Pop Catalog→Report so browser Back does not re-open the Report.
+    // popstate → syncFromLocation clears the report view.
+    window.history.back()
   }
 
   function handleViewed(result: RenderResponse) {
@@ -221,8 +206,8 @@ function App() {
           {mode === 'report' && selectedReportPath && (
             <div className="no-print report-view">
               <div className="report-view-bar">
-                <button type="button" className="back-to-catalog" onClick={handleBackToCatalog}>
-                  Back to Catalog
+                <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
+                  Return to Catalog
                 </button>
                 <p className="report-view-path" aria-label="Open Report path">
                   {selectedReportPath}
@@ -233,7 +218,7 @@ function App() {
                 executionSeed={executionSeed}
                 onViewed={handleViewed}
                 onClearSurface={clearSurface}
-                onBackToCatalog={handleBackToCatalog}
+                onReturnToCatalog={handleReturnToCatalog}
               />
             </div>
           )}

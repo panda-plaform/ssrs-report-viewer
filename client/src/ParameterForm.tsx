@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { seedFormFromExecution } from './executionParameterSeed'
+import {
+  seedFormFromExecution,
+  type ExecutionParameterSeed,
+} from './executionParameterSeed'
 import {
   fetchParameters,
   viewReport,
-  type ParameterSubmission,
   type ReportParameter,
   type RenderResponse,
 } from './reportApi'
@@ -11,18 +13,12 @@ import { toParameterSubmissions } from './parameterSubmissions'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
-type ExecutionParameterSeed = {
-  key: number
-  reportPath: string
-  parameters: ParameterSubmission[]
-}
-
 type Props = {
   reportPath: string
   executionSeed?: ExecutionParameterSeed | null
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
-  onBackToCatalog?: () => void
+  onReturnToCatalog?: () => void
 }
 
 function initialValues(parameters: ReportParameter[]): Record<string, string[]> {
@@ -95,7 +91,7 @@ export function ParameterForm({
   executionSeed = null,
   onViewed,
   onClearSurface,
-  onBackToCatalog,
+  onReturnToCatalog,
 }: Props) {
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [parameters, setParameters] = useState<ReportParameter[]>([])
@@ -282,9 +278,9 @@ export function ParameterForm({
       {loadState === 'error' && (
         <div className="parameters-load-error" role="alert">
           <p className="parameters-status parameters-error">{error}</p>
-          {onBackToCatalog && (
-            <button type="button" className="back-to-catalog" onClick={onBackToCatalog}>
-              Back to Catalog
+          {onReturnToCatalog && (
+            <button type="button" className="return-to-catalog" onClick={onReturnToCatalog}>
+              Return to Catalog
             </button>
           )}
         </div>

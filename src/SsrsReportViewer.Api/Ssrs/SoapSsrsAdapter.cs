@@ -80,6 +80,16 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             valuesElement = new XElement(Mgmt + "Values");
             foreach (var parameter in valuesForCascading)
             {
+                if (parameter.Values.Count == 0)
+                {
+                    // SSRS NULL for cascading dependency resolution.
+                    valuesElement.Add(
+                        new XElement(
+                            Mgmt + "ParameterValue",
+                            new XElement(Mgmt + "Name", parameter.Name)));
+                    continue;
+                }
+
                 foreach (var value in parameter.Values)
                 {
                     valuesElement.Add(
@@ -155,6 +165,16 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         var parameters = new XElement(Exec + "Parameters");
         foreach (var parameter in values)
         {
+            if (parameter.Values.Count == 0)
+            {
+                // SSRS NULL: ParameterValue with Name and no Value child.
+                parameters.Add(
+                    new XElement(
+                        Exec + "ParameterValue",
+                        new XElement(Exec + "Name", parameter.Name)));
+                continue;
+            }
+
             foreach (var value in parameter.Values)
             {
                 parameters.Add(

@@ -198,6 +198,89 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_succeeds_when_nullable_parameter_submitted_with_empty_values()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Title",
+                    DataType: "Text",
+                    Nullable: true,
+                    MultiValue: false,
+                    Prompt: "Title",
+                    Required: false,
+                    DefaultValues: ["East"]),
+            ],
+            html: "<div class=\"report\">Title={{Title}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Title", values = Array.Empty<string>() },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.False(string.IsNullOrWhiteSpace(body.SessionId));
+    }
+
+    [Fact]
+    public async Task Post_render_applies_null_for_nullable_parameter_with_empty_values()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Title",
+                    DataType: "Text",
+                    Nullable: true,
+                    MultiValue: false,
+                    Prompt: "Title",
+                    Required: false,
+                    DefaultValues: ["East"]),
+            ],
+            html: "<div class=\"report\">Title={{Title}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Title", values = Array.Empty<string>() },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var executionId = _factory.Fake.LastRenderedExecutionId;
+        Assert.False(string.IsNullOrWhiteSpace(executionId));
+        Assert.True(
+            _factory.Fake.TryGetExecutionParameter(executionId!, "Title", out var stored),
+            "Expected Title to be set on the Execution");
+        Assert.NotNull(stored);
+        Assert.Empty(stored);
+
+        Assert.DoesNotContain("East", body.Html, StringComparison.Ordinal);
+        Assert.Contains("Title=", body.Html, StringComparison.Ordinal);
+
+        var title = Assert.Single(body.Parameters!, p => p.Name == "Title");
+        Assert.Empty(title.Values);
+    }
+
+    [Fact]
     public async Task Get_resource_returns_stream_bytes_for_viewer_session()
     {
         _factory.Fake.SeedReport(

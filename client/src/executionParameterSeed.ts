@@ -1,5 +1,12 @@
 import type { ParameterSubmission, ReportParameter } from './reportApi'
 
+/** Remount key + Execution parameters used to reseed the parameter bar. */
+export type ExecutionParameterSeed = {
+  key: number
+  reportPath: string
+  parameters: ParameterSubmission[]
+}
+
 export type SeededParameterForm = {
   values: Record<string, string[]>
   nullChecked: Record<string, boolean>
