@@ -157,7 +157,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             id,
             report,
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase),
-            new HashSet<string>(StringComparer.Ordinal));
+            new HashSet<string>(StringComparer.Ordinal),
+            ActiveSort: null);
         return Task.FromResult(new ExecutionHandle(id));
     }
 
@@ -232,6 +233,16 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         {
             var toggleId = match.Groups[1].Value;
             var state = exec.ToggledItems.Contains(toggleId) ? "expanded" : "collapsed";
+            html = html.Replace(match.Value, state, StringComparison.Ordinal);
+        }
+
+        foreach (Match match in SortStatePlaceholderRegex().Matches(html))
+        {
+            var sortItem = match.Groups[1].Value;
+            var state = exec.ActiveSort is not null
+                && string.Equals(exec.ActiveSort.SortItem, sortItem, StringComparison.Ordinal)
+                ? exec.ActiveSort.Direction.ToString()
+                : "unsorted";
             html = html.Replace(match.Value, state, StringComparison.Ordinal);
         }
 
@@ -357,6 +368,34 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         return Task.CompletedTask;
     }
 
+    public Task<SortResult> SortAsync(
+        ExecutionHandle execution,
+        string sortItem,
+        SortDirection direction,
+        bool clear,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (string.IsNullOrWhiteSpace(sortItem))
+        {
+            throw new ArgumentException("sortItem is required.", nameof(sortItem));
+        }
+
+        if (clear || direction == SortDirection.None)
+        {
+            exec.ActiveSort = null;
+        }
+        else
+        {
+            exec.ActiveSort = new ActiveSort(sortItem.Trim(), direction);
+        }
+
+        return Task.FromResult(new SortResult(CurrentPage: 1, PageCount: 1, ReportItem: sortItem.Trim()));
+    }
+
     public async Task<StreamResult> RenderStreamAsync(
         ExecutionHandle execution,
         string format,
@@ -476,19 +515,26 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         Dictionary<string, string> DocumentMapHtml,
         Dictionary<string, string> BookmarkHtml);
 
+    private sealed record ActiveSort(string SortItem, SortDirection Direction);
+
     private sealed class FakeExecution(
         string Id,
         SeededReport Report,
         Dictionary<string, IReadOnlyList<string>> Parameters,
-        HashSet<string> ToggledItems)
+        HashSet<string> ToggledItems,
+        ActiveSort? ActiveSort)
     {
         public string Id { get; } = Id;
         public SeededReport Report { get; } = Report;
         public Dictionary<string, IReadOnlyList<string>> Parameters { get; } = Parameters;
         public HashSet<string> ToggledItems { get; } = ToggledItems;
+        public ActiveSort? ActiveSort { get; set; } = ActiveSort;
         public string? ActiveHtml { get; set; }
     }
 
     [GeneratedRegex(@"\{toggle:([^}]+)\}", RegexOptions.CultureInvariant)]
     private static partial Regex ToggleStatePlaceholderRegex();
+
+    [GeneratedRegex(@"\{sort:([^}]+)\}", RegexOptions.CultureInvariant)]
+    private static partial Regex SortStatePlaceholderRegex();
 }

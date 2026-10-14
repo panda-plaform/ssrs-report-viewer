@@ -30,6 +30,7 @@ export type PageInfo = {
   pageCount: number
 }
 
+export type SortDirection = 'Ascending' | 'Descending' | 'None'
 export type DocumentMapNode = {
   id: string
   label: string
@@ -265,3 +266,21 @@ export function findInReport(sessionId: string, findValue: string): Promise<Find
 export function findNextInReport(sessionId: string, findValue: string): Promise<FindResponse> {
   return postFind(sessionId, 'find/next', findValue)
 }
+
+export async function sortReport(
+  sessionId: string,
+  sortItem: string,
+  direction: SortDirection,
+  clear = false,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/sort`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sortItem, direction, clear }),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+

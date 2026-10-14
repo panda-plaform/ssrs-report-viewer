@@ -51,6 +51,16 @@ public interface ISsrsAdapter
     /// ReportExecution2005 FindString: page of next match, or 0 if not found.
     /// Search starts at <paramref name="startPage"/>, continues to the end, wraps, and finishes on <paramref name="endPage"/>.
     /// </summary>
+/// <summary>
+    /// Applies or clears Sort on the current Execution (ReportExecution2005 Sort).
+    /// </summary>
+    Task<SortResult> SortAsync(
+        ExecutionHandle execution,
+        string sortItem,
+        SortDirection direction,
+        bool clear,
+        CancellationToken cancellationToken = default);
+
     Task<int> FindStringAsync(
         ExecutionHandle execution,
         int startPage,

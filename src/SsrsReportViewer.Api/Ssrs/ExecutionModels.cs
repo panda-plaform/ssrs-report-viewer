@@ -31,6 +31,21 @@ public sealed record DocumentMapNode(
 
 public sealed record StreamResult(byte[] Content, string MimeType);
 
+/// <summary>
+/// Sort direction for ReportExecution2005 Sort (Ascending / Descending / None).
+/// </summary>
+public enum SortDirection
+{
+    None = 0,
+    Ascending = 1,
+    Descending = 2,
+}
+
+/// <summary>
+/// Positioning hints returned from SSRS Sort before the Viewer Session re-renders HTML.
+/// </summary>
+public sealed record SortResult(int CurrentPage, int PageCount, string? ReportItem = null);
+
 public sealed class ReportNotFoundException : Exception
 {
     public ReportNotFoundException(string path)

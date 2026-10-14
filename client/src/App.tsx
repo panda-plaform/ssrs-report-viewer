@@ -125,7 +125,8 @@ function App() {
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
         Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
-        Find, Drilldown, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and Print.
+        Find, Drilldown, Sort, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and
+        Print.
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
