@@ -34,7 +34,7 @@ export type RenderResponse = {
   sessionId: string
   html: string
   pageInfo: PageInfo
-  zoomPercent: number
+  zoomPercent?: number
 }
 
 async function readProblemDetail(response: Response): Promise<string> {
@@ -102,4 +102,8 @@ export function setReportPage(
 
 export function refreshReport(sessionId: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'refresh', {})
+}
+
+export function toggleDrilldown(sessionId: string, toggleId: string): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'toggle', { toggleId })
 }

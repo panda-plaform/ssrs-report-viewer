@@ -124,6 +124,27 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
+    public async Task<ViewReportResult> ToggleAsync(
+        string sessionId,
+        string toggleId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(toggleId))
+        {
+            throw new ArgumentException("toggleId is required.", nameof(toggleId));
+        }
+
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.ToggleItemAsync(session.Execution, toggleId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
     public async Task<StreamResult> GetResourceAsync(
         string sessionId,
         string streamId,
@@ -141,20 +162,20 @@ public sealed class ReportViewerService
         CancellationToken cancellationToken)
     {
         var resourceRoot = $"/api/sessions/{session.Id}/resources/";
+        var replacementRoot = $"/api/sessions/{session.Id}/actions/";
         var deviceInfo = new DeviceInfo(
             HtmlFragment: true,
             Toolbar: false,
             ZoomPercent: session.ZoomPercent,
             Section: session.CurrentPage,
-            ReplacementRoot: $"/api/sessions/{session.Id}/actions/",
+            ReplacementRoot: replacementRoot,
             ResourceStreamRoot: resourceRoot);
 
         var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, cancellationToken);
         session.CurrentPage = render.CurrentPage;
         session.PageCount = render.PageCount;
 
-        var html = Encoding.UTF8.GetString(render.Content);
-        html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        var html = PrepareHtml(render, resourceRoot, replacementRoot);
 
         return new ViewReportResult(
             session.Id,
@@ -173,6 +194,13 @@ public sealed class ReportViewerService
             "goto" => page ?? throw new InvalidViewerInteractionException("page is required for goto."),
             _ => throw new InvalidViewerInteractionException($"Unknown page action '{action}'."),
         };
+    }
+
+    private static string PrepareHtml(RenderResult render, string resourceRoot, string? replacementRoot)
+    {
+        var html = Encoding.UTF8.GetString(render.Content);
+        html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
 
     private static string RewriteResourcePlaceholders(

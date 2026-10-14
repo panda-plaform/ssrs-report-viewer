@@ -69,12 +69,21 @@ function App() {
     setRender(result)
   }
 
+  const handleHtmlReplaced = useCallback((result: RenderResponse) => {
+    setSurfaceError(null)
+    setRender(result)
+  }, [])
+
+  const handleSurfaceError = useCallback((message: string) => {
+    setSurfaceError(message)
+  }, [])
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede">
-        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, and
-        Refresh on the Viewer Session.
+        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page,
+        Refresh, Drilldown, and External Links on the Viewer Session.
       </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
@@ -96,17 +105,21 @@ function App() {
             <ViewerToolbar
               sessionId={render.sessionId}
               pageInfo={render.pageInfo}
-              zoomPercent={render.zoomPercent}
+              zoomPercent={render.zoomPercent ?? 100}
               busy={busy}
-              onUpdated={setRender}
-              onError={(message) => setSurfaceError(message || null)}
+              onUpdated={handleHtmlReplaced}
+              onError={handleSurfaceError}
               onBusyChange={setBusy}
             />
           )}
           <ReportSurface
             html={render?.html ?? null}
             sessionId={render?.sessionId ?? null}
+            busy={busy}
             error={surfaceError}
+            onHtmlReplaced={handleHtmlReplaced}
+            onError={handleSurfaceError}
+            onBusyChange={setBusy}
           />
         </>
       )}

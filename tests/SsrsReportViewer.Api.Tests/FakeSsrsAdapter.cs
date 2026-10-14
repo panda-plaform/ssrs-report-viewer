@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.RegularExpressions;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Tests;
@@ -20,7 +21,7 @@ public sealed record FakeStream(string StreamId, string MimeType, byte[] Content
 /// <summary>
 /// In-memory SSRS adapter for API tests. Catalog + Report Parameter + Execution behaviors.
 /// </summary>
-public sealed class FakeSsrsAdapter : ISsrsAdapter
+public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 {
     private readonly Dictionary<string, CatalogChildren> _catalog = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SeededReport> _reports = new(StringComparer.OrdinalIgnoreCase);
@@ -122,7 +123,11 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations++;
 
         var id = Guid.NewGuid().ToString("N");
-        _executions[id] = new FakeExecution(id, report, new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase));
+        _executions[id] = new FakeExecution(
+            id,
+            report,
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase),
+            new HashSet<string>(StringComparer.Ordinal));
         return Task.FromResult(new ExecutionHandle(id));
     }
 
@@ -162,7 +167,9 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         }
 
         var resourceRoot = deviceInfo.ResourceStreamRoot ?? "{ResourceStreamRoot}";
+        var replacementRoot = deviceInfo.ReplacementRoot ?? "{ReplacementRoot}";
         html = html.Replace("{ResourceStreamRoot}", resourceRoot, StringComparison.Ordinal);
+        html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
 
         foreach (var streamId in exec.Report.Streams.Keys)
         {
@@ -170,6 +177,13 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
                 $"{{resource:{streamId}}}",
                 resourceRoot + streamId,
                 StringComparison.Ordinal);
+        }
+
+        foreach (Match match in ToggleStatePlaceholderRegex().Matches(html))
+        {
+            var toggleId = match.Groups[1].Value;
+            var state = exec.ToggledItems.Contains(toggleId) ? "expanded" : "collapsed";
+            html = html.Replace(match.Value, state, StringComparison.Ordinal);
         }
 
         // Ensure View Report responses expose the API resource root when streams exist.
@@ -202,6 +216,28 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
             streamIds,
             PageCount: exec.Report.PageCount,
             CurrentPage: currentPage));
+    }
+
+    public Task ToggleItemAsync(
+        ExecutionHandle execution,
+        string toggleId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (string.IsNullOrWhiteSpace(toggleId))
+        {
+            throw new ArgumentException("toggleId is required.", nameof(toggleId));
+        }
+
+        if (!exec.ToggledItems.Add(toggleId))
+        {
+            exec.ToggledItems.Remove(toggleId);
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<StreamResult> RenderStreamAsync(
@@ -272,10 +308,15 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
     private sealed class FakeExecution(
         string Id,
         SeededReport Report,
-        Dictionary<string, IReadOnlyList<string>> Parameters)
+        Dictionary<string, IReadOnlyList<string>> Parameters,
+        HashSet<string> ToggledItems)
     {
         public string Id { get; } = Id;
         public SeededReport Report { get; } = Report;
         public Dictionary<string, IReadOnlyList<string>> Parameters { get; } = Parameters;
+        public HashSet<string> ToggledItems { get; } = ToggledItems;
     }
+
+    [GeneratedRegex(@"\{toggle:([^}]+)\}", RegexOptions.CultureInvariant)]
+    private static partial Regex ToggleStatePlaceholderRegex();
 }

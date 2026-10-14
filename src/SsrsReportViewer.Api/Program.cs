@@ -199,6 +199,32 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/toggle", async (
+    string sessionId,
+    ToggleRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.ToggleId))
+    {
+        return Results.Problem(
+            detail: "toggleId is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Drilldown toggle request");
+    }
+
+    try
+    {
+        var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
+        return Results.Ok(ToSessionRenderResponse(result));
+    }
+    catch (Exception ex) when (MapSessionException(ex) is { } problem)
+    {
+        return problem;
+    }
+});
+
 app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     string sessionId,
     string streamId,
@@ -247,6 +273,10 @@ static IResult? MapSessionException(Exception ex) => ex switch
         detail: invalid.Message,
         statusCode: StatusCodes.Status400BadRequest,
         title: "Invalid Viewer Session interaction"),
+    ArgumentException argument => Results.Problem(
+        detail: argument.Message,
+        statusCode: StatusCodes.Status400BadRequest,
+        title: "Invalid Viewer Session interaction"),
     _ => null,
 };
 
@@ -271,3 +301,5 @@ public sealed record ViewReportParameter(string Name, string[]? Values);
 public sealed record ZoomRequest(int ZoomPercent);
 
 public sealed record PageRequest(string? Action, int? Page);
+
+public sealed record ToggleRequest(string? ToggleId);
