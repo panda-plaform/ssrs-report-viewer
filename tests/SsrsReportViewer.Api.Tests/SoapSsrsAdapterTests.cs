@@ -31,7 +31,7 @@ public sealed class SoapSsrsAdapterTests
         var handler = new CapturingSoapHandler(soap);
         using var adapter = CreateAdapter(soap, handler);
 
-        await adapter.GetParametersAsync("/Example Reports/Execution Log");
+        await adapter.GetParametersAsync("/Example Reports/Execution Log", forRendering: false);
 
         Assert.NotNull(handler.LastRequestXml);
         var document = XDocument.Parse(handler.LastRequestXml);
@@ -44,10 +44,36 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
-    public async Task GetParameters_sets_ForRendering_true_only_when_cascading_values_are_supplied()
+    public async Task GetParameters_sets_ForRendering_true_from_explicit_flag_without_cascading_values()
     {
-        // ForRendering=true executes data-source parameter queries; needed for cascading valid values,
-        // but must not be the default for metadata-only loads.
+        // Query-driven Valid Values (e.g. Report Folder) only appear when ForRendering=true,
+        // including the initial parameters load with no cascade Values.
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <GetItemParametersResponse xmlns="http://schemas.microsoft.com/sqlserver/reporting/2010/03/01/ReportServer">
+                  <Parameters />
+                </GetItemParametersResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        var handler = new CapturingSoapHandler(soap);
+        using var adapter = CreateAdapter(soap, handler);
+
+        await adapter.GetParametersAsync("/Example Reports/Report List", forRendering: true);
+
+        Assert.NotNull(handler.LastRequestXml);
+        var document = XDocument.Parse(handler.LastRequestXml);
+        XNamespace mgmt = SsrsSoapTransport.ManagementNamespace;
+        Assert.Equal("true", document.Descendants(mgmt + "ForRendering").Single().Value);
+    }
+
+    [Fact]
+    public async Task GetParameters_sets_ForRendering_false_from_explicit_flag_even_with_cascading_values()
+    {
+        // Metadata-only callers must keep ForRendering=false; cascading Values alone must not force it.
         const string soap = """
             <?xml version="1.0" encoding="utf-8"?>
             <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -64,6 +90,38 @@ public sealed class SoapSsrsAdapterTests
 
         await adapter.GetParametersAsync(
             "/Example Reports/Execution Log",
+            forRendering: false,
+            [new ParameterValue("Server", ["db1"])]);
+
+        Assert.NotNull(handler.LastRequestXml);
+        var document = XDocument.Parse(handler.LastRequestXml);
+        XNamespace mgmt = SsrsSoapTransport.ManagementNamespace;
+        Assert.Equal("false", document.Descendants(mgmt + "ForRendering").Single().Value);
+        Assert.Contains(
+            document.Descendants(mgmt + "ParameterValue"),
+            e => e.Element(mgmt + "Name")?.Value == "Server");
+    }
+
+    [Fact]
+    public async Task GetParameters_includes_cascading_Values_when_supplied_with_ForRendering_true()
+    {
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <GetItemParametersResponse xmlns="http://schemas.microsoft.com/sqlserver/reporting/2010/03/01/ReportServer">
+                  <Parameters />
+                </GetItemParametersResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        var handler = new CapturingSoapHandler(soap);
+        using var adapter = CreateAdapter(soap, handler);
+
+        await adapter.GetParametersAsync(
+            "/Example Reports/Execution Log",
+            forRendering: true,
             [new ParameterValue("Server", ["db1"])]);
 
         Assert.NotNull(handler.LastRequestXml);

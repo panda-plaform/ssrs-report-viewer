@@ -71,6 +71,62 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
         var regions = Assert.Single(body.Parameters, p => p.Name == "Regions");
         Assert.True(regions.MultiValue);
         Assert.Equal(2, regions.ValidValues?.Length);
+        Assert.True(_factory.Fake.LastGetParametersForRendering);
+    }
+
+    [Fact]
+    public async Task Get_parameters_requests_forRendering_true_on_initial_load()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(_factory.Fake.LastGetParametersForRendering);
+    }
+
+    [Fact]
+    public async Task Post_render_requests_forRendering_false_for_metadata_check()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div class=\"report\">Revenue for {{Region}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(_factory.Fake.LastGetParametersForRendering);
     }
 
     [Fact]
@@ -413,6 +469,7 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
             Uri.EscapeDataString("""[{"name":"Region","values":["North"]}]"""));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(_factory.Fake.LastGetParametersForRendering);
         var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
         Assert.NotNull(body);
         var city = Assert.Single(body.Parameters, p => p.Name == "City");

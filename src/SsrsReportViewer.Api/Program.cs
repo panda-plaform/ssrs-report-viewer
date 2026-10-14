@@ -75,7 +75,11 @@ app.MapGet("/api/reports/parameters", async (
     try
     {
         var valuesForCascading = ParseParameterValuesJson(values);
-        var parameters = await viewer.GetParametersAsync(reportPath, valuesForCascading, cancellationToken);
+        var parameters = await viewer.GetParametersAsync(
+            reportPath,
+            forRendering: true,
+            valuesForCascading,
+            cancellationToken);
         return Results.Ok(new
         {
             path = reportPath,
