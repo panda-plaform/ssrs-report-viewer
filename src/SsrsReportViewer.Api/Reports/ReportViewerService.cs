@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.Extensions.Options;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
@@ -55,6 +55,80 @@ public sealed class ReportViewerService
 
         var session = _sessions.Create(reportPath, execution, parameters);
         return await RenderSessionAsync(session, cancellationToken);
+    }
+
+    public async Task<ViewReportResult> DrillthroughAsync(
+        string sessionId,
+        string reportPath,
+        IReadOnlyList<ParameterValue> parameters,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(reportPath))
+        {
+            throw new ArgumentException("reportPath is required.", nameof(reportPath));
+        }
+
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var definitions = await _ssrs.GetParametersAsync(reportPath, parameters, ct);
+                var missing = definitions
+                    .Where(d => d.Required)
+                    .Where(d =>
+                    {
+                        var submitted = parameters.FirstOrDefault(p =>
+                            string.Equals(p.Name, d.Name, StringComparison.OrdinalIgnoreCase));
+                        return submitted is null || submitted.Values.Count == 0 ||
+                               submitted.Values.All(string.IsNullOrWhiteSpace);
+                    })
+                    .Select(d => d.Name)
+                    .ToArray();
+
+                if (missing.Length > 0)
+                {
+                    throw new RequiredParameterMissingException(missing);
+                }
+
+                var execution = await _ssrs.LoadReportAsync(reportPath, ct);
+                await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, ct);
+                session.DrillthroughTo(reportPath, execution, parameters);
+
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ViewReportResult> BackAsync(
+        string sessionId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var entry = session.PopBack();
+
+                try
+                {
+                    session.Restore(entry, entry.Execution);
+                    return await RenderSessionAsync(session, ct);
+                }
+                catch (ExecutionNotFoundException)
+                {
+                    var execution = await _ssrs.LoadReportAsync(entry.ReportPath, ct);
+                    await _ssrs.SetParametersAsync(
+                        execution,
+                        entry.Parameters,
+                        _options.DefaultCulture,
+                        ct);
+                    session.Restore(entry, execution);
+                    return await RenderSessionAsync(session, ct);
+                }
+            },
+            cancellationToken);
     }
 
     public async Task<ViewReportResult> SetZoomAsync(
@@ -328,7 +402,8 @@ public sealed class ReportViewerService
             html,
             new PageInfo(render.CurrentPage, render.PageCount),
             session.ZoomPercent,
-            render.DocumentMap);
+            render.DocumentMap,
+            session.CanGoBack);
     }
 
     private static int ResolveTargetPage(ViewerSession session, string action, int? page)
@@ -414,7 +489,8 @@ public sealed record ViewReportResult(
     string Html,
     PageInfo PageInfo,
     int ZoomPercent,
-    IReadOnlyList<DocumentMapNode>? DocumentMap);
+    IReadOnlyList<DocumentMapNode>? DocumentMap,
+    bool CanGoBack);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 

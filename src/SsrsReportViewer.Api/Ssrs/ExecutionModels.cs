@@ -67,3 +67,17 @@ public sealed class RequiredParameterMissingException : Exception
 
     public IReadOnlyList<string> ParameterNames { get; }
 }
+
+/// <summary>
+/// SSRS no longer holds the Execution (idle drop / unknown Execution id).
+/// </summary>
+public sealed class ExecutionNotFoundException : Exception
+{
+    public ExecutionNotFoundException(string executionId)
+        : base($"Execution '{executionId}' was not found.")
+    {
+        ExecutionId = executionId;
+    }
+
+    public string ExecutionId { get; }
+}

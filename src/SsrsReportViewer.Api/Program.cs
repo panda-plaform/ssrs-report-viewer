@@ -536,6 +536,109 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
+    string sessionId,
+    DrillthroughRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.ReportPath))
+    {
+        return Results.Problem(
+            detail: "reportPath is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Drillthrough request");
+    }
+
+    var reportPath = NormalizeCatalogPath(request.ReportPath);
+    var parameters = (request.Parameters ?? [])
+        .Select(p => new ParameterValue(p.Name, p.Values ?? []))
+        .ToArray();
+
+    try
+    {
+        var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
+        return Results.Ok(ToSessionPayload(result));
+    }
+    catch (RequiredParameterMissingException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Required Report Parameters missing");
+    }
+    catch (ReportNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Report not found");
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
+app.MapPost("/api/sessions/{sessionId}/back", async (
+    string sessionId,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
+        return Results.Ok(ToSessionPayload(result));
+    }
+    catch (BackStackEmptyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Drillthrough back stack empty");
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
     FindRequest request,
@@ -646,6 +749,7 @@ static object ToSessionPayload(ViewReportResult result) =>
         },
         zoomPercent = result.ZoomPercent,
         documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
+        canGoBack = result.CanGoBack,
     };
 
 static object MapDocumentMapNode(DocumentMapNode node) =>
@@ -675,5 +779,7 @@ public sealed record BookmarkNavigateRequest(string? Id);
 public sealed record ToggleRequest(string? ToggleId);
 
 public sealed record SortRequest(string? SortItem, string? Direction, bool? Clear);
+
+public sealed record DrillthroughRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 
 public sealed record FindRequest(string? FindValue);
