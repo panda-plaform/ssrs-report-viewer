@@ -10,6 +10,11 @@ import {
   type RenderResponse,
 } from './reportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
+import {
+  SELECT_ALL_LABEL,
+  applySelectAll,
+  selectAllCheckboxState,
+} from './selectAllMultiValue'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
@@ -242,6 +247,10 @@ export function ParameterForm({
     })
   }
 
+  function setMultiValues(name: string, next: string[]) {
+    setValues((current) => ({ ...current, [name]: next }))
+  }
+
   function setParameterNull(name: string, isNull: boolean) {
     setNullChecked((current) => ({ ...current, [name]: isNull }))
   }
@@ -309,6 +318,12 @@ export function ParameterForm({
                   onMultiToggle={(option, checked) =>
                     toggleMultiValue(parameter.name, option, checked)
                   }
+                  onSelectAllChange={(checked) =>
+                    setMultiValues(
+                      parameter.name,
+                      applySelectAll(parameter.validValues, checked),
+                    )
+                  }
                 />
               ))}
             </form>
@@ -338,6 +353,7 @@ type FieldProps = {
   onNullChange: (checked: boolean) => void
   onSingleChange: (value: string) => void
   onMultiToggle: (option: string, checked: boolean) => void
+  onSelectAllChange: (checked: boolean) => void
 }
 
 function ParameterField({
@@ -347,10 +363,19 @@ function ParameterField({
   onNullChange,
   onSingleChange,
   onMultiToggle,
+  onSelectAllChange,
 }: FieldProps) {
   const label = parameter.prompt || parameter.name
   const dataType = parameter.dataType.toLowerCase()
   const valueDisabled = isNull
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const selectAllState = selectAllCheckboxState(parameter.validValues, values)
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectAllState.indeterminate
+    }
+  }, [selectAllState.indeterminate])
 
   return (
     <div className="parameter-field">
@@ -362,6 +387,16 @@ function ParameterField({
       {parameter.multiValue && parameter.validValues.length > 0 ? (
         <fieldset className="parameter-multivalue" disabled={valueDisabled}>
           <legend className="visually-hidden">{label}</legend>
+          <label className="parameter-check">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={selectAllState.checked}
+              disabled={valueDisabled}
+              onChange={(event) => onSelectAllChange(event.target.checked)}
+            />
+            {SELECT_ALL_LABEL}
+          </label>
           {parameter.validValues.map((option) => (
             <label key={option.value} className="parameter-check">
               <input

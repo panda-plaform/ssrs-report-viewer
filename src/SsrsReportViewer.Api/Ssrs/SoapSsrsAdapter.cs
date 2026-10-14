@@ -71,6 +71,7 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
 
     public async Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
+        bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading = null,
         CancellationToken cancellationToken = default)
     {
@@ -108,10 +109,9 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         // Omit HistoryID entirely. SSRS maps HistoryID to internal snapshotID (DateTime);
         // <HistoryID xsi:nil="true"/> and empty HistoryID both fault as ParameterTypeMismatch.
         //
-        // ForRendering=true runs parameter queries against the report data source (valid values).
-        // Use it only when cascading Values are supplied; otherwise metadata-only (false) avoids
-        // ProcessingAborted when the data source login is broken.
-        var forRendering = valuesForCascading is { Count: > 0 };
+        // ForRendering comes from the caller: true runs parameter queries for Valid Values
+        // (parameters form); false is metadata-only (View Report required-parameter check).
+        // Do not infer solely from cascading Values — initial load needs true with empty Values.
         var body = new XElement(
             Mgmt + "GetItemParameters",
             new XElement(Mgmt + "ItemPath", NormalizePath(reportPath)),

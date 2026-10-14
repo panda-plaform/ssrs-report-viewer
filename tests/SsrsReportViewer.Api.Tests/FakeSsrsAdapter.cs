@@ -46,6 +46,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>Execution id from the most recent RenderAsync call.</summary>
     public string? LastRenderedExecutionId { get; private set; }
 
+    /// <summary>forRendering flag from the most recent GetParametersAsync call.</summary>
+    public bool? LastGetParametersForRendering { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -62,6 +65,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ToggleDelay = TimeSpan.Zero;
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
+        LastGetParametersForRendering = null;
     }
 
     public void ResetCatalog() => Reset();
@@ -126,10 +130,12 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
     public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
+        bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        LastGetParametersForRendering = forRendering;
         var report = RequireReport(reportPath);
 
         IReadOnlyList<ReportParameterDefinition> defs = report.Parameters

@@ -28,6 +28,13 @@ A paginated RDL Catalog Item identified by its SSRS path.
 **Report Parameter**:
 A named input defined by a Report, including type and valid-value metadata.
 
+**Valid Value**:
+A label and value pair offered for a Report Parameter, whether static in the report or from an SSRS parameter query.
+
+**Select All**:
+Report Viewer chrome for choosing every Valid Value on a multi-value Report Parameter at once.
+_Avoid_: Select-all parameter value
+
 **Drilldown**:
 Toggling show/hide of an item inside the same Report (SSRS toggle).
 

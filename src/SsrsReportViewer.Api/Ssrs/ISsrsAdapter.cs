@@ -12,10 +12,14 @@ public interface ISsrsAdapter
     Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Report Parameter metadata for a Report path. Optional values support cascading valid-value lists (best-effort).
+    /// Report Parameter metadata for a Report path.
+    /// <paramref name="forRendering"/> maps to SOAP GetItemParameters ForRendering
+    /// (true runs data-source queries for Valid Values; false is metadata-only).
+    /// Optional values support cascading Valid Value lists.
     /// </summary>
     Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
+        bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading = null,
         CancellationToken cancellationToken = default);
 
