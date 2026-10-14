@@ -472,7 +472,8 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             prompt,
             defaults,
             validValues,
-            dependencies);
+            dependencies,
+            promptUser);
     }
 
     internal static string ToDeviceInfoXml(DeviceInfo deviceInfo)

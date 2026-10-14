@@ -18,6 +18,85 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_parameters_omits_non_prompted_parameters_from_mixed_report()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: RegionWithNonPromptedAllValue());
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        var region = Assert.Single(body.Parameters);
+        Assert.Equal("Region", region.Name);
+        Assert.Equal(2, region.ValidValues?.Length);
+    }
+
+    [Fact]
+    public async Task Get_parameters_returns_prompted_parameters_unchanged_when_all_prompt_user()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N"), ("<ALL>", "<ALL>")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "All value",
+                    Required: true,
+                    PromptUser: true),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(2, body.Parameters.Length);
+        var region = Assert.Single(body.Parameters, p => p.Name == "Region");
+        Assert.Contains(region.ValidValues!, v => v.Value == "<ALL>");
+        Assert.Contains(body.Parameters, p => p.Name == "all_value");
+    }
+
+    [Fact]
+    public async Task Get_parameters_returns_empty_list_when_only_non_prompted()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Internal",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "InternalFlag",
+                    DataType: "Boolean",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: null,
+                    Required: false,
+                    PromptUser: false,
+                    DefaultValues: ["true"]),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Internal");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Empty(body.Parameters);
+    }
+
+    [Fact]
     public async Task Get_parameters_returns_text_boolean_date_and_multi_value_metadata()
     {
         _factory.Fake.SeedReport(
@@ -95,6 +174,52 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(_factory.Fake.LastGetParametersForRendering);
+    }
+
+    [Fact]
+    public async Task Post_render_succeeds_when_only_prompted_values_submitted_and_non_prompted_defaults_apply()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: RegionWithNonPromptedAllValue(),
+            html: "<div class=\"report\">Region={{Region}} all_value={{all_value}}</div>");
+
+        var parametersResponse = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+        Assert.Equal(HttpStatusCode.OK, parametersResponse.StatusCode);
+        var parametersBody = await parametersResponse.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(parametersBody);
+        Assert.Equal("Region", Assert.Single(parametersBody.Parameters).Name);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(_factory.Fake.LastGetParametersForRendering);
+
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.False(string.IsNullOrWhiteSpace(body.SessionId));
+        Assert.Contains("Region=N", body.Html, StringComparison.Ordinal);
+        Assert.Contains("all_value=*", body.Html, StringComparison.Ordinal);
+
+        // Non-prompted defaults must be applied via SetParameters, not only LoadReport leftovers.
+        Assert.NotNull(_factory.Fake.LastSetParameters);
+        var setAllValue = Assert.Single(
+            _factory.Fake.LastSetParameters!,
+            p => string.Equals(p.Name, "all_value", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(["*"], setAllValue.Values);
+
+        var region = Assert.Single(body.Parameters!, p => p.Name == "Region");
+        Assert.Equal(["N"], region.Values);
+        Assert.DoesNotContain(body.Parameters!, p => p.Name == "all_value");
     }
 
     [Fact]
@@ -479,6 +604,62 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_parameters_cascade_supplies_non_prompted_dependency_defaults()
+    {
+        // Prompted City depends on non-prompted all_value; client sends only prompted values.
+        _factory.Fake.SeedReport(
+            "/Sales/CascadingHidden",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "all_value",
+                    Required: false,
+                    PromptUser: false,
+                    DefaultValues: ["*"]),
+                new FakeReportParameter(
+                    Name: "City",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "City",
+                    Required: true,
+                    Dependencies: ["all_value"],
+                    ValidValues: [],
+                    CascadingByDependencyValue: new Dictionary<string, IReadOnlyList<(string Label, string Value)>>(
+                        StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["*"] = [("All cities", "ALL"), ("Seattle", "SEA")],
+                    }),
+            ]);
+
+        var response = await _client.GetAsync(
+            "/api/reports/parameters?path=/Sales/CascadingHidden&values=" +
+            Uri.EscapeDataString("""[{"name":"City","values":[]}]"""));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(_factory.Fake.LastGetParametersForRendering);
+
+        Assert.NotNull(_factory.Fake.LastGetParametersValues);
+        var supplied = Assert.Single(
+            _factory.Fake.LastGetParametersValues!,
+            p => string.Equals(p.Name, "all_value", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(["*"], supplied.Values);
+
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.DoesNotContain(body.Parameters, p => p.Name == "all_value");
+        var city = Assert.Single(body.Parameters);
+        Assert.Equal("City", city.Name);
+        Assert.Equal(2, city.ValidValues?.Length);
+        Assert.Contains(city.ValidValues!, v => v.Value == "ALL");
+        Assert.Contains(city.ValidValues!, v => v.Value == "SEA");
+    }
+
+    [Fact]
     public async Task Concurrent_session_ops_serialize_extras_are_conflict()
     {
         _factory.Fake.SeedReport(
@@ -543,6 +724,28 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
         Assert.Equal(body.SessionId, firstBody.SessionId);
         Assert.False(string.IsNullOrWhiteSpace(firstBody.Html));
     }
+
+    /// <summary>Prompted Region + non-prompted all_value=* (shared seed for omit/defaults tests).</summary>
+    private static FakeReportParameter[] RegionWithNonPromptedAllValue() =>
+    [
+        new FakeReportParameter(
+            Name: "Region",
+            DataType: "Text",
+            Nullable: false,
+            MultiValue: false,
+            Prompt: "Region",
+            Required: true,
+            ValidValues: [("North", "N"), ("South", "S")]),
+        new FakeReportParameter(
+            Name: "all_value",
+            DataType: "Text",
+            Nullable: false,
+            MultiValue: false,
+            Prompt: "all_value",
+            Required: false,
+            PromptUser: false,
+            DefaultValues: ["*"]),
+    ];
 
     private sealed record ParametersResponse(string Path, ParameterResponse[] Parameters);
 

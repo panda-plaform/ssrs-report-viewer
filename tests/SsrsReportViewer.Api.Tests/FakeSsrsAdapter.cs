@@ -15,7 +15,8 @@ public sealed record FakeReportParameter(
     IReadOnlyList<string>? DefaultValues = null,
     IReadOnlyList<(string Label, string Value)>? ValidValues = null,
     IReadOnlyList<string>? Dependencies = null,
-    IReadOnlyDictionary<string, IReadOnlyList<(string Label, string Value)>>? CascadingByDependencyValue = null);
+    IReadOnlyDictionary<string, IReadOnlyList<(string Label, string Value)>>? CascadingByDependencyValue = null,
+    bool PromptUser = true);
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
 
@@ -49,6 +50,12 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>forRendering flag from the most recent GetParametersAsync call.</summary>
     public bool? LastGetParametersForRendering { get; private set; }
 
+    /// <summary>Parameter values from the most recent SetParametersAsync call.</summary>
+    public IReadOnlyList<ParameterValue>? LastSetParameters { get; private set; }
+
+    /// <summary>Cascading Values from the most recent GetParametersAsync call.</summary>
+    public IReadOnlyList<ParameterValue>? LastGetParametersValues { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -66,6 +73,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
         LastGetParametersForRendering = null;
+        LastSetParameters = null;
+        LastGetParametersValues = null;
     }
 
     public void ResetCatalog() => Reset();
@@ -136,6 +145,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     {
         cancellationToken.ThrowIfCancellationRequested();
         LastGetParametersForRendering = forRendering;
+        LastGetParametersValues = valuesForCascading;
         var report = RequireReport(reportPath);
 
         IReadOnlyList<ReportParameterDefinition> defs = report.Parameters
@@ -151,7 +161,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
                     p.Prompt,
                     p.DefaultValues ?? [],
                     valid.Select(v => new ReportParameterValidValue(v.Label, v.Value)).ToArray(),
-                    p.Dependencies ?? []);
+                    p.Dependencies ?? [],
+                    p.PromptUser);
             })
             .ToArray();
 
@@ -221,6 +232,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
         _ = culture;
+        LastSetParameters = values;
 
         foreach (var value in values)
         {
