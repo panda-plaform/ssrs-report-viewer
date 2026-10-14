@@ -182,6 +182,12 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 
+        if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(RenderExport(exec, format, deviceInfo));
+        }
+
         var pageCount = exec.Report.PageHtml.Count;
         var page = deviceInfo.Section ?? 1;
         if (page < 1)
@@ -298,6 +304,22 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         }
 
         return Task.FromResult(0);
+    }
+
+    private static RenderResult RenderExport(FakeExecution exec, string format, DeviceInfo deviceInfo)
+    {
+        var normalized = format.Trim().ToUpperInvariant();
+        var (prefix, mime) = normalized switch
+        {
+            "PDF" => ("FAKE-PDF:", "application/pdf"),
+            "EXCELOPENXML" => ("FAKE-XLSX:", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "CSV" => ("FAKE-CSV:", "text/csv"),
+            _ => throw new InvalidOperationException($"Unsupported Export format '{format}'."),
+        };
+
+        _ = deviceInfo;
+        var bytes = Encoding.UTF8.GetBytes(prefix + exec.Id);
+        return new RenderResult(bytes, mime, StreamIds: [], PageCount: 1, CurrentPage: 1);
     }
 
     public Task ToggleItemAsync(
