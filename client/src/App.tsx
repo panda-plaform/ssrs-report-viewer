@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
-import type { RenderResponse } from './reportApi'
+import type { FindResponse, RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -68,6 +69,19 @@ function App() {
     setRender(result)
   }
 
+  function handleFindResult(result: FindResponse) {
+    if (!render) {
+      return
+    }
+
+    setSurfaceError(null)
+    setRender({
+      sessionId: render.sessionId,
+      html: result.html,
+      pageInfo: result.pageInfo,
+    })
+  }
+
   const handleHtmlReplaced = useCallback((result: RenderResponse) => {
     setSurfaceError(null)
     setRender(result)
@@ -81,8 +95,8 @@ function App() {
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede">
-        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown and External
-        Links on the report surface.
+        Browse the Catalog, enter Report Parameters, View Report, then use Find for server-side
+        search, Drilldown, and External Links on the report surface.
       </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
@@ -100,9 +114,19 @@ function App() {
               onClearSurface={clearSurface}
             />
           )}
+          {render && (
+            <FindToolbar
+              sessionId={render.sessionId}
+              busy={busy}
+              onResult={handleFindResult}
+              onError={setSurfaceError}
+              onBusyChange={setBusy}
+            />
+          )}
           <ReportSurface
             html={render?.html ?? null}
             sessionId={render?.sessionId ?? null}
+            pageInfo={render?.pageInfo ?? null}
             busy={busy}
             error={surfaceError}
             onHtmlReplaced={handleHtmlReplaced}

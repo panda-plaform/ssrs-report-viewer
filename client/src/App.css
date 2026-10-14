@@ -249,8 +249,54 @@
   border: 0;
 }
 
+.find-toolbar {
+  margin-top: 1.5rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid #ddd;
+}
+
+.find-toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.find-toolbar-controls input[type='search'] {
+  min-width: 12rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #bbb;
+  font: inherit;
+  background: #fff;
+}
+
+.find-toolbar-controls button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.find-toolbar-controls button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.find-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #444;
+}
+
 .report-surface {
   margin-top: 2rem;
+}
+
+.report-page {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #333;
 }
 
 .report-surface-header {

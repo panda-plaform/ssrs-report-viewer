@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { toggleDrilldown, type RenderResponse } from './reportApi'
+import { toggleDrilldown, type PageInfo, type RenderResponse } from './reportApi'
 
 type Props = {
   html: string | null
   sessionId: string | null
+  pageInfo: PageInfo | null
   busy: boolean
   error: string | null
   onHtmlReplaced: (result: RenderResponse) => void
@@ -18,6 +19,7 @@ type Props = {
 export function ReportSurface({
   html,
   sessionId,
+  pageInfo,
   busy,
   error,
   onHtmlReplaced,
@@ -116,6 +118,11 @@ export function ReportSurface({
     <section className="report-surface" aria-labelledby="report-surface-heading">
       <header className="report-surface-header">
         <h2 id="report-surface-heading">Report</h2>
+        {pageInfo && (
+          <p className="report-page" aria-label="Report Page">
+            Page {pageInfo.currentPage} of {pageInfo.pageCount}
+          </p>
+        )}
         {sessionId && (
           <p className="report-session" aria-label="Viewer Session id">
             Session {sessionId}
