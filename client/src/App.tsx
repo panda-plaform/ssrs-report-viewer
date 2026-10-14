@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { FindToolbar } from './FindToolbar'
+import { ParameterForm } from './ParameterForm'
+import { ReportSurface } from './ReportSurface'
+import type { FindResponse, RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -11,6 +15,10 @@ type ApiStatus = 'loading' | 'ok' | 'error'
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
   const [detail, setDetail] = useState('Checking API…')
+  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
+  const [render, setRender] = useState<RenderResponse | null>(null)
+  const [surfaceError, setSurfaceError] = useState<string | null>(null)
+  const [sessionBusy, setSessionBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -45,14 +53,75 @@ function App() {
     }
   }, [])
 
+  const clearSurface = useCallback(() => {
+    setRender(null)
+    setSurfaceError(null)
+    setSessionBusy(false)
+  }, [])
+
+  function handleSelectReport(path: string) {
+    setSelectedReportPath(path)
+    clearSurface()
+  }
+
+  function handleViewed(result: RenderResponse) {
+    setSurfaceError(null)
+    setRender(result)
+  }
+
+  function handleFindResult(result: FindResponse) {
+    if (!render) {
+      return
+    }
+
+    setSurfaceError(null)
+    setRender({
+      sessionId: render.sessionId,
+      html: result.html,
+      pageInfo: result.pageInfo,
+    })
+  }
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
-      <p className="lede">Browse the Catalog for Folders and Reports. Viewing a Report is a later ticket.</p>
+      <p className="lede">
+        Browse the Catalog, enter Report Parameters, then View Report. Use Find for server-side
+        search on the current Execution.
+      </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
       </p>
-      {apiStatus === 'ok' && <CatalogBrowser />}
+      {apiStatus === 'ok' && (
+        <>
+          <CatalogBrowser
+            selectedReportPath={selectedReportPath}
+            onSelectReport={handleSelectReport}
+          />
+          {selectedReportPath && (
+            <ParameterForm
+              reportPath={selectedReportPath}
+              onViewed={handleViewed}
+              onClearSurface={clearSurface}
+            />
+          )}
+          {render && (
+            <FindToolbar
+              sessionId={render.sessionId}
+              busy={sessionBusy}
+              onResult={handleFindResult}
+              onError={setSurfaceError}
+              onBusyChange={setSessionBusy}
+            />
+          )}
+          <ReportSurface
+            html={render?.html ?? null}
+            sessionId={render?.sessionId ?? null}
+            pageInfo={render?.pageInfo ?? null}
+            error={surfaceError}
+          />
+        </>
+      )}
     </main>
   )
 }

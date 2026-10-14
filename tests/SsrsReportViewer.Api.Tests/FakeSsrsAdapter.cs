@@ -62,13 +62,17 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         string reportPath,
         IReadOnlyList<FakeReportParameter> parameters,
         string html = "<div class=\"report\">ok</div>",
-        IReadOnlyList<FakeStream>? streams = null)
+        IReadOnlyList<FakeStream>? streams = null,
+        IReadOnlyList<string>? pageHtml = null)
     {
         var path = NormalizePath(reportPath);
+        var pages = pageHtml is { Count: > 0 }
+            ? pageHtml.ToList()
+            : [html];
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
-            html,
+            pages,
             (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal));
     }
 
@@ -153,7 +157,19 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 
-        var html = exec.Report.HtmlTemplate;
+        var pageCount = exec.Report.PageHtml.Count;
+        var page = deviceInfo.Section ?? 1;
+        if (page < 1)
+        {
+            page = 1;
+        }
+
+        if (page > pageCount)
+        {
+            page = pageCount;
+        }
+
+        var html = exec.Report.PageHtml[page - 1];
         foreach (var (name, values) in exec.Parameters)
         {
             html = html.Replace($"{{{{{name}}}}}", string.Join(",", values), StringComparison.OrdinalIgnoreCase);
@@ -180,7 +196,65 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
 
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
-        return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: 1, CurrentPage: deviceInfo.Section ?? 1));
+        return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: pageCount, CurrentPage: page));
+    }
+
+    public Task<int> FindStringAsync(
+        ExecutionHandle execution,
+        int startPage,
+        int endPage,
+        string findValue,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (string.IsNullOrEmpty(findValue))
+        {
+            return Task.FromResult(0);
+        }
+
+        var pageCount = exec.Report.PageHtml.Count;
+        if (pageCount == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        // Mirror ReportExecution2005 FindString wrap semantics.
+        var start = startPage <= 0 ? 1 : startPage;
+        var stop = endPage <= 0 ? start : endPage;
+        if (start > pageCount)
+        {
+            start = 1;
+        }
+
+        if (stop > pageCount)
+        {
+            stop = pageCount;
+        }
+
+        var page = start;
+        while (true)
+        {
+            if (exec.Report.PageHtml[page - 1].Contains(findValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(page);
+            }
+
+            if (page == stop)
+            {
+                break;
+            }
+
+            page++;
+            if (page > pageCount)
+            {
+                page = 1;
+            }
+        }
+
+        return Task.FromResult(0);
     }
 
     public async Task<StreamResult> RenderStreamAsync(
@@ -244,7 +318,7 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
     private sealed record SeededReport(
         string Path,
         IReadOnlyList<FakeReportParameter> Parameters,
-        string HtmlTemplate,
+        IReadOnlyList<string> PageHtml,
         Dictionary<string, FakeStream> Streams);
 
     private sealed class FakeExecution(
