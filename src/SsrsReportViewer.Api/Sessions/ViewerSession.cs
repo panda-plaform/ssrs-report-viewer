@@ -13,11 +13,13 @@ public sealed class ViewerSession : IAsyncDisposable
         string id,
         string reportPath,
         ExecutionHandle execution,
+        IReadOnlyList<ParameterValue> parameters,
         DateTimeOffset createdAt)
     {
         Id = id;
         ReportPath = reportPath;
         Execution = execution;
+        Parameters = parameters;
         LastActivityUtc = createdAt;
     }
 
@@ -25,13 +27,19 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public string ReportPath { get; }
 
-    public ExecutionHandle Execution { get; }
+    public ExecutionHandle Execution { get; private set; }
+
+    public IReadOnlyList<ParameterValue> Parameters { get; }
 
     public DateTimeOffset LastActivityUtc { get; private set; }
 
     public int ZoomPercent { get; set; } = 100;
 
     public int CurrentPage { get; set; } = 1;
+
+    public int PageCount { get; set; } = 1;
+
+    public void ReplaceExecution(ExecutionHandle execution) => Execution = execution;
 
     public void Touch(DateTimeOffset utcNow) => LastActivityUtc = utcNow;
 

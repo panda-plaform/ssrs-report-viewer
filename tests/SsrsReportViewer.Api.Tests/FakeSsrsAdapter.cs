@@ -62,14 +62,16 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         string reportPath,
         IReadOnlyList<FakeReportParameter> parameters,
         string html = "<div class=\"report\">ok</div>",
-        IReadOnlyList<FakeStream>? streams = null)
+        IReadOnlyList<FakeStream>? streams = null,
+        int pageCount = 1)
     {
         var path = NormalizePath(reportPath);
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
             html,
-            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal));
+            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal),
+            Math.Max(1, pageCount));
     }
 
     public Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default)
@@ -178,9 +180,28 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
             html += $"<!-- resources:{deviceInfo.ResourceStreamRoot} -->";
         }
 
+        var currentPage = deviceInfo.Section ?? 1;
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+        else if (currentPage > exec.Report.PageCount)
+        {
+            currentPage = exec.Report.PageCount;
+        }
+
+        // Expose DeviceInfo Zoom / Section and Execution id so HTTP tests can assert SSRS re-render.
+        html =
+            $"<div data-exec=\"{exec.Id}\" data-zoom=\"{deviceInfo.ZoomPercent}\" data-page=\"{currentPage}\">{html}</div>";
+
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
-        return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: 1, CurrentPage: deviceInfo.Section ?? 1));
+        return Task.FromResult(new RenderResult(
+            bytes,
+            "text/html",
+            streamIds,
+            PageCount: exec.Report.PageCount,
+            CurrentPage: currentPage));
     }
 
     public async Task<StreamResult> RenderStreamAsync(
@@ -245,7 +266,8 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         string Path,
         IReadOnlyList<FakeReportParameter> Parameters,
         string HtmlTemplate,
-        Dictionary<string, FakeStream> Streams);
+        Dictionary<string, FakeStream> Streams,
+        int PageCount);
 
     private sealed class FakeExecution(
         string Id,

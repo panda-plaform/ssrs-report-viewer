@@ -120,16 +120,7 @@ app.MapPost("/api/reports/render", async (
     try
     {
         var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(new
-        {
-            sessionId = result.SessionId,
-            html = result.Html,
-            pageInfo = new
-            {
-                currentPage = result.PageInfo.CurrentPage,
-                pageCount = result.PageInfo.PageCount,
-            },
-        });
+        return Results.Ok(ToSessionRenderResponse(result));
     }
     catch (RequiredParameterMissingException ex)
     {
@@ -147,6 +138,67 @@ app.MapPost("/api/reports/render", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/zoom", async (
+    string sessionId,
+    ZoomRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
+        return Results.Ok(ToSessionRenderResponse(result));
+    }
+    catch (Exception ex) when (MapSessionException(ex) is { } problem)
+    {
+        return problem;
+    }
+});
+
+app.MapPost("/api/sessions/{sessionId}/page", async (
+    string sessionId,
+    PageRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Action))
+    {
+        return Results.Problem(
+            detail: "action is required (next, previous, or goto).",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Report Page request");
+    }
+
+    try
+    {
+        var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
+        return Results.Ok(ToSessionRenderResponse(result));
+    }
+    catch (Exception ex) when (MapSessionException(ex) is { } problem)
+    {
+        return problem;
+    }
+});
+
+app.MapPost("/api/sessions/{sessionId}/refresh", async (
+    string sessionId,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
+        return Results.Ok(ToSessionRenderResponse(result));
+    }
+    catch (Exception ex) when (MapSessionException(ex) is { } problem)
+    {
+        return problem;
+    }
+});
+
 app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     string sessionId,
     string streamId,
@@ -159,28 +211,44 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
         var stream = await viewer.GetResourceAsync(sessionId, streamId, guard, cancellationToken);
         return Results.File(stream.Content, stream.MimeType);
     }
-    catch (ViewerSessionNotFoundException ex)
+    catch (Exception ex) when (MapSessionException(ex) is { } problem)
     {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
+        return problem;
     }
 });
+
+static object ToSessionRenderResponse(ViewReportResult result) => new
+{
+    sessionId = result.SessionId,
+    html = result.Html,
+    pageInfo = new
+    {
+        currentPage = result.PageInfo.CurrentPage,
+        pageCount = result.PageInfo.PageCount,
+    },
+    zoomPercent = result.ZoomPercent,
+};
+
+static IResult? MapSessionException(Exception ex) => ex switch
+{
+    ViewerSessionNotFoundException notFound => Results.Problem(
+        detail: notFound.Message,
+        statusCode: StatusCodes.Status404NotFound,
+        title: "Viewer Session not found"),
+    ViewerSessionExpiredException expired => Results.Problem(
+        detail: expired.Message,
+        statusCode: StatusCodes.Status410Gone,
+        title: "Viewer Session expired"),
+    ViewerSessionBusyException busy => Results.Problem(
+        detail: busy.Message,
+        statusCode: StatusCodes.Status409Conflict,
+        title: "Viewer Session busy"),
+    InvalidViewerInteractionException invalid => Results.Problem(
+        detail: invalid.Message,
+        statusCode: StatusCodes.Status400BadRequest,
+        title: "Invalid Viewer Session interaction"),
+    _ => null,
+};
 
 static string NormalizeCatalogPath(string? path)
 {
@@ -199,3 +267,7 @@ public partial class Program;
 public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 
 public sealed record ViewReportParameter(string Name, string[]? Values);
+
+public sealed record ZoomRequest(int ZoomPercent);
+
+public sealed record PageRequest(string? Action, int? Page);

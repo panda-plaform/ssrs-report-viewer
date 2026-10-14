@@ -40,6 +40,16 @@ Health: `GET /api/health` → `{ "status": "Healthy" }`.
 
 Catalog: `GET /api/catalog?path=/` → `{ path, folders[{ name, path }], reports[{ name, path }] }` (browse only; no Viewer Session).
 
+View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo, zoomPercent }`.
+
+Resources: `GET /api/sessions/{sessionId}/resources/{streamId}` (RenderStream proxy; idle TTL / busy rules apply).
+
+Viewer Session interactions (serialized per session; Zoom via SSRS DeviceInfo re-render):
+
+- `POST /api/sessions/{sessionId}/zoom` `{ zoomPercent }` → `{ sessionId, html, pageInfo, zoomPercent }`
+- `POST /api/sessions/{sessionId}/page` `{ action: "next"|"previous"|"goto", page? }` → same shape
+- `POST /api/sessions/{sessionId}/refresh` → reloads path + parameters into a new Execution; same Viewer Session id
+
 ## Tests
 
 HTTP API tests use a fake SSRS adapter (no live ReportServer):
