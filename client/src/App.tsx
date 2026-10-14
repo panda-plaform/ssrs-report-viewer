@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { ParameterForm } from './ParameterForm'
+import { ReportSurface } from './ReportSurface'
+import { ViewerToolbar } from './ViewerToolbar'
+import type { RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -11,6 +15,9 @@ type ApiStatus = 'loading' | 'ok' | 'error'
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
   const [detail, setDetail] = useState('Checking API…')
+  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
+  const [render, setRender] = useState<RenderResponse | null>(null)
+  const [surfaceError, setSurfaceError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -45,14 +52,59 @@ function App() {
     }
   }, [])
 
+  const clearSurface = useCallback(() => {
+    setRender(null)
+    setSurfaceError(null)
+  }, [])
+
+  function handleSelectReport(path: string) {
+    setSelectedReportPath(path)
+    clearSurface()
+  }
+
+  function handleViewed(result: RenderResponse) {
+    setSurfaceError(null)
+    setRender(result)
+  }
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
-      <p className="lede">Browse the Catalog for Folders and Reports. Viewing a Report is a later ticket.</p>
-      <p className={`status status-${apiStatus}`} role="status">
+      <p className="lede no-print">
+        Browse the Catalog, enter Report Parameters, then View Report. Export downloads the current
+        Execution; Print uses the browser on the HTML surface (PDF Export for high fidelity).
+      </p>
+      <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
       </p>
-      {apiStatus === 'ok' && <CatalogBrowser />}
+      {apiStatus === 'ok' && (
+        <>
+          <div className="no-print">
+            <CatalogBrowser
+              selectedReportPath={selectedReportPath}
+              onSelectReport={handleSelectReport}
+            />
+            {selectedReportPath && (
+              <ParameterForm
+                reportPath={selectedReportPath}
+                onViewed={handleViewed}
+                onClearSurface={clearSurface}
+              />
+            )}
+          </div>
+          {render?.sessionId && (
+            <ViewerToolbar
+              sessionId={render.sessionId}
+              onError={(message) => setSurfaceError(message || null)}
+            />
+          )}
+          <ReportSurface
+            html={render?.html ?? null}
+            sessionId={render?.sessionId ?? null}
+            error={surfaceError}
+          />
+        </>
+      )}
     </main>
   )
 }

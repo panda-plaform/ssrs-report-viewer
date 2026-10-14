@@ -33,6 +33,9 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
 
     public int ActiveExecutionCount => _executions.Count;
 
+    /// <summary>Execution id from the most recent LoadReportAsync call.</summary>
+    public string? LastLoadedExecutionId { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -43,6 +46,7 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         _executions.Clear();
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
+        LastLoadedExecutionId = null;
     }
 
     public void ResetCatalog() => Reset();
@@ -120,6 +124,7 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations++;
 
         var id = Guid.NewGuid().ToString("N");
+        LastLoadedExecutionId = id;
         _executions[id] = new FakeExecution(id, report, new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase));
         return Task.FromResult(new ExecutionHandle(id));
     }
@@ -153,6 +158,12 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 
+        if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(RenderExport(exec, format, deviceInfo));
+        }
+
         var html = exec.Report.HtmlTemplate;
         foreach (var (name, values) in exec.Parameters)
         {
@@ -181,6 +192,23 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
         return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: 1, CurrentPage: deviceInfo.Section ?? 1));
+    }
+
+    private static RenderResult RenderExport(FakeExecution exec, string format, DeviceInfo deviceInfo)
+    {
+        var normalized = format.Trim().ToUpperInvariant();
+        var (prefix, mime) = normalized switch
+        {
+            "PDF" => ("FAKE-PDF:", "application/pdf"),
+            "EXCELOPENXML" => ("FAKE-XLSX:", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "CSV" => ("FAKE-CSV:", "text/csv"),
+            _ => throw new InvalidOperationException($"Unsupported Export format '{format}'."),
+        };
+
+        // Include Execution id so HTTP tests can prove Export targets the current Execution.
+        _ = deviceInfo;
+        var bytes = Encoding.UTF8.GetBytes(prefix + exec.Id);
+        return new RenderResult(bytes, mime, StreamIds: [], PageCount: 1, CurrentPage: 1);
     }
 
     public async Task<StreamResult> RenderStreamAsync(
