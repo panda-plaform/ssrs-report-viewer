@@ -21,29 +21,25 @@ public sealed class ReportViewerService
         _options = options.Value;
     }
 
-    public async Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
+    public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
         bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading,
-        CancellationToken cancellationToken)
-    {
-        var parameters = await _ssrs.GetParametersAsync(
+        CancellationToken cancellationToken) =>
+        _ssrs.GetParametersAsync(
             reportPath,
             forRendering,
             valuesForCascading,
             cancellationToken);
-        // Parameter-form list: omit Report Parameters SSRS does not prompt for.
-        // View Report still loads full metadata via ISsrsAdapter (forRendering: false).
-        return parameters.Where(p => p.PromptUser).ToArray();
-    }
 
     public async Task<ViewReportResult> ViewReportAsync(
         string reportPath,
         IReadOnlyList<ParameterValue> parameters,
         CancellationToken cancellationToken)
     {
-        // Metadata only — ForRendering=false avoids data-source parameter queries before LoadReport.
-        var definitions = await _ssrs.GetParametersAsync(
+        // Full definitions (including non-prompted) for required checks and default resolution.
+        // ForRendering=false avoids data-source parameter queries before LoadReport.
+        var definitions = await GetParametersAsync(
             reportPath,
             forRendering: false,
             valuesForCascading: null,
@@ -190,7 +186,8 @@ public sealed class ReportViewerService
             sessionId,
             async (session, ct) =>
             {
-                var definitions = await _ssrs.GetParametersAsync(
+                // Full definitions (including non-prompted) — same as View Report.
+                var definitions = await GetParametersAsync(
                     reportPath,
                     forRendering: false,
                     valuesForCascading: null,

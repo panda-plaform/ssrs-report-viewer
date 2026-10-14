@@ -196,6 +196,71 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_succeeds_when_only_prompted_values_submitted_and_non_prompted_defaults_apply()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N"), ("South", "S")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "all_value",
+                    Required: false,
+                    PromptUser: false,
+                    DefaultValues: ["*"]),
+            ],
+            html: "<div class=\"report\">Region={{Region}} all_value={{all_value}}</div>");
+
+        var parametersResponse = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+        Assert.Equal(HttpStatusCode.OK, parametersResponse.StatusCode);
+        var parametersBody = await parametersResponse.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(parametersBody);
+        Assert.Equal("Region", Assert.Single(parametersBody.Parameters).Name);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(_factory.Fake.LastGetParametersForRendering);
+
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.False(string.IsNullOrWhiteSpace(body.SessionId));
+        Assert.Contains("Region=N", body.Html, StringComparison.Ordinal);
+        Assert.Contains("all_value=*", body.Html, StringComparison.Ordinal);
+
+        var executionId = _factory.Fake.LastRenderedExecutionId;
+        Assert.False(string.IsNullOrWhiteSpace(executionId));
+        Assert.True(
+            _factory.Fake.TryGetExecutionParameter(executionId!, "all_value", out var stored),
+            "Expected non-prompted default to remain on the Execution");
+        Assert.Equal(["*"], stored);
+
+        var region = Assert.Single(body.Parameters!, p => p.Name == "Region");
+        Assert.Equal(["N"], region.Values);
+        Assert.DoesNotContain(body.Parameters!, p => p.Name == "all_value");
+    }
+
+    [Fact]
     public async Task Post_render_requests_forRendering_false_for_metadata_check()
     {
         _factory.Fake.SeedReport(
