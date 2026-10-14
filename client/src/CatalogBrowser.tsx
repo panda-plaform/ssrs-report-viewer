@@ -81,6 +81,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
           Loading Catalog…
         </p>
       )}
+
       {loadState === 'error' && (
         <p className="catalog-status catalog-error" role="alert">
           {error}

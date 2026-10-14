@@ -42,9 +42,15 @@ Catalog: `GET /api/catalog?path=/` → `{ path, folders[{ name, path }], reports
 
 Parameters: `GET /api/reports/parameters?path=/Report` → Report Parameter metadata.
 
-View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo }`.
+View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo, zoomPercent, documentMap? }`.
 
 Resources: `GET /api/sessions/{sessionId}/resources/{streamId}` (RenderStream proxy; idle TTL / busy rules apply).
+
+Viewer Session interactions (serialized per session; Zoom via SSRS DeviceInfo re-render):
+
+- `POST /api/sessions/{sessionId}/zoom` `{ zoomPercent }` → `{ sessionId, html, pageInfo, zoomPercent, documentMap? }`
+- `POST /api/sessions/{sessionId}/page` `{ action: "next"|"previous"|"goto", page? }` → same shape
+- `POST /api/sessions/{sessionId}/refresh` → reloads path + parameters into a new Execution; same Viewer Session id
 
 Export (current Execution for a Viewer Session): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment.
 

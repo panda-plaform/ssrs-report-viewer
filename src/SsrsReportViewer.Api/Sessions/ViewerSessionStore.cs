@@ -8,7 +8,10 @@ public interface IViewerSessionStore
 {
     int Count { get; }
 
-    ViewerSession Create(string reportPath, ExecutionHandle execution);
+    ViewerSession Create(
+        string reportPath,
+        ExecutionHandle execution,
+        IReadOnlyList<ParameterValue> parameters);
 
     bool TryGet(string sessionId, out ViewerSession? session);
 
@@ -29,10 +32,18 @@ public sealed class ViewerSessionStore : IViewerSessionStore
 
     public int Count => _sessions.Count;
 
-    public ViewerSession Create(string reportPath, ExecutionHandle execution)
+    public ViewerSession Create(
+        string reportPath,
+        ExecutionHandle execution,
+        IReadOnlyList<ParameterValue> parameters)
     {
         var id = Guid.NewGuid().ToString("N");
-        var session = new ViewerSession(id, reportPath, execution, _timeProvider.GetUtcNow());
+        var session = new ViewerSession(
+            id,
+            reportPath,
+            execution,
+            parameters,
+            _timeProvider.GetUtcNow());
         if (!_sessions.TryAdd(id, session))
         {
             throw new InvalidOperationException("Failed to allocate Viewer Session id.");

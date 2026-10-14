@@ -76,12 +76,13 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         IReadOnlyList<FakeDocumentMapNode>? documentMap = null,
         IReadOnlyDictionary<string, string>? documentMapHtml = null,
         IReadOnlyDictionary<string, string>? bookmarkHtml = null,
-        IReadOnlyList<string>? pageHtml = null)
+        IReadOnlyList<string>? pageHtml = null,
+        int pageCount = 1)
     {
         var path = NormalizePath(reportPath);
         var pages = pageHtml is { Count: > 0 }
             ? pageHtml.ToList()
-            : [html];
+            : Enumerable.Repeat(html, Math.Max(1, pageCount)).ToList();
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
@@ -233,6 +234,10 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         {
             html += $"<!-- resources:{deviceInfo.ResourceStreamRoot} -->";
         }
+
+        // Expose DeviceInfo Zoom / Section and Execution id so HTTP tests can assert SSRS re-render.
+        html =
+            $"<div data-exec=\"{exec.Id}\" data-zoom=\"{deviceInfo.ZoomPercent}\" data-page=\"{page}\">{html}</div>";
 
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();

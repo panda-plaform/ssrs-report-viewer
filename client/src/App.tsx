@@ -85,6 +85,7 @@ function App() {
       sessionId: render.sessionId,
       html: result.html,
       pageInfo: result.pageInfo,
+      zoomPercent: render.zoomPercent,
       documentMap: render.documentMap,
     })
   }
@@ -122,8 +123,8 @@ function App() {
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, Document
-        Map, Bookmark Action Links, Export, and Print.
+        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
+        Find, Drilldown, Document Map, Bookmark Action Links, Export, and Print.
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
@@ -145,7 +146,15 @@ function App() {
           </div>
           {render?.sessionId && (
             <div className="no-print">
-              <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
+              <ViewerToolbar
+                sessionId={render.sessionId}
+                pageInfo={render.pageInfo}
+                zoomPercent={render.zoomPercent}
+                busy={busy}
+                onUpdated={setRender}
+                onError={handleSurfaceError}
+                onBusyChange={setBusy}
+              />
               <FindToolbar
                 sessionId={render.sessionId}
                 busy={busy}

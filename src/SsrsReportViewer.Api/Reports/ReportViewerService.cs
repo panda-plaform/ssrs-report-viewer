@@ -53,8 +53,75 @@ public sealed class ReportViewerService
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
         await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, cancellationToken);
 
-        var session = _sessions.Create(reportPath, execution);
+        var session = _sessions.Create(reportPath, execution, parameters);
         return await RenderSessionAsync(session, cancellationToken);
+    }
+
+    public async Task<ViewReportResult> SetZoomAsync(
+        string sessionId,
+        int zoomPercent,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (zoomPercent is < 10 or > 500)
+        {
+            throw new InvalidViewerInteractionException($"Zoom percent '{zoomPercent}' is out of range (10-500).");
+        }
+
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                session.ZoomPercent = zoomPercent;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ViewReportResult> SetPageAsync(
+        string sessionId,
+        string action,
+        int? page,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var target = ResolveTargetPage(session, action, page);
+                if (target < 1 || target > Math.Max(1, session.PageCount))
+                {
+                    throw new InvalidViewerInteractionException(
+                        $"Report Page '{target}' is outside 1–{Math.Max(1, session.PageCount)}.");
+                }
+
+                session.CurrentPage = target;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ViewReportResult> RefreshAsync(
+        string sessionId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var execution = await _ssrs.LoadReportAsync(session.ReportPath, ct);
+                await _ssrs.SetParametersAsync(
+                    execution,
+                    session.Parameters,
+                    _options.DefaultCulture,
+                    ct);
+                session.ReplaceExecution(execution);
+                session.CurrentPage = 1;
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
     }
 
     public Task<ViewReportResult> ToggleAsync(
@@ -231,7 +298,20 @@ public sealed class ReportViewerService
             session.Id,
             html,
             new PageInfo(render.CurrentPage, render.PageCount),
+            session.ZoomPercent,
             render.DocumentMap);
+    }
+
+    private static int ResolveTargetPage(ViewerSession session, string action, int? page)
+    {
+        var normalized = action.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "next" => session.CurrentPage + 1,
+            "previous" or "prev" => session.CurrentPage - 1,
+            "goto" => page ?? throw new InvalidViewerInteractionException("page is required for goto."),
+            _ => throw new InvalidViewerInteractionException($"Unknown page action '{action}'."),
+        };
     }
 
     private static string NormalizeExportFormat(string format)
@@ -304,6 +384,7 @@ public sealed record ViewReportResult(
     string SessionId,
     string Html,
     PageInfo PageInfo,
+    int ZoomPercent,
     IReadOnlyList<DocumentMapNode>? DocumentMap);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
@@ -321,4 +402,12 @@ public sealed class UnsupportedExportFormatException : Exception
     }
 
     public string Format { get; }
+}
+
+public sealed class InvalidViewerInteractionException : Exception
+{
+    public InvalidViewerInteractionException(string message)
+        : base(message)
+    {
+    }
 }
