@@ -40,6 +40,14 @@ public interface ISsrsAdapter
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Toggles Drilldown show/hide for an item on the current Execution (ReportExecution2005 ToggleItem).
+    /// </summary>
+    Task ToggleItemAsync(
+        ExecutionHandle execution,
+        string toggleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// ReportExecution2005 FindString: page of next match, or 0 if not found.
     /// Search starts at <paramref name="startPage"/>, continues to the end, wraps, and finishes on <paramref name="endPage"/>.
     /// </summary>

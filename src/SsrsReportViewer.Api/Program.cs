@@ -182,6 +182,58 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/toggle", async (
+    string sessionId,
+    ToggleRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.ToggleId))
+    {
+        return Results.Problem(
+            detail: "toggleId is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Drilldown toggle request");
+    }
+
+    try
+    {
+        var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
+        return Results.Ok(new
+        {
+            sessionId = result.SessionId,
+            html = result.Html,
+            pageInfo = new
+            {
+                currentPage = result.PageInfo.CurrentPage,
+                pageCount = result.PageInfo.PageCount,
+            },
+        });
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
     FindRequest request,
@@ -276,5 +328,7 @@ public partial class Program;
 public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 
 public sealed record ViewReportParameter(string Name, string[]? Values);
+
+public sealed record ToggleRequest(string? ToggleId);
 
 public sealed record FindRequest(string? FindValue);

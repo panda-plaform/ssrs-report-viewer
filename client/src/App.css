@@ -320,6 +320,12 @@
   color: #555;
 }
 
+.report-busy {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+
 .report-surface-error {
   margin: 0;
   padding: 0.75rem 1rem;
