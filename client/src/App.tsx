@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
+import { ParameterForm } from './ParameterForm'
+import { ReportSurface } from './ReportSurface'
+import type { RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -11,6 +14,9 @@ type ApiStatus = 'loading' | 'ok' | 'error'
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
   const [detail, setDetail] = useState('Checking API…')
+  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
+  const [render, setRender] = useState<RenderResponse | null>(null)
+  const [surfaceError, setSurfaceError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -45,14 +51,50 @@ function App() {
     }
   }, [])
 
+  const clearSurface = useCallback(() => {
+    setRender(null)
+    setSurfaceError(null)
+  }, [])
+
+  function handleSelectReport(path: string) {
+    setSelectedReportPath(path)
+    clearSurface()
+  }
+
+  function handleViewed(result: RenderResponse) {
+    setSurfaceError(null)
+    setRender(result)
+  }
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
-      <p className="lede">Browse the Catalog for Folders and Reports. Viewing a Report is a later ticket.</p>
+      <p className="lede">
+        Browse the Catalog, enter Report Parameters, then View Report to open a Viewer Session.
+      </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
       </p>
-      {apiStatus === 'ok' && <CatalogBrowser />}
+      {apiStatus === 'ok' && (
+        <>
+          <CatalogBrowser
+            selectedReportPath={selectedReportPath}
+            onSelectReport={handleSelectReport}
+          />
+          {selectedReportPath && (
+            <ParameterForm
+              reportPath={selectedReportPath}
+              onViewed={handleViewed}
+              onClearSurface={clearSurface}
+            />
+          )}
+          <ReportSurface
+            html={render?.html ?? null}
+            sessionId={render?.sessionId ?? null}
+            error={surfaceError}
+          />
+        </>
+      )}
     </main>
   )
 }
