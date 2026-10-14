@@ -44,6 +44,8 @@ export type RenderResponse = {
   zoomPercent: number
   documentMap: DocumentMapNode[] | null
   canGoBack: boolean
+  reportPath: string
+  parameters: ParameterSubmission[]
 }
 
 /** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */

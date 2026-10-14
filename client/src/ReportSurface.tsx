@@ -11,6 +11,11 @@ import {
   type SortDirection,
 } from './reportApi'
 
+export type HtmlReplacedOptions = {
+  /** Drillthrough / in-app Back: sync `?path=` (replaceState) and reseed parameters. */
+  syncOpenReport?: boolean
+}
+
 type Props = {
   html: string | null
   sessionId: string | null
@@ -18,7 +23,7 @@ type Props = {
   canGoBack: boolean
   busy: boolean
   error: string | null
-  onHtmlReplaced: (result: RenderResponse) => void
+  onHtmlReplaced: (result: RenderResponse, options?: HtmlReplacedOptions) => void
   onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
 }
@@ -55,18 +60,21 @@ export function ReportSurface({
       return
     }
 
+    const activeSessionId = sessionId
+
     async function runSessionAction(
       work: () => Promise<RenderResponse>,
       failureLabel: string,
+      options?: HtmlReplacedOptions,
     ): Promise<void> {
-      if (busy || !sessionId) {
+      if (busy) {
         return
       }
 
       onBusyChange(true)
       try {
         const result = await work()
-        onHtmlReplaced(result)
+        onHtmlReplaced(result, options)
       } catch (err) {
         onError(err instanceof Error ? err : failureLabel)
       } finally {
@@ -101,7 +109,7 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => toggleDrilldown(sessionId, toggleId),
+          () => toggleDrilldown(activeSessionId, toggleId),
           'Drilldown toggle failed',
         )
         return
@@ -127,8 +135,9 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => drillthroughReport(sessionId, reportPath, parameters),
+          () => drillthroughReport(activeSessionId, reportPath, parameters),
           'Drillthrough failed',
+          { syncOpenReport: true },
         )
         return
       }
@@ -150,7 +159,7 @@ export function ReportSurface({
         ) as SortDirection
 
         await runSessionAction(
-          () => sortReport(sessionId, sortItem, direction, clear),
+          () => sortReport(activeSessionId, sortItem, direction, clear),
           'Sort failed',
         )
         return
@@ -165,7 +174,7 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => navigateBookmark(sessionId, bookmarkId),
+          () => navigateBookmark(activeSessionId, bookmarkId),
           'Bookmark navigation failed',
         )
         return
@@ -203,7 +212,7 @@ export function ReportSurface({
     onBusyChange(true)
     try {
       const result = await goBack(sessionId)
-      onHtmlReplaced(result)
+      onHtmlReplaced(result, { syncOpenReport: true })
     } catch (err) {
       onError(err instanceof Error ? err : 'Back failed')
     } finally {

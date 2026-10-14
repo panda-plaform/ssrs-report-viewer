@@ -52,10 +52,11 @@ public sealed class ReportViewerService
             throw new RequiredParameterMissingException(missing);
         }
 
+        var resolved = ResolveParametersForExecution(definitions, parameters);
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
-        await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, cancellationToken);
+        await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, cancellationToken);
 
-        var session = _sessions.Create(reportPath, execution, parameters);
+        var session = _sessions.Create(reportPath, execution, resolved);
         return await RenderSessionAsync(session, cancellationToken);
     }
 
@@ -194,9 +195,10 @@ public sealed class ReportViewerService
                     throw new RequiredParameterMissingException(missing);
                 }
 
+                var resolved = ResolveParametersForExecution(definitions, parameters);
                 var execution = await _ssrs.LoadReportAsync(reportPath, ct);
-                await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, ct);
-                session.DrillthroughTo(reportPath, execution, parameters);
+                await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, ct);
+                session.DrillthroughTo(reportPath, execution, resolved);
 
                 return await RenderSessionAsync(session, ct);
             },
@@ -397,7 +399,9 @@ public sealed class ReportViewerService
             new PageInfo(render.CurrentPage, render.PageCount),
             session.ZoomPercent,
             session.CanGoBack,
-            render.DocumentMap);
+            render.DocumentMap,
+            session.ReportPath,
+            session.Parameters);
     }
 
     private static DeviceInfo CreateDeviceInfo(ViewerSession session, bool includeActionRoots)
@@ -495,6 +499,47 @@ public sealed class ReportViewerService
 
         return rewritten;
     }
+
+    /// <summary>
+    /// Empty Values means SSRS NULL only for nullable parameters. Blank non-nullables must not
+    /// clear LoadReport defaults (SetExecutionParameters with Name and no Value).
+    /// </summary>
+    internal static IReadOnlyList<ParameterValue> ResolveParametersForExecution(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> submitted)
+    {
+        var byName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
+        var resolved = new List<ParameterValue>(submitted.Count);
+
+        foreach (var parameter in submitted)
+        {
+            byName.TryGetValue(parameter.Name, out var definition);
+            var values = parameter.Values
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .ToArray();
+
+            if (values.Length > 0)
+            {
+                resolved.Add(new ParameterValue(parameter.Name, values));
+                continue;
+            }
+
+            if (definition?.Nullable == true)
+            {
+                resolved.Add(new ParameterValue(parameter.Name, []));
+                continue;
+            }
+
+            if (definition is { DefaultValues.Count: > 0 })
+            {
+                resolved.Add(new ParameterValue(parameter.Name, definition.DefaultValues));
+            }
+
+            // Else omit — keep whatever LoadReport already applied.
+        }
+
+        return resolved;
+    }
 }
 
 public sealed record ViewReportResult(
@@ -503,7 +548,9 @@ public sealed record ViewReportResult(
     PageInfo PageInfo,
     int ZoomPercent,
     bool CanGoBack,
-    IReadOnlyList<DocumentMapNode>? DocumentMap);
+    IReadOnlyList<DocumentMapNode>? DocumentMap,
+    string ReportPath,
+    IReadOnlyList<ParameterValue> Parameters);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 

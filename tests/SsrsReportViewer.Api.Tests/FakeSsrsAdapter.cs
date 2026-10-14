@@ -187,10 +187,19 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
         var id = Guid.NewGuid().ToString("N");
         LastLoadedExecutionId = id;
+        var parameters = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parameter in report.Parameters)
+        {
+            if (parameter.DefaultValues is { Count: > 0 })
+            {
+                parameters[parameter.Name] = parameter.DefaultValues;
+            }
+        }
+
         _executions[id] = new FakeExecution(
             id,
             report,
-            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase),
+            parameters,
             new HashSet<string>(StringComparer.Ordinal),
             ActiveSort: null);
         return Task.FromResult(new ExecutionHandle(id));
@@ -209,10 +218,32 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
         foreach (var value in values)
         {
+            // Empty Values means SSRS NULL: still apply so report defaults are cleared.
+            // Mirrors SetExecutionParameters ParameterValue with Name and no Value child.
             exec.Parameters[value.Name] = value.Values;
         }
 
         return Task.CompletedTask;
+    }
+
+    public bool TryGetExecutionParameter(
+        string executionId,
+        string name,
+        out IReadOnlyList<string>? values)
+    {
+        values = null;
+        if (!_executions.TryGetValue(executionId, out var exec))
+        {
+            return false;
+        }
+
+        if (!exec.Parameters.TryGetValue(name, out var stored))
+        {
+            return false;
+        }
+
+        values = stored;
+        return true;
     }
 
     public Task<RenderResult> RenderAsync(
@@ -230,6 +261,23 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
         {
             return Task.FromResult(RenderExport(exec, format, deviceInfo));
+        }
+
+        // Mirror SSRS ReportParameterValueNotSetException when a non-nullable parameter has no value.
+        foreach (var parameter in exec.Report.Parameters)
+        {
+            if (parameter.Nullable)
+            {
+                continue;
+            }
+
+            if (!exec.Parameters.TryGetValue(parameter.Name, out var values) ||
+                values.Count == 0 ||
+                values.All(string.IsNullOrWhiteSpace))
+            {
+                throw new InvalidOperationException(
+                    $"SSRS SOAP Render fault: This report requires a default or user-defined value for the report parameter '{parameter.Name}'.");
+            }
         }
 
         var pageCount = exec.Report.PageHtml.Count;
