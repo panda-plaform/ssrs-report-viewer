@@ -18,7 +18,16 @@ public sealed record RenderResult(
     string MimeType,
     IReadOnlyList<string> StreamIds,
     int PageCount,
-    int CurrentPage);
+    int CurrentPage,
+    IReadOnlyList<DocumentMapNode>? DocumentMap = null);
+
+/// <summary>
+/// Hierarchical Document Map node for positions within the current Execution.
+/// </summary>
+public sealed record DocumentMapNode(
+    string Id,
+    string Label,
+    IReadOnlyList<DocumentMapNode> Children);
 
 public sealed record StreamResult(byte[] Content, string MimeType);
 

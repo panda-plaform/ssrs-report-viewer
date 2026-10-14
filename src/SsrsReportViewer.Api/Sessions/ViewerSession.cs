@@ -27,7 +27,7 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public string ReportPath { get; }
 
-    public ExecutionHandle Execution { get; private set; }
+    public ExecutionHandle Execution { get; set; }
 
     public IReadOnlyList<ParameterValue> Parameters { get; }
 

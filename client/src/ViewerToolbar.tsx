@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
 import {
+  downloadExport,
   refreshReport,
   setReportPage,
   setZoom,
+  type ExportFormat,
   type PageInfo,
   type RenderResponse,
 } from './reportApi'
 
 const ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200] as const
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: 'PDF', label: 'PDF' },
+  { format: 'EXCELOPENXML', label: 'Excel' },
+  { format: 'CSV', label: 'CSV' },
+]
 
 type Props = {
   sessionId: string
@@ -19,6 +27,9 @@ type Props = {
   onBusyChange: (busy: boolean) => void
 }
 
+/**
+ * Report Viewer chrome: Zoom / Report Page / Refresh plus Export and Print.
+ */
 export function ViewerToolbar({
   sessionId,
   pageInfo,
@@ -29,6 +40,7 @@ export function ViewerToolbar({
   onBusyChange,
 }: Props) {
   const [gotoValue, setGotoValue] = useState(String(pageInfo.currentPage))
+  const [busyFormat, setBusyFormat] = useState<ExportFormat | null>(null)
 
   useEffect(() => {
     setGotoValue(String(pageInfo.currentPage))
@@ -52,8 +64,24 @@ export function ViewerToolbar({
     }
   }
 
+  async function handleExport(format: ExportFormat) {
+    setBusyFormat(format)
+    onError('')
+    try {
+      await downloadExport(sessionId, format)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setBusyFormat(null)
+    }
+  }
+
+  function handlePrint() {
+    window.print()
+  }
+
   return (
-    <div className="viewer-toolbar" role="toolbar" aria-label="Report Viewer toolbar">
+    <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
       <label className="viewer-toolbar-field">
         Zoom
         <select
@@ -133,6 +161,26 @@ export function ViewerToolbar({
       >
         Refresh
       </button>
+
+      <div className="viewer-toolbar-group">
+        <span className="viewer-toolbar-label">Export</span>
+        {EXPORT_FORMATS.map(({ format, label }) => (
+          <button
+            key={format}
+            type="button"
+            disabled={busyFormat !== null || busy}
+            onClick={() => void handleExport(format)}
+          >
+            {busyFormat === format ? `Exporting ${label}…` : label}
+          </button>
+        ))}
+      </div>
+
+      <div className="viewer-toolbar-group">
+        <button type="button" disabled={busy} onClick={handlePrint}>
+          Print
+        </button>
+      </div>
     </div>
   )
 }

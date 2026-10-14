@@ -46,4 +46,31 @@ public interface ISsrsAdapter
         ExecutionHandle execution,
         string toggleId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// ReportExecution2005 FindString: page of next match, or 0 if not found.
+    /// Search starts at <paramref name="startPage"/>, continues to the end, wraps, and finishes on <paramref name="endPage"/>.
+    /// </summary>
+    Task<int> FindStringAsync(
+        ExecutionHandle execution,
+        int startPage,
+        int endPage,
+        string findValue,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Jump Execution position to a Document Map node (ReportExecution2005 NavigateDocumentMap).
+    /// </summary>
+    Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Jump Execution position to a Bookmark (ReportExecution2005 NavigateBookmark).
+    /// </summary>
+    Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default);
 }

@@ -18,6 +18,11 @@ public sealed record FakeReportParameter(
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
 
+public sealed record FakeDocumentMapNode(
+    string Id,
+    string Label,
+    IReadOnlyList<FakeDocumentMapNode>? Children = null);
+
 /// <summary>
 /// In-memory SSRS adapter for API tests. Catalog + Report Parameter + Execution behaviors.
 /// </summary>
@@ -34,6 +39,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
     public int ActiveExecutionCount => _executions.Count;
 
+    /// <summary>Execution id from the most recent LoadReportAsync call.</summary>
+    public string? LastLoadedExecutionId { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -44,6 +52,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         _executions.Clear();
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
+        LastLoadedExecutionId = null;
     }
 
     public void ResetCatalog() => Reset();
@@ -64,15 +73,28 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         IReadOnlyList<FakeReportParameter> parameters,
         string html = "<div class=\"report\">ok</div>",
         IReadOnlyList<FakeStream>? streams = null,
+        IReadOnlyList<FakeDocumentMapNode>? documentMap = null,
+        IReadOnlyDictionary<string, string>? documentMapHtml = null,
+        IReadOnlyDictionary<string, string>? bookmarkHtml = null,
+        IReadOnlyList<string>? pageHtml = null,
         int pageCount = 1)
     {
         var path = NormalizePath(reportPath);
+        var pages = pageHtml is { Count: > 0 }
+            ? pageHtml.ToList()
+            : Enumerable.Repeat(html, Math.Max(1, pageCount)).ToList();
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
-            html,
+            pages,
             (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal),
-            Math.Max(1, pageCount));
+            documentMap?.ToList(),
+            documentMapHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(documentMapHtml, StringComparer.Ordinal),
+            bookmarkHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(bookmarkHtml, StringComparer.Ordinal));
     }
 
     public Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default)
@@ -123,6 +145,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations++;
 
         var id = Guid.NewGuid().ToString("N");
+        LastLoadedExecutionId = id;
         _executions[id] = new FakeExecution(
             id,
             report,
@@ -160,7 +183,25 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 
-        var html = exec.Report.HtmlTemplate;
+        if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(RenderExport(exec, format, deviceInfo));
+        }
+
+        var pageCount = exec.Report.PageHtml.Count;
+        var page = deviceInfo.Section ?? 1;
+        if (page < 1)
+        {
+            page = 1;
+        }
+
+        if (page > pageCount)
+        {
+            page = pageCount;
+        }
+
+        var html = exec.ActiveHtml ?? exec.Report.PageHtml[page - 1];
         foreach (var (name, values) in exec.Parameters)
         {
             html = html.Replace($"{{{{{name}}}}}", string.Join(",", values), StringComparison.OrdinalIgnoreCase);
@@ -194,28 +235,96 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             html += $"<!-- resources:{deviceInfo.ResourceStreamRoot} -->";
         }
 
-        var currentPage = deviceInfo.Section ?? 1;
-        if (currentPage < 1)
-        {
-            currentPage = 1;
-        }
-        else if (currentPage > exec.Report.PageCount)
-        {
-            currentPage = exec.Report.PageCount;
-        }
-
         // Expose DeviceInfo Zoom / Section and Execution id so HTTP tests can assert SSRS re-render.
         html =
-            $"<div data-exec=\"{exec.Id}\" data-zoom=\"{deviceInfo.ZoomPercent}\" data-page=\"{currentPage}\">{html}</div>";
+            $"<div data-exec=\"{exec.Id}\" data-zoom=\"{deviceInfo.ZoomPercent}\" data-page=\"{page}\">{html}</div>";
 
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
+        var documentMap = ToDocumentMap(exec.Report.DocumentMap);
         return Task.FromResult(new RenderResult(
             bytes,
             "text/html",
             streamIds,
-            PageCount: exec.Report.PageCount,
-            CurrentPage: currentPage));
+            PageCount: pageCount,
+            CurrentPage: page,
+            DocumentMap: documentMap));
+    }
+
+    public Task<int> FindStringAsync(
+        ExecutionHandle execution,
+        int startPage,
+        int endPage,
+        string findValue,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+        // Find repositions by page; drop Document Map / Bookmark HTML overrides.
+        exec.ActiveHtml = null;
+
+        if (string.IsNullOrEmpty(findValue))
+        {
+            return Task.FromResult(0);
+        }
+
+        var pageCount = exec.Report.PageHtml.Count;
+        if (pageCount == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        // Mirror ReportExecution2005 FindString wrap semantics.
+        var start = startPage <= 0 ? 1 : startPage;
+        var stop = endPage <= 0 ? start : endPage;
+        if (start > pageCount)
+        {
+            start = 1;
+        }
+
+        if (stop > pageCount)
+        {
+            stop = pageCount;
+        }
+
+        var page = start;
+        while (true)
+        {
+            if (exec.Report.PageHtml[page - 1].Contains(findValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(page);
+            }
+
+            if (page == stop)
+            {
+                break;
+            }
+
+            page++;
+            if (page > pageCount)
+            {
+                page = 1;
+            }
+        }
+
+        return Task.FromResult(0);
+    }
+
+    private static RenderResult RenderExport(FakeExecution exec, string format, DeviceInfo deviceInfo)
+    {
+        var normalized = format.Trim().ToUpperInvariant();
+        var (prefix, mime) = normalized switch
+        {
+            "PDF" => ("FAKE-PDF:", "application/pdf"),
+            "EXCELOPENXML" => ("FAKE-XLSX:", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "CSV" => ("FAKE-CSV:", "text/csv"),
+            _ => throw new InvalidOperationException($"Unsupported Export format '{format}'."),
+        };
+
+        _ = deviceInfo;
+        var bytes = Encoding.UTF8.GetBytes(prefix + exec.Id);
+        return new RenderResult(bytes, mime, StreamIds: [], PageCount: 1, CurrentPage: 1);
     }
 
     public Task ToggleItemAsync(
@@ -263,6 +372,58 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         return new StreamResult(stream.Content, stream.MimeType);
     }
 
+    public Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.DocumentMapHtml.TryGetValue(documentMapId, out var html))
+        {
+            html = $"<div class=\"report\" data-section=\"{documentMapId}\">Document Map {documentMapId}</div>";
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    public Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.BookmarkHtml.TryGetValue(bookmarkId, out var html))
+        {
+            throw new InvalidOperationException($"Unknown Bookmark '{bookmarkId}'.");
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    private static IReadOnlyList<DocumentMapNode>? ToDocumentMap(IReadOnlyList<FakeDocumentMapNode>? nodes)
+    {
+        if (nodes is null || nodes.Count == 0)
+        {
+            return null;
+        }
+
+        return nodes.Select(MapNode).ToArray();
+    }
+
+    private static DocumentMapNode MapNode(FakeDocumentMapNode node) =>
+        new(
+            node.Id,
+            node.Label,
+            (node.Children ?? []).Select(MapNode).ToArray());
+
     private SeededReport RequireReport(string reportPath)
     {
         var path = NormalizePath(reportPath);
@@ -301,9 +462,11 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     private sealed record SeededReport(
         string Path,
         IReadOnlyList<FakeReportParameter> Parameters,
-        string HtmlTemplate,
+        IReadOnlyList<string> PageHtml,
         Dictionary<string, FakeStream> Streams,
-        int PageCount);
+        IReadOnlyList<FakeDocumentMapNode>? DocumentMap,
+        Dictionary<string, string> DocumentMapHtml,
+        Dictionary<string, string> BookmarkHtml);
 
     private sealed class FakeExecution(
         string Id,
@@ -315,6 +478,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         public SeededReport Report { get; } = Report;
         public Dictionary<string, IReadOnlyList<string>> Parameters { get; } = Parameters;
         public HashSet<string> ToggledItems { get; } = ToggledItems;
+        public string? ActiveHtml { get; set; }
     }
 
     [GeneratedRegex(@"\{toggle:([^}]+)\}", RegexOptions.CultureInvariant)]

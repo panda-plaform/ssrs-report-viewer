@@ -65,7 +65,7 @@ public sealed class ReportViewerService
     {
         if (zoomPercent is < 10 or > 500)
         {
-            throw new InvalidViewerInteractionException($"Zoom percent '{zoomPercent}' is out of range (10–500).");
+            throw new InvalidViewerInteractionException($"Zoom percent '{zoomPercent}' is out of range (10-500).");
         }
 
         return await guard.ExecuteAsync(
@@ -124,7 +124,7 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-    public async Task<ViewReportResult> ToggleAsync(
+    public Task<ViewReportResult> ToggleAsync(
         string sessionId,
         string toggleId,
         ViewerSessionGuard guard,
@@ -135,7 +135,7 @@ public sealed class ReportViewerService
             throw new ArgumentException("toggleId is required.", nameof(toggleId));
         }
 
-        return await guard.ExecuteAsync(
+        return guard.ExecuteAsync(
             sessionId,
             async (session, ct) =>
             {
@@ -157,6 +157,124 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
+    public Task<ViewReportResult> NavigateDocumentMapAsync(
+        string sessionId,
+        string documentMapId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateDocumentMapAsync(session.Execution, documentMapId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public Task<ViewReportResult> NavigateBookmarkAsync(
+        string sessionId,
+        string bookmarkId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateBookmarkAsync(session.Execution, bookmarkId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public async Task<ExportResult> ExportAsync(
+        string sessionId,
+        string format,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeExportFormat(format);
+        return await guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var deviceInfo = new DeviceInfo(
+                    HtmlFragment: true,
+                    Toolbar: false,
+                    ZoomPercent: session.ZoomPercent,
+                    Section: session.CurrentPage);
+
+                var render = await _ssrs.RenderAsync(session.Execution, normalized, deviceInfo, ct);
+                var fileName = BuildExportFileName(session.ReportPath, normalized);
+                return new ExportResult(render.Content, render.MimeType, fileName);
+            },
+            cancellationToken);
+    }
+
+    public Task<FindResult> FindAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: false, ct),
+            cancellationToken);
+
+    public Task<FindResult> FindNextAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: true, ct),
+            cancellationToken);
+
+    private async Task<FindResult> FindOnSessionAsync(
+        ViewerSession session,
+        string findValue,
+        bool nextMatch,
+        CancellationToken cancellationToken)
+    {
+        var pageCount = Math.Max(1, session.PageCount);
+        var currentPage = Math.Clamp(session.CurrentPage, 1, pageCount);
+
+        int startPage;
+        int endPage;
+        if (nextMatch)
+        {
+            startPage = currentPage >= pageCount ? 1 : currentPage + 1;
+            endPage = currentPage;
+        }
+        else
+        {
+            startPage = 1;
+            endPage = pageCount;
+        }
+
+        var foundPage = await _ssrs.FindStringAsync(
+            session.Execution,
+            startPage,
+            endPage,
+            findValue,
+            cancellationToken);
+
+        var found = foundPage > 0;
+        if (found)
+        {
+            session.CurrentPage = foundPage;
+        }
+
+        var render = await RenderSessionAsync(session, cancellationToken);
+        return new FindResult(
+            render.Html,
+            found,
+            new PageInfo(session.CurrentPage, session.PageCount));
+    }
+
     private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken)
@@ -176,12 +294,12 @@ public sealed class ReportViewerService
         session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
-
         return new ViewReportResult(
             session.Id,
             html,
             new PageInfo(render.CurrentPage, render.PageCount),
-            session.ZoomPercent);
+            session.ZoomPercent,
+            render.DocumentMap);
     }
 
     private static int ResolveTargetPage(ViewerSession session, string action, int? page)
@@ -196,10 +314,51 @@ public sealed class ReportViewerService
         };
     }
 
+    private static string NormalizeExportFormat(string format)
+    {
+        if (string.IsNullOrWhiteSpace(format))
+        {
+            throw new UnsupportedExportFormatException(format ?? string.Empty);
+        }
+
+        var normalized = format.Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "PDF" => "PDF",
+            "EXCELOPENXML" => "EXCELOPENXML",
+            "CSV" => "CSV",
+            _ => throw new UnsupportedExportFormatException(format),
+        };
+    }
+
+    private static string BuildExportFileName(string reportPath, string format)
+    {
+        var leaf = reportPath.Trim('/').Split('/').LastOrDefault();
+        if (string.IsNullOrWhiteSpace(leaf))
+        {
+            leaf = "report";
+        }
+
+        var extension = format switch
+        {
+            "PDF" => "pdf",
+            "EXCELOPENXML" => "xlsx",
+            "CSV" => "csv",
+            _ => "bin",
+        };
+
+        return $"{leaf}.{extension}";
+    }
+
     private static string PrepareHtml(RenderResult render, string resourceRoot, string? replacementRoot)
     {
         var html = Encoding.UTF8.GetString(render.Content);
         html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        if (!string.IsNullOrEmpty(replacementRoot))
+        {
+            html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
+        }
+
         return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
 
@@ -221,9 +380,29 @@ public sealed class ReportViewerService
     }
 }
 
-public sealed record ViewReportResult(string SessionId, string Html, PageInfo PageInfo, int ZoomPercent);
+public sealed record ViewReportResult(
+    string SessionId,
+    string Html,
+    PageInfo PageInfo,
+    int ZoomPercent,
+    IReadOnlyList<DocumentMapNode>? DocumentMap);
+
+public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 
 public sealed record PageInfo(int CurrentPage, int PageCount);
+
+public sealed record ExportResult(byte[] Content, string MimeType, string FileName);
+
+public sealed class UnsupportedExportFormatException : Exception
+{
+    public UnsupportedExportFormatException(string format)
+        : base($"Unsupported Export format '{format}'. Use PDF, EXCELOPENXML, or CSV.")
+    {
+        Format = format;
+    }
+
+    public string Format { get; }
+}
 
 public sealed class InvalidViewerInteractionException : Exception
 {
