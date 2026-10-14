@@ -26,7 +26,7 @@ A Catalog Item that contains other Catalog Items.
 A paginated RDL Catalog Item identified by its SSRS path.
 
 **Report Parameter**:
-A named input defined by a Report, including type and valid-value metadata.
+A named input defined by a Report, including type and valid-value metadata. The parameter form lists only parameters SSRS prompts for (non-prompted parameters are omitted from the form).
 
 **Valid Value**:
 A label and value pair offered for a Report Parameter, whether static in the report or from an SSRS parameter query. Includes report-authored choices such as `<ALL>` when the Report defines them.
