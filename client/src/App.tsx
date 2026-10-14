@@ -10,6 +10,12 @@ import {
   type FindResponse,
   type RenderResponse,
 } from './reportApi'
+import {
+  buildReportPathSearch,
+  catalogSearch,
+  readReportPathFromSearch,
+  viewerModeFromReportPath,
+} from './reportPathUrl'
 import './App.css'
 
 type HealthResponse = {
@@ -21,7 +27,9 @@ type ApiStatus = 'loading' | 'ok' | 'error'
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
   const [detail, setDetail] = useState('Checking API…')
-  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
+  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(() =>
+    readReportPathFromSearch(window.location.search),
+  )
   const [render, setRender] = useState<RenderResponse | null>(null)
   const [surfaceError, setSurfaceError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -65,9 +73,41 @@ function App() {
     setBusy(false)
   }, [])
 
-  function handleSelectReport(path: string) {
+  const clearReportView = useCallback(() => {
+    setSelectedReportPath(null)
+    clearSurface()
+  }, [clearSurface])
+
+  const syncFromLocation = useCallback(() => {
+    const path = readReportPathFromSearch(window.location.search)
     setSelectedReportPath(path)
     clearSurface()
+  }, [clearSurface])
+
+  useEffect(() => {
+    function onPopState() {
+      syncFromLocation()
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [syncFromLocation])
+
+  function handleSelectReport(path: string) {
+    window.history.pushState({ reportPath: path }, '', buildReportPathSearch(path))
+    setSelectedReportPath(path)
+    clearSurface()
+  }
+
+  function handleBackToCatalog() {
+    window.history.pushState(
+      { reportPath: null },
+      '',
+      `${window.location.pathname}${catalogSearch()}`,
+    )
+    clearReportView()
   }
 
   function handleViewed(result: RenderResponse) {
@@ -122,6 +162,8 @@ function App() {
     [busy, render?.sessionId],
   )
 
+  const mode = viewerModeFromReportPath(selectedReportPath)
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
@@ -135,19 +177,32 @@ function App() {
       </p>
       {apiStatus === 'ok' && (
         <>
-          <div className="no-print">
-            <CatalogBrowser
-              selectedReportPath={selectedReportPath}
-              onSelectReport={handleSelectReport}
-            />
-            {selectedReportPath && (
+          {mode === 'catalog' && (
+            <div className="no-print">
+              <CatalogBrowser
+                selectedReportPath={selectedReportPath}
+                onSelectReport={handleSelectReport}
+              />
+            </div>
+          )}
+          {mode === 'report' && selectedReportPath && (
+            <div className="no-print report-view">
+              <div className="report-view-bar">
+                <button type="button" className="back-to-catalog" onClick={handleBackToCatalog}>
+                  Back to Catalog
+                </button>
+                <p className="report-view-path" aria-label="Open Report path">
+                  {selectedReportPath}
+                </p>
+              </div>
               <ParameterForm
                 reportPath={selectedReportPath}
                 onViewed={handleViewed}
                 onClearSurface={clearSurface}
+                onBackToCatalog={handleBackToCatalog}
               />
-            )}
-          </div>
+            </div>
+          )}
           {render?.sessionId && (
             <div className="no-print">
               <ViewerToolbar
@@ -191,7 +246,7 @@ function App() {
                 onBusyChange={setBusy}
               />
             </div>
-          ) : (
+          ) : mode === 'report' ? (
             <ReportSurface
               html={null}
               sessionId={null}
@@ -203,7 +258,7 @@ function App() {
               onError={handleSurfaceError}
               onBusyChange={setBusy}
             />
-          )}
+          ) : null}
         </>
       )}
     </main>

@@ -55,11 +55,13 @@ export function ReportSurface({
       return
     }
 
+    const activeSessionId = sessionId
+
     async function runSessionAction(
       work: () => Promise<RenderResponse>,
       failureLabel: string,
     ): Promise<void> {
-      if (busy || !sessionId) {
+      if (busy) {
         return
       }
 
@@ -101,7 +103,7 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => toggleDrilldown(sessionId, toggleId),
+          () => toggleDrilldown(activeSessionId, toggleId),
           'Drilldown toggle failed',
         )
         return
@@ -127,7 +129,7 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => drillthroughReport(sessionId, reportPath, parameters),
+          () => drillthroughReport(activeSessionId, reportPath, parameters),
           'Drillthrough failed',
         )
         return
@@ -150,7 +152,7 @@ export function ReportSurface({
         ) as SortDirection
 
         await runSessionAction(
-          () => sortReport(sessionId, sortItem, direction, clear),
+          () => sortReport(activeSessionId, sortItem, direction, clear),
           'Sort failed',
         )
         return
@@ -165,7 +167,7 @@ export function ReportSurface({
         }
 
         await runSessionAction(
-          () => navigateBookmark(sessionId, bookmarkId),
+          () => navigateBookmark(activeSessionId, bookmarkId),
           'Bookmark navigation failed',
         )
         return
