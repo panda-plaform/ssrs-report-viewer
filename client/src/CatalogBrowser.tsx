@@ -1,0 +1,125 @@
+import { useEffect, useState } from 'react'
+import { fetchCatalog, type CatalogItem } from './catalogApi'
+
+type LoadState = 'loading' | 'ok' | 'error'
+
+function parentPath(path: string): string | null {
+  if (path === '/' || path === '') {
+    return null
+  }
+
+  const trimmed = path.replace(/\/+$/, '')
+  const slash = trimmed.lastIndexOf('/')
+  if (slash <= 0) {
+    return '/'
+  }
+
+  return trimmed.slice(0, slash)
+}
+
+export function CatalogBrowser() {
+  const [path, setPath] = useState('/')
+  const [folders, setFolders] = useState<CatalogItem[]>([])
+  const [reports, setReports] = useState<CatalogItem[]>([])
+  const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [error, setError] = useState<string | null>(null)
+  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setLoadState('loading')
+      setError(null)
+
+      try {
+        const catalog = await fetchCatalog(path)
+        if (!cancelled) {
+          setFolders(catalog.folders)
+          setReports(catalog.reports)
+          setLoadState('ok')
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setFolders([])
+          setReports([])
+          setLoadState('error')
+          setError(err instanceof Error ? err.message : 'Failed to load Catalog')
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [path])
+
+  const up = parentPath(path)
+
+  return (
+    <section className="catalog" aria-labelledby="catalog-heading">
+      <header className="catalog-header">
+        <h2 id="catalog-heading">Catalog</h2>
+        <p className="catalog-path" aria-label="Current folder path">
+          {path}
+        </p>
+      </header>
+
+      <div className="catalog-toolbar">
+        <button type="button" disabled={up === null} onClick={() => up && setPath(up)}>
+          Up
+        </button>
+      </div>
+
+      {loadState === 'loading' && (
+        <p className="catalog-status" role="status">
+          Loading Catalog…
+        </p>
+      )}
+      {loadState === 'error' && (
+        <p className="catalog-status catalog-error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {loadState === 'ok' && (
+        <ul className="catalog-list">
+          {folders.map((folder) => (
+            <li key={folder.path}>
+              <button type="button" className="catalog-item folder" onClick={() => setPath(folder.path)}>
+                <span className="catalog-item-kind">Folder</span>
+                <span className="catalog-item-name">{folder.name}</span>
+              </button>
+            </li>
+          ))}
+          {reports.map((report) => (
+            <li key={report.path}>
+              <button
+                type="button"
+                className={
+                  selectedReportPath === report.path
+                    ? 'catalog-item report selected'
+                    : 'catalog-item report'
+                }
+                onClick={() => setSelectedReportPath(report.path)}
+              >
+                <span className="catalog-item-kind">Report</span>
+                <span className="catalog-item-name">{report.name}</span>
+              </button>
+            </li>
+          ))}
+          {folders.length === 0 && reports.length === 0 && (
+            <li className="catalog-empty">This folder is empty.</li>
+          )}
+        </ul>
+      )}
+
+      <p className="catalog-selection" role="status">
+        {selectedReportPath
+          ? `Selected Report: ${selectedReportPath}`
+          : 'Select a Report to continue (View Report arrives in a later ticket).'}
+      </p>
+    </section>
+  )
+}

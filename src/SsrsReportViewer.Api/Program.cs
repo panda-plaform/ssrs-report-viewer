@@ -30,6 +30,43 @@ app.UseCors();
 // Anonymous API (ADR-0002): no authentication middleware.
 app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy" }));
 
+app.MapGet("/api/catalog", async (string? path, ISsrsAdapter ssrs, CancellationToken cancellationToken) =>
+{
+    var catalogPath = NormalizeCatalogPath(path);
+
+    try
+    {
+        var items = await ssrs.ListChildrenAsync(catalogPath, cancellationToken);
+        var folders = items
+            .Where(i => i.Type == CatalogItemType.Folder)
+            .Select(i => new { name = i.Name, path = i.Path })
+            .ToArray();
+        var reports = items
+            .Where(i => i.Type == CatalogItemType.Report)
+            .Select(i => new { name = i.Name, path = i.Path })
+            .ToArray();
+
+        return Results.Ok(new { path = catalogPath, folders, reports });
+    }
+    catch (CatalogPathNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Catalog path not found");
+    }
+});
+
+static string NormalizeCatalogPath(string? path)
+{
+    if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
+    {
+        return "/";
+    }
+
+    return "/" + path.Trim().Trim('/');
+}
+
 app.Run();
 
 public partial class Program;
