@@ -41,6 +41,20 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         }
     }
 
+    /// <summary>
+    /// Test arrange helper: bind a Viewer Session to a different Execution (Drillthrough-style).
+    /// </summary>
+    public void ReplaceSessionExecution(string sessionId, ExecutionHandle execution)
+    {
+        var store = Services.GetRequiredService<IViewerSessionStore>();
+        if (!store.TryGet(sessionId, out var session) || session is null)
+        {
+            throw new InvalidOperationException($"Viewer Session '{sessionId}' was not found.");
+        }
+
+        session.Execution = execution;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting($"Ssrs:{nameof(SsrsOptions.SessionIdleTimeoutMinutes)}", _sessionIdleTimeoutMinutes.ToString());

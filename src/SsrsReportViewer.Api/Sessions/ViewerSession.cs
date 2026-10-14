@@ -25,13 +25,15 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public string ReportPath { get; }
 
-    public ExecutionHandle Execution { get; }
+    public ExecutionHandle Execution { get; set; }
 
     public DateTimeOffset LastActivityUtc { get; private set; }
 
     public int ZoomPercent { get; set; } = 100;
 
     public int CurrentPage { get; set; } = 1;
+
+    public int PageCount { get; set; } = 1;
 
     public void Touch(DateTimeOffset utcNow) => LastActivityUtc = utcNow;
 

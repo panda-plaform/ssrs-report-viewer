@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
+import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
-import { navigateDocumentMap, type RenderResponse } from './reportApi'
+import { ViewerToolbar } from './ViewerToolbar'
+import {
+  navigateDocumentMap,
+  type FindResponse,
+  type RenderResponse,
+} from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -69,13 +75,27 @@ function App() {
     setRender(result)
   }
 
+  function handleFindResult(result: FindResponse) {
+    if (!render) {
+      return
+    }
+
+    setSurfaceError(null)
+    setRender({
+      sessionId: render.sessionId,
+      html: result.html,
+      pageInfo: result.pageInfo,
+      documentMap: render.documentMap,
+    })
+  }
+
   const handleHtmlReplaced = useCallback((result: RenderResponse) => {
     setSurfaceError(null)
     setRender(result)
   }, [])
 
   const handleSurfaceError = useCallback((message: string) => {
-    setSurfaceError(message)
+    setSurfaceError(message || null)
   }, [])
 
   const handleDocumentMapNavigate = useCallback(
@@ -101,38 +121,55 @@ function App() {
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
-      <p className="lede">
-        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown, Document Map,
-        Bookmark Action Links, and External Links on the report surface.
+      <p className="lede no-print">
+        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, Document
+        Map, Bookmark Action Links, Export, and Print.
       </p>
-      <p className={`status status-${apiStatus}`} role="status">
+      <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
       </p>
       {apiStatus === 'ok' && (
         <>
-          <CatalogBrowser
-            selectedReportPath={selectedReportPath}
-            onSelectReport={handleSelectReport}
-          />
-          {selectedReportPath && (
-            <ParameterForm
-              reportPath={selectedReportPath}
-              onViewed={handleViewed}
-              onClearSurface={clearSurface}
+          <div className="no-print">
+            <CatalogBrowser
+              selectedReportPath={selectedReportPath}
+              onSelectReport={handleSelectReport}
             />
+            {selectedReportPath && (
+              <ParameterForm
+                reportPath={selectedReportPath}
+                onViewed={handleViewed}
+                onClearSurface={clearSurface}
+              />
+            )}
+          </div>
+          {render?.sessionId && (
+            <div className="no-print">
+              <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
+              <FindToolbar
+                sessionId={render.sessionId}
+                busy={busy}
+                onResult={handleFindResult}
+                onError={setSurfaceError}
+                onBusyChange={setBusy}
+              />
+            </div>
           )}
           {render ? (
             <div className="viewer-layout">
-              <DocumentMapSidebar
-                nodes={render.documentMap}
-                busy={busy}
-                onNavigate={(id) => {
-                  void handleDocumentMapNavigate(id)
-                }}
-              />
+              <div className="no-print">
+                <DocumentMapSidebar
+                  nodes={render.documentMap}
+                  busy={busy}
+                  onNavigate={(id) => {
+                    void handleDocumentMapNavigate(id)
+                  }}
+                />
+              </div>
               <ReportSurface
                 html={render.html}
                 sessionId={render.sessionId}
+                pageInfo={render.pageInfo}
                 busy={busy}
                 error={surfaceError}
                 onHtmlReplaced={handleHtmlReplaced}
@@ -144,6 +181,7 @@ function App() {
             <ReportSurface
               html={null}
               sessionId={null}
+              pageInfo={null}
               busy={busy}
               error={surfaceError}
               onHtmlReplaced={handleHtmlReplaced}

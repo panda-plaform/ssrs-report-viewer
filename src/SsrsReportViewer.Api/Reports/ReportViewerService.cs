@@ -122,6 +122,68 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
+    public Task<FindResult> FindAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: false, ct),
+            cancellationToken);
+
+    public Task<FindResult> FindNextAsync(
+        string sessionId,
+        string findValue,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken) =>
+        guard.ExecuteAsync(
+            sessionId,
+            (session, ct) => FindOnSessionAsync(session, findValue, nextMatch: true, ct),
+            cancellationToken);
+
+    private async Task<FindResult> FindOnSessionAsync(
+        ViewerSession session,
+        string findValue,
+        bool nextMatch,
+        CancellationToken cancellationToken)
+    {
+        var pageCount = Math.Max(1, session.PageCount);
+        var currentPage = Math.Clamp(session.CurrentPage, 1, pageCount);
+
+        int startPage;
+        int endPage;
+        if (nextMatch)
+        {
+            startPage = currentPage >= pageCount ? 1 : currentPage + 1;
+            endPage = currentPage;
+        }
+        else
+        {
+            startPage = 1;
+            endPage = pageCount;
+        }
+
+        var foundPage = await _ssrs.FindStringAsync(
+            session.Execution,
+            startPage,
+            endPage,
+            findValue,
+            cancellationToken);
+
+        var found = foundPage > 0;
+        if (found)
+        {
+            session.CurrentPage = foundPage;
+        }
+
+        var render = await RenderSessionAsync(session, cancellationToken);
+        return new FindResult(
+            render.Html,
+            found,
+            new PageInfo(session.CurrentPage, session.PageCount));
+    }
+
     private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken)
@@ -138,6 +200,7 @@ public sealed class ReportViewerService
 
         var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, cancellationToken);
         session.CurrentPage = render.CurrentPage;
+        session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
         return new ViewReportResult(
@@ -182,5 +245,7 @@ public sealed record ViewReportResult(
     string Html,
     PageInfo PageInfo,
     IReadOnlyList<DocumentMapNode>? DocumentMap);
+
+public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 
 public sealed record PageInfo(int CurrentPage, int PageCount);

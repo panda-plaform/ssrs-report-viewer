@@ -1,5 +1,5 @@
-.shell {
-  max-width: 72rem;
+﻿.shell {
+  max-width: 56rem;
   margin: 0 auto;
   padding: 3rem 1.5rem;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
@@ -249,6 +249,7 @@
   border: 0;
 }
 
+
 .viewer-layout {
   display: grid;
   grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
@@ -309,16 +310,95 @@
   cursor: not-allowed;
 }
 
-.report-surface {
-  min-width: 0;
-}
-
-.viewer-layout .report-surface {
-  margin-top: 0;
-}
-
-.report-surface:not(.viewer-layout .report-surface) {
+.viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
   margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+
+.find-toolbar {
+  margin-top: 1.5rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid #ddd;
+}
+
+.find-toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.find-toolbar-controls input[type='search'] {
+  min-width: 12rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #bbb;
+  font: inherit;
+  background: #fff;
+}
+
+.find-toolbar-controls button {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.find-toolbar-controls button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.find-status {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.viewer-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.viewer-toolbar-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+  margin-right: 0.15rem;
+}
+
+.viewer-toolbar button {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.viewer-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.report-surface {
+  margin-top: 0.5rem;
+}
+
+.report-page {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #333;
 }
 
 .report-surface-header {
@@ -363,9 +443,34 @@
   background: #fff;
 }
 
-.report-busy {
-  margin: 0;
-  font-size: 0.85rem;
-  color: #555;
-}
+/* Print: browser HTML print of the report surface (PDF Export remains high-fidelity). */
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
 
+  .shell {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .shell > h1,
+  .no-print,
+  .report-surface-header,
+  .report-surface-error {
+    display: none !important;
+  }
+
+  .report-surface {
+    margin: 0;
+  }
+
+  .report-html {
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+}
