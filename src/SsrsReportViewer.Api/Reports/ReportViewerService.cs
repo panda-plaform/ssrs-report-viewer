@@ -21,12 +21,21 @@ public sealed class ReportViewerService
         _options = options.Value;
     }
 
-    public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
+    public async Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
         string reportPath,
         bool forRendering,
         IReadOnlyList<ParameterValue>? valuesForCascading,
-        CancellationToken cancellationToken) =>
-        _ssrs.GetParametersAsync(reportPath, forRendering, valuesForCascading, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var parameters = await _ssrs.GetParametersAsync(
+            reportPath,
+            forRendering,
+            valuesForCascading,
+            cancellationToken);
+        // Parameter-form list: omit Report Parameters SSRS does not prompt for.
+        // View Report still loads full metadata via ISsrsAdapter (forRendering: false).
+        return parameters.Where(p => p.PromptUser).ToArray();
+    }
 
     public async Task<ViewReportResult> ViewReportAsync(
         string reportPath,

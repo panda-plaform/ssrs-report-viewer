@@ -18,6 +18,104 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_parameters_omits_non_prompted_parameters_from_mixed_report()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N"), ("South", "S")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "all_value",
+                    Required: false,
+                    PromptUser: false,
+                    DefaultValues: ["*"]),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        var region = Assert.Single(body.Parameters);
+        Assert.Equal("Region", region.Name);
+        Assert.Equal(2, region.ValidValues?.Length);
+    }
+
+    [Fact]
+    public async Task Get_parameters_returns_prompted_parameters_unchanged_when_all_prompt_user()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N"), ("<ALL>", "<ALL>")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "All value",
+                    Required: true,
+                    PromptUser: true),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(2, body.Parameters.Length);
+        var region = Assert.Single(body.Parameters, p => p.Name == "Region");
+        Assert.Contains(region.ValidValues!, v => v.Value == "<ALL>");
+        Assert.Contains(body.Parameters, p => p.Name == "all_value");
+    }
+
+    [Fact]
+    public async Task Get_parameters_returns_empty_list_when_only_non_prompted()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Internal",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "InternalFlag",
+                    DataType: "Boolean",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: null,
+                    Required: false,
+                    PromptUser: false,
+                    DefaultValues: ["true"]),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Internal");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Empty(body.Parameters);
+    }
+
+    [Fact]
     public async Task Get_parameters_returns_text_boolean_date_and_multi_value_metadata()
     {
         _factory.Fake.SeedReport(
