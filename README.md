@@ -42,17 +42,19 @@ Catalog: `GET /api/catalog?path=/` → `{ path, folders[{ name, path }], reports
 
 Parameters: `GET /api/reports/parameters?path=/Report` → Report Parameter metadata.
 
-View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo, zoomPercent, documentMap? }`.
+View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo, zoomPercent, canGoBack, documentMap? }`.
 
 Resources: `GET /api/sessions/{sessionId}/resources/{streamId}` (RenderStream proxy; idle TTL / busy rules apply).
 
 Viewer Session interactions (serialized per session; Zoom via SSRS DeviceInfo re-render):
 
-- `POST /api/sessions/{sessionId}/zoom` `{ zoomPercent }` → `{ sessionId, html, pageInfo, zoomPercent, documentMap? }`
+- `POST /api/sessions/{sessionId}/zoom` `{ zoomPercent }` → `{ sessionId, html, pageInfo, zoomPercent, canGoBack, documentMap? }`
 - `POST /api/sessions/{sessionId}/page` `{ action: "next"|"previous"|"goto", page? }` → same shape
 - `POST /api/sessions/{sessionId}/refresh` → reloads path + parameters into a new Execution; same Viewer Session id
+- `POST /api/sessions/{sessionId}/drillthrough` `{ reportPath, parameters[{ name, values }] }` → pushes the current Execution onto the Viewer Session back stack, loads the child report, returns session HTML with `canGoBack: true`
+- `POST /api/sessions/{sessionId}/back` → pops the back stack; restores the prior Execution when SSRS still holds it, otherwise reloads path + parameters (reload-fallback)
 
-Export (current Execution for a Viewer Session): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment.
+Export (current Execution for a Viewer Session — the child after Drillthrough): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment.
 
 Print: Report Viewer toolbar calls `window.print()` with print CSS focused on the HTML report surface (use PDF Export for high fidelity).
 
