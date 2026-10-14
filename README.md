@@ -40,6 +40,8 @@ Health: `GET /api/health` → `{ "status": "Healthy" }`.
 
 Catalog: `GET /api/catalog?path=/` → `{ path, folders[{ name, path }], reports[{ name, path }] }` (browse only; no Viewer Session).
 
+Parameters: `GET /api/reports/parameters?path=/Report` → Report Parameter metadata.
+
 View Report: `POST /api/reports/render` `{ reportPath, parameters[{ name, values }] }` → `{ sessionId, html, pageInfo, zoomPercent }`.
 
 Resources: `GET /api/sessions/{sessionId}/resources/{streamId}` (RenderStream proxy; idle TTL / busy rules apply).
