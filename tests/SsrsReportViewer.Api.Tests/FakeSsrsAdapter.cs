@@ -15,7 +15,8 @@ public sealed record FakeReportParameter(
     IReadOnlyList<string>? DefaultValues = null,
     IReadOnlyList<(string Label, string Value)>? ValidValues = null,
     IReadOnlyList<string>? Dependencies = null,
-    IReadOnlyDictionary<string, IReadOnlyList<(string Label, string Value)>>? CascadingByDependencyValue = null);
+    IReadOnlyDictionary<string, IReadOnlyList<(string Label, string Value)>>? CascadingByDependencyValue = null,
+    bool PromptUser = true);
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
 
@@ -151,7 +152,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
                     p.Prompt,
                     p.DefaultValues ?? [],
                     valid.Select(v => new ReportParameterValidValue(v.Label, v.Value)).ToArray(),
-                    p.Dependencies ?? []);
+                    p.Dependencies ?? [],
+                    p.PromptUser);
             })
             .ToArray();
 

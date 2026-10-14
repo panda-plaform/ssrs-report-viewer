@@ -12,7 +12,8 @@ public sealed record ReportParameterDefinition(
     string? Prompt,
     IReadOnlyList<string> DefaultValues,
     IReadOnlyList<ReportParameterValidValue> ValidValues,
-    IReadOnlyList<string> Dependencies);
+    IReadOnlyList<string> Dependencies,
+    bool PromptUser = true);
 
 public sealed record ReportParameterValidValue(string Label, string Value);
 
