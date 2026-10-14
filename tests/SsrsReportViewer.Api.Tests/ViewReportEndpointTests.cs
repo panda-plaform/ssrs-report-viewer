@@ -112,6 +112,56 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_includes_open_report_path_and_applied_parameters()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+                new FakeReportParameter(
+                    Name: "Years",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: true,
+                    Prompt: "Years",
+                    Required: true),
+            ],
+            html: "<div class=\"report\">ok</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "North" } },
+                    new { name = "Years", values = new[] { "2024", "2025" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("/Sales/Revenue", body.ReportPath);
+        Assert.NotNull(body.Parameters);
+        Assert.Equal(2, body.Parameters.Length);
+
+        var region = Assert.Single(body.Parameters, p => p.Name == "Region");
+        Assert.Equal(["North"], region.Values);
+        var years = Assert.Single(body.Parameters, p => p.Name == "Years");
+        Assert.Equal(["2024", "2025"], years.Values);
+    }
+
+    [Fact]
     public async Task Post_render_returns_problem_details_and_no_session_when_required_parameter_missing()
     {
         _factory.Fake.SeedReport(
@@ -325,5 +375,11 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
 
     private sealed record ValidValueResponse(string Label, string Value);
 
-    private sealed record RenderResponse(string SessionId, string Html);
+    private sealed record RenderResponse(
+        string SessionId,
+        string Html,
+        string? ReportPath = null,
+        AppliedParameter[]? Parameters = null);
+
+    private sealed record AppliedParameter(string Name, string[] Values);
 }
