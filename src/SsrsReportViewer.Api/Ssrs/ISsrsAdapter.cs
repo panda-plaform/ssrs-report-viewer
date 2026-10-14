@@ -40,6 +40,14 @@ public interface ISsrsAdapter
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Toggles Drilldown show/hide for an item on the current Execution (ReportExecution2005 ToggleItem).
+    /// </summary>
+    Task ToggleItemAsync(
+        ExecutionHandle execution,
+        string toggleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Jump Execution position to a Document Map node (ReportExecution2005 NavigateDocumentMap).
     /// </summary>
     Task NavigateDocumentMapAsync(

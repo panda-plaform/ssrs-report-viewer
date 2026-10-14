@@ -1,47 +1,28 @@
 import { useEffect, useRef } from 'react'
+import { navigateBookmark, toggleDrilldown, type RenderResponse } from './reportApi'
 
 type Props = {
   html: string | null
   sessionId: string | null
+  busy: boolean
   error: string | null
-  busy?: boolean
-  onBookmarkNavigate?: (bookmarkId: string) => void
-}
-
-function resolveBookmarkId(anchor: HTMLAnchorElement, sessionId: string): string | null {
-  const dataId = anchor.getAttribute('data-bookmark-id')
-  if (dataId) {
-    return dataId
-  }
-
-  const action = anchor.getAttribute('data-action')
-  const href = anchor.getAttribute('href') ?? ''
-  if (action === 'bookmark' || href.includes('/actions/bookmark/')) {
-    const marker = `/api/sessions/${sessionId}/actions/bookmark/`
-    const index = href.indexOf(marker)
-    if (index >= 0) {
-      return decodeURIComponent(href.slice(index + marker.length).split(/[?#]/)[0] ?? '')
-    }
-
-    const relative = href.match(/bookmark\/([^/?#]+)/i)
-    if (relative?.[1]) {
-      return decodeURIComponent(relative[1])
-    }
-  }
-
-  return null
+  onHtmlReplaced: (result: RenderResponse) => void
+  onError: (message: string) => void
+  onBusyChange: (busy: boolean) => void
 }
 
 /**
- * Injects Execution HTML into the DOM (ADR-0003). HTML comes only from our API.
- * Bookmark Action Links are delegated to the session bookmark endpoint.
+ * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
+ * Drilldown → session toggle; Bookmark → session bookmark; External Links → new browsing context.
  */
 export function ReportSurface({
   html,
   sessionId,
+  busy,
   error,
-  busy = false,
-  onBookmarkNavigate,
+  onHtmlReplaced,
+  onError,
+  onBusyChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -56,13 +37,13 @@ export function ReportSurface({
 
   useEffect(() => {
     const node = containerRef.current
-    if (!node || !sessionId || !onBookmarkNavigate) {
+    if (!node || !sessionId) {
       return
     }
 
-    const handleClick = (event: MouseEvent) => {
-      if (busy) {
-        event.preventDefault()
+    async function handleClick(event: MouseEvent) {
+      const root = containerRef.current
+      if (!root) {
         return
       }
 
@@ -72,37 +53,87 @@ export function ReportSurface({
       }
 
       const anchor = target.closest('a')
-      if (!(anchor instanceof HTMLAnchorElement) || !sessionId) {
+      if (!anchor || !root.contains(anchor)) {
         return
       }
 
-      const bookmarkId = resolveBookmarkId(anchor, sessionId)
-      if (!bookmarkId) {
+      const action = anchor.getAttribute('data-ssrs-action')
+
+      if (action === 'drilldown') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (busy) {
+          return
+        }
+
+        const toggleId = anchor.getAttribute('data-ssrs-toggle-id')
+        if (!toggleId || !sessionId) {
+          return
+        }
+
+        onBusyChange(true)
+        try {
+          const result = await toggleDrilldown(sessionId, toggleId)
+          onHtmlReplaced(result)
+        } catch (err) {
+          onError(err instanceof Error ? err.message : 'Drilldown toggle failed')
+        } finally {
+          onBusyChange(false)
+        }
         return
       }
 
-      event.preventDefault()
-      onBookmarkNavigate(bookmarkId)
+      if (action === 'bookmark') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (busy) {
+          return
+        }
+
+        const bookmarkId = anchor.getAttribute('data-ssrs-bookmark-id')
+        if (!bookmarkId || !sessionId) {
+          return
+        }
+
+        onBusyChange(true)
+        try {
+          const result = await navigateBookmark(sessionId, bookmarkId)
+          onHtmlReplaced(result)
+        } catch (err) {
+          onError(err instanceof Error ? err.message : 'Bookmark navigation failed')
+        } finally {
+          onBusyChange(false)
+        }
+        return
+      }
+
+      if (action === 'external') {
+        event.preventDefault()
+        event.stopPropagation()
+        const href = anchor.getAttribute('href')
+        if (href) {
+          window.open(href, '_blank', 'noopener,noreferrer')
+        }
+        return
+      }
+
+      // Never navigate the Viewer Session toward ReportServer or leftover action URLs.
+      const href = anchor.getAttribute('href') ?? ''
+      if (/reportserver/i.test(href) || href.includes('/api/sessions/')) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
     }
 
     node.addEventListener('click', handleClick)
     return () => {
       node.removeEventListener('click', handleClick)
     }
-  }, [sessionId, onBookmarkNavigate, busy, html])
+  }, [sessionId, busy, onHtmlReplaced, onError, onBusyChange])
 
-  if (error) {
-    return (
-      <section className="report-surface" aria-labelledby="report-surface-heading">
-        <h2 id="report-surface-heading">Report</h2>
-        <p className="report-surface-error" role="alert">
-          {error}
-        </p>
-      </section>
-    )
-  }
-
-  if (!html) {
+  if (!html && !error) {
     return null
   }
 
@@ -115,8 +146,18 @@ export function ReportSurface({
             Session {sessionId}
           </p>
         )}
+        {busy && (
+          <p className="report-busy" role="status">
+            Updating…
+          </p>
+        )}
       </header>
-      <div className="report-html" ref={containerRef} />
+      {error && (
+        <p className="report-surface-error" role="alert">
+          {error}
+        </p>
+      )}
+      {html && <div className="report-html" ref={containerRef} />}
     </section>
   )
 }

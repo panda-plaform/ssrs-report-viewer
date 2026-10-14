@@ -54,8 +54,28 @@ public sealed class ReportViewerService
         await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, cancellationToken);
 
         var session = _sessions.Create(reportPath, execution);
-        var rendered = await RenderSessionAsync(session, cancellationToken);
-        return new ViewReportResult(rendered.SessionId, rendered.Html, rendered.PageInfo, rendered.DocumentMap);
+        return await RenderSessionAsync(session, cancellationToken);
+    }
+
+    public Task<ViewReportResult> ToggleAsync(
+        string sessionId,
+        string toggleId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(toggleId))
+        {
+            throw new ArgumentException("toggleId is required.", nameof(toggleId));
+        }
+
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.ToggleItemAsync(session.Execution, toggleId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
     }
 
     public async Task<StreamResult> GetResourceAsync(
@@ -70,7 +90,7 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-    public Task<SessionRenderResult> NavigateDocumentMapAsync(
+    public Task<ViewReportResult> NavigateDocumentMapAsync(
         string sessionId,
         string documentMapId,
         ViewerSessionGuard guard,
@@ -86,7 +106,7 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-    public Task<SessionRenderResult> NavigateBookmarkAsync(
+    public Task<ViewReportResult> NavigateBookmarkAsync(
         string sessionId,
         string bookmarkId,
         ViewerSessionGuard guard,
@@ -102,7 +122,7 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-    private async Task<SessionRenderResult> RenderSessionAsync(
+    private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken)
     {
@@ -119,24 +139,32 @@ public sealed class ReportViewerService
         var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, cancellationToken);
         session.CurrentPage = render.CurrentPage;
 
-        var html = Encoding.UTF8.GetString(render.Content);
-        html = RewriteHtml(html, resourceRoot, replacementRoot, render.StreamIds);
-
-        return new SessionRenderResult(
+        var html = PrepareHtml(render, resourceRoot, replacementRoot);
+        return new ViewReportResult(
             session.Id,
             html,
             new PageInfo(render.CurrentPage, render.PageCount),
             render.DocumentMap);
     }
 
-    private static string RewriteHtml(
+    private static string PrepareHtml(RenderResult render, string resourceRoot, string? replacementRoot)
+    {
+        var html = Encoding.UTF8.GetString(render.Content);
+        html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        if (!string.IsNullOrEmpty(replacementRoot))
+        {
+            html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
+        }
+
+        return ActionLinkRewriter.Rewrite(html, replacementRoot);
+    }
+
+    private static string RewriteResourcePlaceholders(
         string html,
         string resourceRoot,
-        string replacementRoot,
         IReadOnlyList<string> streamIds)
     {
         var rewritten = html.Replace("{ResourceStreamRoot}", resourceRoot, StringComparison.Ordinal);
-        rewritten = rewritten.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
         foreach (var streamId in streamIds)
         {
             rewritten = rewritten.Replace(
@@ -150,12 +178,6 @@ public sealed class ReportViewerService
 }
 
 public sealed record ViewReportResult(
-    string SessionId,
-    string Html,
-    PageInfo PageInfo,
-    IReadOnlyList<DocumentMapNode>? DocumentMap);
-
-public sealed record SessionRenderResult(
     string SessionId,
     string Html,
     PageInfo PageInfo,

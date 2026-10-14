@@ -78,11 +78,26 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
+export async function toggleDrilldown(
+  sessionId: string,
+  toggleId: string,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ toggleId }),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+
 export async function navigateDocumentMap(
   sessionId: string,
   id: string,
 ): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${sessionId}/document-map`, {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/document-map`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
@@ -97,7 +112,7 @@ export async function navigateBookmark(
   sessionId: string,
   id: string,
 ): Promise<RenderResponse> {
-  const response = await fetch(`/api/sessions/${sessionId}/bookmark`, {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/bookmark`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),

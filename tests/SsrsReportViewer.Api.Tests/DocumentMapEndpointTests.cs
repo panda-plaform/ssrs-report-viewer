@@ -131,10 +131,8 @@ public sealed class DocumentMapEndpointTests : IClassFixture<ApiFactory>
             new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
         var rendered = await render.Content.ReadFromJsonAsync<RenderWithMapResponse>();
         Assert.NotNull(rendered);
-        Assert.Contains(
-            $"/api/sessions/{rendered.SessionId}/actions/bookmark/details",
-            rendered.Html,
-            StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-action=\"bookmark\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-bookmark-id=\"details\"", rendered.Html, StringComparison.Ordinal);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/sessions/{rendered.SessionId}/bookmark",

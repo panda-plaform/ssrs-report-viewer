@@ -74,6 +74,16 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter
             "SOAP RenderStream is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
     }
 
+    public Task ToggleItemAsync(
+        ExecutionHandle execution,
+        string toggleId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP ToggleItem is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
     public Task NavigateDocumentMapAsync(
         ExecutionHandle execution,
         string documentMapId,

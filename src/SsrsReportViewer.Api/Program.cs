@@ -120,7 +120,7 @@ app.MapPost("/api/reports/render", async (
     try
     {
         var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(ToSessionPayload(result.SessionId, result.Html, result.PageInfo, result.DocumentMap));
+        return Results.Ok(ToSessionPayload(result));
     }
     catch (RequiredParameterMissingException ex)
     {
@@ -156,7 +156,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
     try
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result.SessionId, result.Html, result.PageInfo, result.DocumentMap));
+        return Results.Ok(ToSessionPayload(result));
     }
     catch (ViewerSessionNotFoundException ex)
     {
@@ -199,7 +199,7 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
     try
     {
         var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result.SessionId, result.Html, result.PageInfo, result.DocumentMap));
+        return Results.Ok(ToSessionPayload(result));
     }
     catch (ViewerSessionNotFoundException ex)
     {
@@ -259,6 +259,49 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     }
 });
 
+app.MapPost("/api/sessions/{sessionId}/toggle", async (
+    string sessionId,
+    ToggleRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.ToggleId))
+    {
+        return Results.Problem(
+            detail: "toggleId is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Drilldown toggle request");
+    }
+
+    try
+    {
+        var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
+        return Results.Ok(ToSessionPayload(result));
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
 static string NormalizeCatalogPath(string? path)
 {
     if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
@@ -269,21 +312,17 @@ static string NormalizeCatalogPath(string? path)
     return "/" + path.Trim().Trim('/');
 }
 
-static object ToSessionPayload(
-    string sessionId,
-    string html,
-    PageInfo pageInfo,
-    IReadOnlyList<DocumentMapNode>? documentMap) =>
+static object ToSessionPayload(ViewReportResult result) =>
     new
     {
-        sessionId,
-        html,
+        sessionId = result.SessionId,
+        html = result.Html,
         pageInfo = new
         {
-            currentPage = pageInfo.CurrentPage,
-            pageCount = pageInfo.PageCount,
+            currentPage = result.PageInfo.CurrentPage,
+            pageCount = result.PageInfo.PageCount,
         },
-        documentMap = documentMap?.Select(MapDocumentMapNode).ToArray(),
+        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
     };
 
 static object MapDocumentMapNode(DocumentMapNode node) =>
@@ -305,3 +344,5 @@ public sealed record ViewReportParameter(string Name, string[]? Values);
 public sealed record DocumentMapNavigateRequest(string? Id);
 
 public sealed record BookmarkNavigateRequest(string? Id);
+
+public sealed record ToggleRequest(string? ToggleId);

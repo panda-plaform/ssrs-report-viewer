@@ -356,3 +356,10 @@
   border: 1px solid #ddd;
   background: #fff;
 }
+
+.report-busy {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+

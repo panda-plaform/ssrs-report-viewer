@@ -3,11 +3,7 @@ import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
-import {
-  navigateBookmark,
-  navigateDocumentMap,
-  type RenderResponse,
-} from './reportApi'
+import { navigateDocumentMap, type RenderResponse } from './reportApi'
 import './App.css'
 
 type HealthResponse = {
@@ -60,6 +56,7 @@ function App() {
   const clearSurface = useCallback(() => {
     setRender(null)
     setSurfaceError(null)
+    setBusy(false)
   }, [])
 
   function handleSelectReport(path: string) {
@@ -72,8 +69,17 @@ function App() {
     setRender(result)
   }
 
-  const runSessionNav = useCallback(
-    async (action: (sessionId: string) => Promise<RenderResponse>) => {
+  const handleHtmlReplaced = useCallback((result: RenderResponse) => {
+    setSurfaceError(null)
+    setRender(result)
+  }, [])
+
+  const handleSurfaceError = useCallback((message: string) => {
+    setSurfaceError(message)
+  }, [])
+
+  const handleDocumentMapNavigate = useCallback(
+    async (id: string) => {
       if (!render?.sessionId || busy) {
         return
       }
@@ -81,10 +87,10 @@ function App() {
       setBusy(true)
       setSurfaceError(null)
       try {
-        const next = await action(render.sessionId)
+        const next = await navigateDocumentMap(render.sessionId, id)
         setRender(next)
       } catch (err) {
-        setSurfaceError(err instanceof Error ? err.message : 'Navigation failed')
+        setSurfaceError(err instanceof Error ? err.message : 'Document Map navigation failed')
       } finally {
         setBusy(false)
       }
@@ -92,26 +98,12 @@ function App() {
     [busy, render?.sessionId],
   )
 
-  const handleDocumentMapNavigate = useCallback(
-    (id: string) => {
-      void runSessionNav((sessionId) => navigateDocumentMap(sessionId, id))
-    },
-    [runSessionNav],
-  )
-
-  const handleBookmarkNavigate = useCallback(
-    (id: string) => {
-      void runSessionNav((sessionId) => navigateBookmark(sessionId, id))
-    },
-    [runSessionNav],
-  )
-
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede">
-        Browse the Catalog, enter Report Parameters, then View Report. Use the Document Map and
-        Bookmark Action Links to navigate within the current Execution.
+        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown, Document Map,
+        Bookmark Action Links, and External Links on the report surface.
       </p>
       <p className={`status status-${apiStatus}`} role="status">
         {detail}
@@ -129,24 +121,35 @@ function App() {
               onClearSurface={clearSurface}
             />
           )}
-          {render && (
+          {render ? (
             <div className="viewer-layout">
               <DocumentMapSidebar
                 nodes={render.documentMap}
                 busy={busy}
-                onNavigate={handleDocumentMapNavigate}
+                onNavigate={(id) => {
+                  void handleDocumentMapNavigate(id)
+                }}
               />
               <ReportSurface
                 html={render.html}
                 sessionId={render.sessionId}
-                error={surfaceError}
                 busy={busy}
-                onBookmarkNavigate={handleBookmarkNavigate}
+                error={surfaceError}
+                onHtmlReplaced={handleHtmlReplaced}
+                onError={handleSurfaceError}
+                onBusyChange={setBusy}
               />
             </div>
-          )}
-          {!render && surfaceError && (
-            <ReportSurface html={null} sessionId={null} error={surfaceError} />
+          ) : (
+            <ReportSurface
+              html={null}
+              sessionId={null}
+              busy={busy}
+              error={surfaceError}
+              onHtmlReplaced={handleHtmlReplaced}
+              onError={handleSurfaceError}
+              onBusyChange={setBusy}
+            />
           )}
         </>
       )}
