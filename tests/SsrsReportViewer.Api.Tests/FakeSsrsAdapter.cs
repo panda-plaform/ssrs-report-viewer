@@ -197,12 +197,6 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             return Task.FromResult(RenderExport(exec, format, deviceInfo));
         }
 
-        if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult(RenderExport(exec, format, deviceInfo));
-        }
-
         var pageCount = exec.Report.PageHtml.Count;
         var page = deviceInfo.Section ?? 1;
         if (page < 1)
