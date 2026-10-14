@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import {
   navigateBookmark,
+  sortReport,
   toggleDrilldown,
   type PageInfo,
   type RenderResponse,
+  type SortDirection,
 } from './reportApi'
 
 type Props = {
@@ -19,7 +21,7 @@ type Props = {
 
 /**
  * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
- * Drilldown → session toggle; Bookmark → session bookmark; External Links → new browsing context.
+ * Drilldown → session toggle; Sort → session sort; Bookmark → session bookmark; External Links → new browsing context.
  */
 export function ReportSurface({
   html,
@@ -91,7 +93,39 @@ export function ReportSurface({
         return
       }
 
-      if (action === 'bookmark') {
+            if (action === 'sort') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (busy) {
+          return
+        }
+
+        const sortItem = anchor.getAttribute('data-ssrs-sort-item')
+        const directionAttr = anchor.getAttribute('data-ssrs-sort-direction') ?? 'Ascending'
+        const clear = anchor.getAttribute('data-ssrs-sort-clear') === 'true'
+        if (!sortItem || !sessionId) {
+          return
+        }
+
+        const direction = (
+          ['Ascending', 'Descending', 'None'].includes(directionAttr)
+            ? directionAttr
+            : 'Ascending'
+        ) as SortDirection
+
+        onBusyChange(true)
+        try {
+          const result = await sortReport(sessionId, sortItem, direction, clear)
+          onHtmlReplaced(result)
+        } catch (err) {
+          onError(err instanceof Error ? err.message : 'Sort failed')
+        } finally {
+          onBusyChange(false)
+        }
+        return
+      }
+if (action === 'bookmark') {
         event.preventDefault()
         event.stopPropagation()
 

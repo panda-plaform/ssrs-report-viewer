@@ -123,9 +123,11 @@ function App() {
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
-        Find, Drilldown, Document Map, Bookmark Action Links, Export, and Print.
-      </p>
+
+    param($m)
+    # prefer integrate side for App if still conflicting - but we want both features in lede
+    "        Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh, Find, Drilldown, Sort, Document Map, Bookmark Action Links, Export, and Print.`r`n"
+        </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
       </p>
