@@ -114,30 +114,6 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
-    public async Task<ViewReportResult> SortAsync(
-        string sessionId,
-        string sortItem,
-        SortDirection direction,
-        bool clear,
-        ViewerSessionGuard guard,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(sortItem))
-        {
-            throw new ArgumentException("sortItem is required.", nameof(sortItem));
-        }
-
-        return await guard.ExecuteAsync(
-            sessionId,
-            async (session, ct) =>
-            {
-                var sort = await _ssrs.SortAsync(session.Execution, sortItem, direction, clear, ct);
-                session.CurrentPage = sort.CurrentPage;
-                return await RerenderAsync(session, ct);
-            },
-            cancellationToken);
-    }
-
     public async Task<StreamResult> GetResourceAsync(
         string sessionId,
         string streamId,
@@ -150,6 +126,39 @@ public sealed class ReportViewerService
             cancellationToken);
     }
 
+
+    public Task<ViewReportResult> SortAsync(
+        string sessionId,
+        string sortItem,
+        SortDirection direction,
+        bool clear,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sortItem))
+        {
+            throw new ArgumentException("sortItem is required.", nameof(sortItem));
+        }
+
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                var sort = await _ssrs.SortAsync(session.Execution, sortItem, direction, clear, ct);
+                session.CurrentPage = sort.CurrentPage;
+                if (sort.PageCount > 0)
+                {
+                    session.PageCount = sort.PageCount;
+                }
+
+                var render = await RenderSessionHtmlAsync(session, ct);
+                return new ViewReportResult(
+                    session.Id,
+                    render.Html,
+                    new PageInfo(session.CurrentPage, session.PageCount));
+            },
+            cancellationToken);
+    }
     public async Task<ExportResult> ExportAsync(
         string sessionId,
         string format,

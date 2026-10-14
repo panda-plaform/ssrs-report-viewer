@@ -234,47 +234,6 @@ app.MapPost("/api/sessions/{sessionId}/toggle", async (
     }
 });
 
-app.MapGet("/api/sessions/{sessionId}/export", async (
-    string sessionId,
-    string? format,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    CancellationToken cancellationToken) =>
-{
-    try
-    {
-        var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
-        return Results.File(export.Content, export.MimeType, export.FileName);
-    }
-    catch (UnsupportedExportFormatException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Unsupported Export format");
-    }
-    catch (ViewerSessionNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found");
-    }
-    catch (ViewerSessionExpiredException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired");
-    }
-    catch (ViewerSessionBusyException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy");
-    }
-});
 
 app.MapPost("/api/sessions/{sessionId}/sort", async (
     string sessionId,
@@ -341,17 +300,47 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             title: "Viewer Session busy");
     }
 });
-
-static bool TryParseSortDirection(string? value, out SortDirection direction)
+app.MapGet("/api/sessions/{sessionId}/export", async (
+    string sessionId,
+    string? format,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
 {
-    if (string.IsNullOrWhiteSpace(value))
+    try
     {
-        direction = SortDirection.Ascending;
-        return true;
+        var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
+        return Results.File(export.Content, export.MimeType, export.FileName);
     }
-
-    return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
-}
+    catch (UnsupportedExportFormatException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Unsupported Export format");
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
 
 app.MapPost("/api/sessions/{sessionId}/find", async (
     string sessionId,
@@ -430,6 +419,17 @@ static async Task<IResult> ExecuteFindAsync(Func<Task<FindResult>> action)
     }
 }
 
+
+static bool TryParseSortDirection(string? value, out SortDirection direction)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        direction = SortDirection.Ascending;
+        return true;
+    }
+
+    return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
+}
 static string NormalizeCatalogPath(string? path)
 {
     if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
@@ -449,5 +449,7 @@ public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]
 public sealed record ViewReportParameter(string Name, string[]? Values);
 
 public sealed record ToggleRequest(string? ToggleId);
+
+public sealed record SortRequest(string? SortItem, string? Direction, bool? Clear);
 
 public sealed record FindRequest(string? FindValue);

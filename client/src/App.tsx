@@ -96,9 +96,9 @@ function App() {
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, External
-        Links, Export, and Print. Export downloads the current Execution; Print uses the browser on
-        the HTML surface (PDF Export for high fidelity).
+        Browse the Catalog, enter Report Parameters, View Report, then use Find, Drilldown, Sort,
+        External Links, Export, and Print. Export downloads the current Execution; Print uses the
+        browser on the HTML surface (PDF Export for high fidelity).
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
