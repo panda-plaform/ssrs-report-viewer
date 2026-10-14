@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 namespace SsrsReportViewer.Api.Ssrs;
 
 /// <summary>
-/// Production SSRS adapter. SOAP/NTLM ListChildren wiring can replace this stub when ReportServer is available.
+/// Production SSRS adapter. SOAP/NTLM wiring can replace these stubs when ReportServer is available.
 /// </summary>
 public sealed class SoapSsrsAdapter : ISsrsAdapter
 {
@@ -22,5 +22,55 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter
         cancellationToken.ThrowIfCancellationRequested();
         throw new NotSupportedException(
             "SOAP ListChildren is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
+        string reportPath,
+        IReadOnlyList<ParameterValue>? valuesForCascading = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP GetItemParameters is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task<ExecutionHandle> LoadReportAsync(string reportPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP LoadReport is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task SetParametersAsync(
+        ExecutionHandle execution,
+        IReadOnlyList<ParameterValue> values,
+        string culture,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP SetExecutionParameters is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task<RenderResult> RenderAsync(
+        ExecutionHandle execution,
+        string format,
+        DeviceInfo deviceInfo,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP Render is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task<StreamResult> RenderStreamAsync(
+        ExecutionHandle execution,
+        string format,
+        string streamId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP RenderStream is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
     }
 }

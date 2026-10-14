@@ -10,4 +10,32 @@ public interface ISsrsAdapter
     /// Does not create or mutate a Viewer Session or Execution.
     /// </summary>
     Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Report Parameter metadata for a Report path. Optional values support cascading valid-value lists (best-effort).
+    /// </summary>
+    Task<IReadOnlyList<ReportParameterDefinition>> GetParametersAsync(
+        string reportPath,
+        IReadOnlyList<ParameterValue>? valuesForCascading = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ExecutionHandle> LoadReportAsync(string reportPath, CancellationToken cancellationToken = default);
+
+    Task SetParametersAsync(
+        ExecutionHandle execution,
+        IReadOnlyList<ParameterValue> values,
+        string culture,
+        CancellationToken cancellationToken = default);
+
+    Task<RenderResult> RenderAsync(
+        ExecutionHandle execution,
+        string format,
+        DeviceInfo deviceInfo,
+        CancellationToken cancellationToken = default);
+
+    Task<StreamResult> RenderStreamAsync(
+        ExecutionHandle execution,
+        string format,
+        string streamId,
+        CancellationToken cancellationToken = default);
 }

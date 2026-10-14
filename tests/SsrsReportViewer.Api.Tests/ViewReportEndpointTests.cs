@@ -1,0 +1,244 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+
+namespace SsrsReportViewer.Api.Tests;
+
+public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
+{
+    private readonly ApiFactory _factory;
+    private readonly HttpClient _client;
+
+    public ViewReportEndpointTests(ApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+        _factory.Fake.Reset();
+        _factory.ResetSessions();
+    }
+
+    [Fact]
+    public async Task Get_parameters_returns_text_boolean_date_and_multi_value_metadata()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Title",
+                    DataType: "Text",
+                    Nullable: true,
+                    MultiValue: false,
+                    Prompt: "Title",
+                    Required: false),
+                new FakeReportParameter(
+                    Name: "IncludeInactive",
+                    DataType: "Boolean",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Include inactive",
+                    Required: true,
+                    DefaultValues: ["false"]),
+                new FakeReportParameter(
+                    Name: "AsOf",
+                    DataType: "DateTime",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "As of",
+                    Required: true),
+                new FakeReportParameter(
+                    Name: "Regions",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: true,
+                    Prompt: "Regions",
+                    Required: true,
+                    ValidValues: [("North", "N"), ("South", "S")]),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("/Sales/Revenue", body.Path);
+        Assert.Equal(4, body.Parameters.Length);
+
+        Assert.Contains(body.Parameters, p => p is { Name: "Title", DataType: "Text", MultiValue: false });
+        Assert.Contains(body.Parameters, p => p is { Name: "IncludeInactive", DataType: "Boolean" });
+        Assert.Contains(body.Parameters, p => p is { Name: "AsOf", DataType: "DateTime" });
+        var regions = Assert.Single(body.Parameters, p => p.Name == "Regions");
+        Assert.True(regions.MultiValue);
+        Assert.Equal(2, regions.ValidValues?.Length);
+    }
+
+    [Fact]
+    public async Task Post_render_returns_session_id_and_html_for_valid_parameters()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div class=\"report\">Revenue for {{Region}}</div>",
+            streams: [new FakeStream("img1", "image/png", [0x89, 0x50, 0x4E, 0x47])]);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "North" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.False(string.IsNullOrWhiteSpace(body.SessionId));
+        Assert.Contains("Revenue for North", body.Html, StringComparison.Ordinal);
+        Assert.Contains($"/api/sessions/{body.SessionId}/resources/", body.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_render_returns_problem_details_and_no_session_when_required_parameter_missing()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ]);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = Array.Empty<object>(),
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Object, problem.ValueKind);
+        Assert.True(
+            problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
+            "Expected ProblemDetails-shaped body");
+
+        Assert.Equal(0, _factory.Fake.ActiveExecutionCount);
+        Assert.Equal(0, _factory.SessionCount);
+    }
+
+    [Fact]
+    public async Task Get_resource_returns_stream_bytes_for_viewer_session()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<img src=\"{resource:img1}\" />",
+            streams: [new FakeStream("img1", "image/png", [0x89, 0x50, 0x4E, 0x47])]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var resource = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+
+        Assert.Equal(HttpStatusCode.OK, resource.StatusCode);
+        Assert.Equal("image/png", resource.Content.Headers.ContentType?.MediaType);
+        var bytes = await resource.Content.ReadAsByteArrayAsync();
+        Assert.Equal([0x89, 0x50, 0x4E, 0x47], bytes);
+    }
+
+    [Fact]
+    public async Task Expired_viewer_session_hard_fails_resource_fetch()
+    {
+        _factory.ConfigureSessionIdleTimeout(TimeSpan.FromMinutes(20));
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div>ok</div>",
+            streams: [new FakeStream("img1", "image/png", [1, 2, 3])]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        _factory.AdvanceTime(TimeSpan.FromMinutes(21));
+
+        var resource = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+
+        Assert.Equal(HttpStatusCode.Gone, resource.StatusCode);
+        var problem = await resource.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(
+            problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
+            "Expected ProblemDetails-shaped body");
+        Assert.Equal(0, _factory.SessionCount);
+    }
+
+    [Fact]
+    public async Task Concurrent_session_ops_serialize_extras_are_conflict()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div>ok</div>",
+            streams: [new FakeStream("img1", "image/png", [1])]);
+        _factory.Fake.StreamDelay = TimeSpan.FromMilliseconds(400);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var first = _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+        await Task.Delay(50);
+        var second = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+
+        var firstResponse = await first;
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+    }
+
+    private sealed record ParametersResponse(string Path, ParameterResponse[] Parameters);
+
+    private sealed record ParameterResponse(
+        string Name,
+        string DataType,
+        bool Nullable,
+        bool MultiValue,
+        bool Required,
+        string? Prompt,
+        string[]? DefaultValues,
+        ValidValueResponse[]? ValidValues,
+        string[]? Dependencies);
+
+    private sealed record ValidValueResponse(string Label, string Value);
+
+    private sealed record RenderResponse(string SessionId, string Html);
+}
