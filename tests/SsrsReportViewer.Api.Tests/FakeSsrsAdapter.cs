@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 using SsrsReportViewer.Api.Ssrs;
@@ -214,9 +214,11 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
         foreach (Match match in SortStatePlaceholderRegex().Matches(html))
         {
-            var state = exec.ActiveSort is null
-                ? "unsorted"
-                : $"{exec.ActiveSort.SortItem}:{exec.ActiveSort.Direction}";
+            var sortItem = match.Groups[1].Value;
+            var state = exec.ActiveSort is not null
+                && string.Equals(exec.ActiveSort.SortItem, sortItem, StringComparison.Ordinal)
+                ? exec.ActiveSort.Direction.ToString()
+                : "unsorted";
             html = html.Replace(match.Value, state, StringComparison.Ordinal);
         }
 
@@ -440,6 +442,6 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     [GeneratedRegex(@"\{toggle:([^}]+)\}", RegexOptions.CultureInvariant)]
     private static partial Regex ToggleStatePlaceholderRegex();
 
-    [GeneratedRegex(@"\{sort:active\}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\{sort:([^}]+)\}", RegexOptions.CultureInvariant)]
     private static partial Regex SortStatePlaceholderRegex();
 }
