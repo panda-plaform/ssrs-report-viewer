@@ -87,6 +87,7 @@ function App() {
       pageInfo: result.pageInfo,
       zoomPercent: render.zoomPercent,
       documentMap: render.documentMap,
+      canGoBack: render.canGoBack,
     })
   }
 
@@ -124,7 +125,7 @@ function App() {
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
         Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
-        Find, Drilldown, Document Map, Bookmark Action Links, Export, and Print.
+        Find, Drilldown, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and Print.
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
@@ -179,6 +180,7 @@ function App() {
                 html={render.html}
                 sessionId={render.sessionId}
                 pageInfo={render.pageInfo}
+                canGoBack={render.canGoBack}
                 busy={busy}
                 error={surfaceError}
                 onHtmlReplaced={handleHtmlReplaced}
@@ -191,6 +193,7 @@ function App() {
               html={null}
               sessionId={null}
               pageInfo={null}
+              canGoBack={false}
               busy={busy}
               error={surfaceError}
               onHtmlReplaced={handleHtmlReplaced}

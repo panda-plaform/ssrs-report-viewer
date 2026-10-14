@@ -52,7 +52,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException($"Viewer Session '{sessionId}' was not found.");
         }
 
-        session.Execution = execution;
+        session.SwitchTo(session.ReportPath, execution, session.Parameters);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

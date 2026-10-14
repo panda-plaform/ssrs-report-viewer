@@ -447,6 +447,19 @@
   color: #555;
 }
 
+.report-back {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.report-back:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .report-busy {
   margin: 0;
   font-size: 0.85rem;

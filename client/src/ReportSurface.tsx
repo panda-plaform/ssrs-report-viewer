@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 import {
+  drillthroughReport,
+  goBack,
   navigateBookmark,
   toggleDrilldown,
   type PageInfo,
+  type ParameterSubmission,
   type RenderResponse,
 } from './reportApi'
 
@@ -10,6 +13,7 @@ type Props = {
   html: string | null
   sessionId: string | null
   pageInfo: PageInfo | null
+  canGoBack: boolean
   busy: boolean
   error: string | null
   onHtmlReplaced: (result: RenderResponse) => void
@@ -19,12 +23,14 @@ type Props = {
 
 /**
  * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
- * Drilldown → session toggle; Bookmark → session bookmark; External Links → new browsing context.
+ * Drilldown / Drillthrough / Bookmark to session APIs; Back when stack non-empty;
+ * External Links in a new browsing context.
  */
 export function ReportSurface({
   html,
   sessionId,
   pageInfo,
+  canGoBack,
   busy,
   error,
   onHtmlReplaced,
@@ -91,6 +97,42 @@ export function ReportSurface({
         return
       }
 
+      if (action === 'drillthrough') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (busy) {
+          return
+        }
+
+        const reportPath = anchor.getAttribute('data-ssrs-report-path')
+        const paramsAttr = anchor.getAttribute('data-ssrs-parameters')
+        if (!reportPath || !sessionId) {
+          return
+        }
+
+        let parameters: ParameterSubmission[] = []
+        if (paramsAttr) {
+          try {
+            parameters = JSON.parse(paramsAttr) as ParameterSubmission[]
+          } catch {
+            onError('Invalid Drillthrough parameters on Action Link')
+            return
+          }
+        }
+
+        onBusyChange(true)
+        try {
+          const result = await drillthroughReport(sessionId, reportPath, parameters)
+          onHtmlReplaced(result)
+        } catch (err) {
+          onError(err instanceof Error ? err.message : 'Drillthrough failed')
+        } finally {
+          onBusyChange(false)
+        }
+        return
+      }
+
       if (action === 'bookmark') {
         event.preventDefault()
         event.stopPropagation()
@@ -140,6 +182,22 @@ export function ReportSurface({
     }
   }, [sessionId, busy, onHtmlReplaced, onError, onBusyChange])
 
+  async function handleBack() {
+    if (!sessionId || busy || !canGoBack) {
+      return
+    }
+
+    onBusyChange(true)
+    try {
+      const result = await goBack(sessionId)
+      onHtmlReplaced(result)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Back failed')
+    } finally {
+      onBusyChange(false)
+    }
+  }
+
   if (!html && !error) {
     return null
   }
@@ -157,6 +215,16 @@ export function ReportSurface({
           <p className="report-session" aria-label="Viewer Session id">
             Session {sessionId}
           </p>
+        )}
+        {canGoBack && (
+          <button
+            type="button"
+            className="report-back"
+            onClick={() => void handleBack()}
+            disabled={busy}
+          >
+            Back
+          </button>
         )}
         {busy && (
           <p className="report-busy" role="status">

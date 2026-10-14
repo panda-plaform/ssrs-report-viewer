@@ -42,6 +42,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>Execution id from the most recent LoadReportAsync call.</summary>
     public string? LastLoadedExecutionId { get; private set; }
 
+    /// <summary>Execution id from the most recent RenderAsync call.</summary>
+    public string? LastRenderedExecutionId { get; private set; }
+
     /// <summary>Optional delay applied inside RenderStreamAsync (busy serialization tests).</summary>
     public TimeSpan StreamDelay { get; set; } = TimeSpan.Zero;
 
@@ -53,7 +56,11 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
         LastLoadedExecutionId = null;
+        LastRenderedExecutionId = null;
     }
+
+    /// <summary>Simulates SSRS dropping an Execution (idle churn).</summary>
+    public bool DropExecution(string executionId) => _executions.TryRemove(executionId, out _);
 
     public void ResetCatalog() => Reset();
 
@@ -182,6 +189,13 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         cancellationToken.ThrowIfCancellationRequested();
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
+        LastRenderedExecutionId = exec.Id;
+
+        if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(RenderExport(exec, format, deviceInfo));
+        }
 
         if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
@@ -439,7 +453,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     {
         if (!_executions.TryGetValue(execution.Id, out var exec))
         {
-            throw new InvalidOperationException($"Unknown Execution '{execution.Id}'.");
+            throw new ExecutionNotFoundException(execution.Id);
         }
 
         return exec;

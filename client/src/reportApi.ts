@@ -42,6 +42,7 @@ export type RenderResponse = {
   pageInfo: PageInfo
   zoomPercent: number
   documentMap: DocumentMapNode[] | null
+  canGoBack: boolean
 }
 
 async function readProblemDetail(response: Response): Promise<string> {
@@ -204,6 +205,35 @@ export async function downloadExport(sessionId: string, format: ExportFormat): P
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+export async function drillthroughReport(
+  sessionId: string,
+  reportPath: string,
+  parameters: ParameterSubmission[],
+): Promise<RenderResponse> {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/drillthrough`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reportPath, parameters }),
+    },
+  )
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
+
+export async function goBack(sessionId: string): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/back`, {
+    method: 'POST',
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
 }
 
 export type FindResponse = {
