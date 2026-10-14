@@ -17,7 +17,7 @@ function defaultValues(parameters: ReportParameter[]): Record<string, string[]> 
   for (const parameter of parameters) {
     if (parameter.defaultValues?.length) {
       values[parameter.name] = [...parameter.defaultValues]
-    } else if (parameter.dataType === 'Boolean') {
+    } else if (parameter.dataType.toLowerCase() === 'boolean') {
       values[parameter.name] = ['false']
     } else {
       values[parameter.name] = parameter.multiValue ? [] : ['']

@@ -263,6 +263,23 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             return Task.FromResult(RenderExport(exec, format, deviceInfo));
         }
 
+        // Mirror SSRS ReportParameterValueNotSetException when a non-nullable parameter has no value.
+        foreach (var parameter in exec.Report.Parameters)
+        {
+            if (parameter.Nullable)
+            {
+                continue;
+            }
+
+            if (!exec.Parameters.TryGetValue(parameter.Name, out var values) ||
+                values.Count == 0 ||
+                values.All(string.IsNullOrWhiteSpace))
+            {
+                throw new InvalidOperationException(
+                    $"SSRS SOAP Render fault: This report requires a default or user-defined value for the report parameter '{parameter.Name}'.");
+            }
+        }
+
         var pageCount = exec.Report.PageHtml.Count;
         var page = deviceInfo.Section ?? 1;
         if (page < 1)

@@ -51,4 +51,22 @@ describe('toParameterSubmissions', () => {
       { name: 'Tags', values: ['a', 'b'] },
     ])
   })
+
+  it('uses defaults for blank non-nullable parameters instead of submitting NULL', () => {
+    const parameters = [
+      param({ name: 'Enabled', dataType: 'Boolean', defaultValues: ['true'] }),
+    ]
+    const values = { Enabled: [''] }
+
+    expect(toParameterSubmissions(parameters, values, {})).toEqual([
+      { name: 'Enabled', values: ['true'] },
+    ])
+  })
+
+  it('omits blank non-nullable parameters that have no defaults', () => {
+    const parameters = [param({ name: 'Enabled', dataType: 'Boolean' })]
+    const values = { Enabled: [''] }
+
+    expect(toParameterSubmissions(parameters, values, {})).toEqual([])
+  })
 })

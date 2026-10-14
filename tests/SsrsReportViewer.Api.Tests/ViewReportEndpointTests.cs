@@ -233,6 +233,50 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_keeps_default_when_non_nullable_parameter_submitted_empty()
+    {
+        // Client always posts every parameter; blank non-nullables must not be applied as SSRS NULL
+        // (that clears LoadReport defaults and faults Render — e.g. Boolean 'Enabled').
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Enabled",
+                    DataType: "Boolean",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Enabled",
+                    Required: false,
+                    DefaultValues: ["true"]),
+            ],
+            html: "<div class=\"report\">Enabled={{Enabled}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Enabled", values = Array.Empty<string>() },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var executionId = _factory.Fake.LastRenderedExecutionId;
+        Assert.False(string.IsNullOrWhiteSpace(executionId));
+        Assert.True(
+            _factory.Fake.TryGetExecutionParameter(executionId!, "Enabled", out var stored),
+            "Expected Enabled to remain set on the Execution");
+        Assert.Equal(["true"], stored);
+        Assert.Contains("Enabled=true", body.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Post_render_applies_null_for_nullable_parameter_with_empty_values()
     {
         _factory.Fake.SeedReport(
