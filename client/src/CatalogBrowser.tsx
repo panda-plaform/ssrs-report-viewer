@@ -3,6 +3,11 @@ import { fetchCatalog, type CatalogItem } from './catalogApi'
 
 type LoadState = 'loading' | 'ok' | 'error'
 
+type Props = {
+  selectedReportPath: string | null
+  onSelectReport: (path: string) => void
+}
+
 function parentPath(path: string): string | null {
   if (path === '/' || path === '') {
     return null
@@ -17,13 +22,12 @@ function parentPath(path: string): string | null {
   return trimmed.slice(0, slash)
 }
 
-export function CatalogBrowser() {
+export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
   const [path, setPath] = useState('/')
   const [folders, setFolders] = useState<CatalogItem[]>([])
   const [reports, setReports] = useState<CatalogItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [error, setError] = useState<string | null>(null)
-  const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -102,7 +106,7 @@ export function CatalogBrowser() {
                     ? 'catalog-item report selected'
                     : 'catalog-item report'
                 }
-                onClick={() => setSelectedReportPath(report.path)}
+                onClick={() => onSelectReport(report.path)}
               >
                 <span className="catalog-item-kind">Report</span>
                 <span className="catalog-item-name">{report.name}</span>
@@ -118,7 +122,7 @@ export function CatalogBrowser() {
       <p className="catalog-selection" role="status">
         {selectedReportPath
           ? `Selected Report: ${selectedReportPath}`
-          : 'Select a Report to continue (View Report arrives in a later ticket).'}
+          : 'Select a Report to enter parameters and View Report.'}
       </p>
     </section>
   )

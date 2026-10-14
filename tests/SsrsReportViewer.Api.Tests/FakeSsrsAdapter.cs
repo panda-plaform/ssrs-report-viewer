@@ -17,6 +17,11 @@ public sealed record FakeReportParameter(
 
 public sealed record FakeStream(string StreamId, string MimeType, byte[] Content);
 
+public sealed record FakeDocumentMapNode(
+    string Id,
+    string Label,
+    IReadOnlyList<FakeDocumentMapNode>? Children = null);
+
 /// <summary>
 /// In-memory SSRS adapter for API tests. Catalog + Report Parameter + Execution behaviors.
 /// </summary>
@@ -62,14 +67,24 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         string reportPath,
         IReadOnlyList<FakeReportParameter> parameters,
         string html = "<div class=\"report\">ok</div>",
-        IReadOnlyList<FakeStream>? streams = null)
+        IReadOnlyList<FakeStream>? streams = null,
+        IReadOnlyList<FakeDocumentMapNode>? documentMap = null,
+        IReadOnlyDictionary<string, string>? documentMapHtml = null,
+        IReadOnlyDictionary<string, string>? bookmarkHtml = null)
     {
         var path = NormalizePath(reportPath);
         _reports[path] = new SeededReport(
             path,
             parameters.ToList(),
             html,
-            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal));
+            (streams ?? []).ToDictionary(s => s.StreamId, s => s, StringComparer.Ordinal),
+            documentMap?.ToList(),
+            documentMapHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(documentMapHtml, StringComparer.Ordinal),
+            bookmarkHtml is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(bookmarkHtml, StringComparer.Ordinal));
     }
 
     public Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default)
@@ -153,7 +168,7 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 
-        var html = exec.Report.HtmlTemplate;
+        var html = exec.ActiveHtml ?? exec.Report.HtmlTemplate;
         foreach (var (name, values) in exec.Parameters)
         {
             html = html.Replace($"{{{{{name}}}}}", string.Join(",", values), StringComparison.OrdinalIgnoreCase);
@@ -161,6 +176,9 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
 
         var resourceRoot = deviceInfo.ResourceStreamRoot ?? "{ResourceStreamRoot}";
         html = html.Replace("{ResourceStreamRoot}", resourceRoot, StringComparison.Ordinal);
+
+        var replacementRoot = deviceInfo.ReplacementRoot ?? "{ReplacementRoot}";
+        html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
 
         foreach (var streamId in exec.Report.Streams.Keys)
         {
@@ -180,7 +198,14 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
 
         var bytes = Encoding.UTF8.GetBytes(html);
         var streamIds = exec.Report.Streams.Keys.ToArray();
-        return Task.FromResult(new RenderResult(bytes, "text/html", streamIds, PageCount: 1, CurrentPage: deviceInfo.Section ?? 1));
+        var documentMap = ToDocumentMap(exec.Report.DocumentMap);
+        return Task.FromResult(new RenderResult(
+            bytes,
+            "text/html",
+            streamIds,
+            PageCount: 1,
+            CurrentPage: deviceInfo.Section ?? 1,
+            DocumentMap: documentMap));
     }
 
     public async Task<StreamResult> RenderStreamAsync(
@@ -205,6 +230,59 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
 
         return new StreamResult(stream.Content, stream.MimeType);
     }
+
+    public Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.DocumentMapHtml.TryGetValue(documentMapId, out var html))
+        {
+            // Fall back to a labeled placeholder when a map node has no dedicated HTML.
+            html = $"<div class=\"report\" data-section=\"{documentMapId}\">Document Map {documentMapId}</div>";
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    public Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var exec = RequireExecution(execution);
+        ViewerSessionMutations++;
+
+        if (!exec.Report.BookmarkHtml.TryGetValue(bookmarkId, out var html))
+        {
+            throw new InvalidOperationException($"Unknown Bookmark '{bookmarkId}'.");
+        }
+
+        exec.ActiveHtml = html;
+        return Task.CompletedTask;
+    }
+
+    private static IReadOnlyList<DocumentMapNode>? ToDocumentMap(IReadOnlyList<FakeDocumentMapNode>? nodes)
+    {
+        if (nodes is null || nodes.Count == 0)
+        {
+            return null;
+        }
+
+        return nodes.Select(MapNode).ToArray();
+    }
+
+    private static DocumentMapNode MapNode(FakeDocumentMapNode node) =>
+        new(
+            node.Id,
+            node.Label,
+            (node.Children ?? []).Select(MapNode).ToArray());
 
     private SeededReport RequireReport(string reportPath)
     {
@@ -245,7 +323,10 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         string Path,
         IReadOnlyList<FakeReportParameter> Parameters,
         string HtmlTemplate,
-        Dictionary<string, FakeStream> Streams);
+        Dictionary<string, FakeStream> Streams,
+        IReadOnlyList<FakeDocumentMapNode>? DocumentMap,
+        Dictionary<string, string> DocumentMapHtml,
+        Dictionary<string, string> BookmarkHtml);
 
     private sealed class FakeExecution(
         string Id,
@@ -255,5 +336,6 @@ public sealed class FakeSsrsAdapter : ISsrsAdapter
         public string Id { get; } = Id;
         public SeededReport Report { get; } = Report;
         public Dictionary<string, IReadOnlyList<string>> Parameters { get; } = Parameters;
+        public string? ActiveHtml { get; set; }
     }
 }
