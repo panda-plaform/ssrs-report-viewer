@@ -3,6 +3,11 @@ import { fetchCatalog, type CatalogItem } from './catalogApi'
 
 type LoadState = 'loading' | 'ok' | 'error'
 
+type Props = {
+  selectedReportPath: string | null
+  onSelectReport: (path: string) => void
+}
+
 function parentPath(path: string): string | null {
   if (path === '/' || path === '') {
     return null
@@ -15,11 +20,6 @@ function parentPath(path: string): string | null {
   }
 
   return trimmed.slice(0, slash)
-}
-
-type Props = {
-  selectedReportPath: string | null
-  onSelectReport: (path: string) => void
 }
 
 export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {

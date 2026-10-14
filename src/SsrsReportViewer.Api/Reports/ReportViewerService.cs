@@ -54,28 +54,10 @@ public sealed class ReportViewerService
         await _ssrs.SetParametersAsync(execution, parameters, _options.DefaultCulture, cancellationToken);
 
         var session = _sessions.Create(reportPath, execution);
-        var resourceRoot = $"/api/sessions/{session.Id}/resources/";
-        var deviceInfo = new DeviceInfo(
-            HtmlFragment: true,
-            Toolbar: false,
-            ZoomPercent: session.ZoomPercent,
-            Section: session.CurrentPage,
-            ReplacementRoot: $"/api/sessions/{session.Id}/actions/",
-            ResourceStreamRoot: resourceRoot);
-
-        var render = await _ssrs.RenderAsync(execution, "HTML4.0", deviceInfo, cancellationToken);
-        session.CurrentPage = render.CurrentPage;
-        session.PageCount = render.PageCount;
-
-        var html = PrepareHtml(render, resourceRoot, deviceInfo.ReplacementRoot);
-
-        return new ViewReportResult(
-            session.Id,
-            html,
-            new PageInfo(render.CurrentPage, render.PageCount));
+        return await RenderSessionAsync(session, cancellationToken);
     }
 
-    public async Task<ViewReportResult> ToggleAsync(
+    public Task<ViewReportResult> ToggleAsync(
         string sessionId,
         string toggleId,
         ViewerSessionGuard guard,
@@ -86,30 +68,12 @@ public sealed class ReportViewerService
             throw new ArgumentException("toggleId is required.", nameof(toggleId));
         }
 
-        return await guard.ExecuteAsync(
+        return guard.ExecuteAsync(
             sessionId,
             async (session, ct) =>
             {
                 await _ssrs.ToggleItemAsync(session.Execution, toggleId, ct);
-
-                var resourceRoot = $"/api/sessions/{session.Id}/resources/";
-                var replacementRoot = $"/api/sessions/{session.Id}/actions/";
-                var deviceInfo = new DeviceInfo(
-                    HtmlFragment: true,
-                    Toolbar: false,
-                    ZoomPercent: session.ZoomPercent,
-                    Section: session.CurrentPage,
-                    ReplacementRoot: replacementRoot,
-                    ResourceStreamRoot: resourceRoot);
-
-                var render = await _ssrs.RenderAsync(session.Execution, "HTML4.0", deviceInfo, ct);
-                session.CurrentPage = render.CurrentPage;
-
-                var html = PrepareHtml(render, resourceRoot, replacementRoot);
-                return new ViewReportResult(
-                    session.Id,
-                    html,
-                    new PageInfo(render.CurrentPage, render.PageCount));
+                return await RenderSessionAsync(session, ct);
             },
             cancellationToken);
     }
@@ -123,6 +87,38 @@ public sealed class ReportViewerService
         return await guard.ExecuteAsync(
             sessionId,
             (session, ct) => _ssrs.RenderStreamAsync(session.Execution, "HTML4.0", streamId, ct),
+            cancellationToken);
+    }
+
+    public Task<ViewReportResult> NavigateDocumentMapAsync(
+        string sessionId,
+        string documentMapId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateDocumentMapAsync(session.Execution, documentMapId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
+            cancellationToken);
+    }
+
+    public Task<ViewReportResult> NavigateBookmarkAsync(
+        string sessionId,
+        string bookmarkId,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            async (session, ct) =>
+            {
+                await _ssrs.NavigateBookmarkAsync(session.Execution, bookmarkId, ct);
+                return await RenderSessionAsync(session, ct);
+            },
             cancellationToken);
     }
 
@@ -205,14 +201,14 @@ public sealed class ReportViewerService
             session.CurrentPage = foundPage;
         }
 
-        var render = await RenderSessionHtmlAsync(session, cancellationToken);
+        var render = await RenderSessionAsync(session, cancellationToken);
         return new FindResult(
             render.Html,
             found,
             new PageInfo(session.CurrentPage, session.PageCount));
     }
 
-    private async Task<(string Html, RenderResult Render)> RenderSessionHtmlAsync(
+    private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken)
     {
@@ -231,7 +227,11 @@ public sealed class ReportViewerService
         session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
-        return (html, render);
+        return new ViewReportResult(
+            session.Id,
+            html,
+            new PageInfo(render.CurrentPage, render.PageCount),
+            render.DocumentMap);
     }
 
     private static string NormalizeExportFormat(string format)
@@ -274,6 +274,11 @@ public sealed class ReportViewerService
     {
         var html = Encoding.UTF8.GetString(render.Content);
         html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
+        if (!string.IsNullOrEmpty(replacementRoot))
+        {
+            html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
+        }
+
         return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
 
@@ -295,7 +300,11 @@ public sealed class ReportViewerService
     }
 }
 
-public sealed record ViewReportResult(string SessionId, string Html, PageInfo PageInfo);
+public sealed record ViewReportResult(
+    string SessionId,
+    string Html,
+    PageInfo PageInfo,
+    IReadOnlyList<DocumentMapNode>? DocumentMap);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
 

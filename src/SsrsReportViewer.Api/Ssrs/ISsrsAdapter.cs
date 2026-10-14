@@ -57,4 +57,20 @@ public interface ISsrsAdapter
         int endPage,
         string findValue,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Jump Execution position to a Document Map node (ReportExecution2005 NavigateDocumentMap).
+    /// </summary>
+    Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Jump Execution position to a Bookmark (ReportExecution2005 NavigateBookmark).
+    /// </summary>
+    Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default);
 }

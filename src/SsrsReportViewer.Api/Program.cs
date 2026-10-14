@@ -120,16 +120,7 @@ app.MapPost("/api/reports/render", async (
     try
     {
         var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(new
-        {
-            sessionId = result.SessionId,
-            html = result.Html,
-            pageInfo = new
-            {
-                currentPage = result.PageInfo.CurrentPage,
-                pageCount = result.PageInfo.PageCount,
-            },
-        });
+        return Results.Ok(ToSessionPayload(result));
     }
     catch (RequiredParameterMissingException ex)
     {
@@ -144,6 +135,92 @@ app.MapPost("/api/reports/render", async (
             detail: ex.Message,
             statusCode: StatusCodes.Status404NotFound,
             title: "Report not found");
+    }
+});
+
+app.MapPost("/api/sessions/{sessionId}/document-map", async (
+    string sessionId,
+    DocumentMapNavigateRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Id))
+    {
+        return Results.Problem(
+            detail: "id is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Document Map request");
+    }
+
+    try
+    {
+        var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
+        return Results.Ok(ToSessionPayload(result));
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
+    }
+});
+
+app.MapPost("/api/sessions/{sessionId}/bookmark", async (
+    string sessionId,
+    BookmarkNavigateRequest request,
+    ReportViewerService viewer,
+    ViewerSessionGuard guard,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Id))
+    {
+        return Results.Problem(
+            detail: "id is required.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid Bookmark request");
+    }
+
+    try
+    {
+        var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
+        return Results.Ok(ToSessionPayload(result));
+    }
+    catch (ViewerSessionNotFoundException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Viewer Session not found");
+    }
+    catch (ViewerSessionExpiredException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status410Gone,
+            title: "Viewer Session expired");
+    }
+    catch (ViewerSessionBusyException ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Viewer Session busy");
     }
 });
 
@@ -200,16 +277,7 @@ app.MapPost("/api/sessions/{sessionId}/toggle", async (
     try
     {
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
-        return Results.Ok(new
-        {
-            sessionId = result.SessionId,
-            html = result.Html,
-            pageInfo = new
-            {
-                currentPage = result.PageInfo.CurrentPage,
-                pageCount = result.PageInfo.PageCount,
-            },
-        });
+        return Results.Ok(ToSessionPayload(result));
     }
     catch (ViewerSessionNotFoundException ex)
     {
@@ -363,6 +431,27 @@ static string NormalizeCatalogPath(string? path)
     return "/" + path.Trim().Trim('/');
 }
 
+static object ToSessionPayload(ViewReportResult result) =>
+    new
+    {
+        sessionId = result.SessionId,
+        html = result.Html,
+        pageInfo = new
+        {
+            currentPage = result.PageInfo.CurrentPage,
+            pageCount = result.PageInfo.PageCount,
+        },
+        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
+    };
+
+static object MapDocumentMapNode(DocumentMapNode node) =>
+    new
+    {
+        id = node.Id,
+        label = node.Label,
+        children = node.Children.Select(MapDocumentMapNode).ToArray(),
+    };
+
 app.Run();
 
 public partial class Program;
@@ -370,6 +459,10 @@ public partial class Program;
 public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 
 public sealed record ViewReportParameter(string Name, string[]? Values);
+
+public sealed record DocumentMapNavigateRequest(string? Id);
+
+public sealed record BookmarkNavigateRequest(string? Id);
 
 public sealed record ToggleRequest(string? ToggleId);
 

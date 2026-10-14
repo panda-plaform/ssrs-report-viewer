@@ -84,6 +84,26 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter
             "SOAP ToggleItem is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
     }
 
+    public Task NavigateDocumentMapAsync(
+        ExecutionHandle execution,
+        string documentMapId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP NavigateDocumentMap is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
+    public Task NavigateBookmarkAsync(
+        ExecutionHandle execution,
+        string bookmarkId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new NotSupportedException(
+            "SOAP NavigateBookmark is not wired yet. Configure a real ReportServer implementation or use the fake adapter in tests.");
+    }
+
     public Task<int> FindStringAsync(
         ExecutionHandle execution,
         int startPage,
