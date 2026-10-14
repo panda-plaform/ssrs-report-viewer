@@ -71,6 +71,20 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
+export async function toggleDrilldown(
+  sessionId: string,
+  toggleId: string,
+): Promise<RenderResponse> {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ toggleId }),
+  })
+  if (!response.ok) {
+    throw new Error(await readProblemDetail(response))
+  }
+  return (await response.json()) as RenderResponse
+}
 export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
 
 function fileNameFromContentDisposition(header: string | null, fallback: string): string {
@@ -120,3 +134,4 @@ export async function downloadExport(sessionId: string, format: ExportFormat): P
     URL.revokeObjectURL(url)
   }
 }
+

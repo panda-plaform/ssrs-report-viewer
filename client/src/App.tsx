@@ -18,6 +18,7 @@ function App() {
   const [selectedReportPath, setSelectedReportPath] = useState<string | null>(null)
   const [render, setRender] = useState<RenderResponse | null>(null)
   const [surfaceError, setSurfaceError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -55,6 +56,7 @@ function App() {
   const clearSurface = useCallback(() => {
     setRender(null)
     setSurfaceError(null)
+    setBusy(false)
   }, [])
 
   function handleSelectReport(path: string) {
@@ -67,12 +69,22 @@ function App() {
     setRender(result)
   }
 
+  const handleHtmlReplaced = useCallback((result: RenderResponse) => {
+    setSurfaceError(null)
+    setRender(result)
+  }, [])
+
+  const handleSurfaceError = useCallback((message: string) => {
+    setSurfaceError(message || null)
+  }, [])
+
   return (
     <main className="shell">
       <h1>SSRS Report Viewer</h1>
       <p className="lede no-print">
-        Browse the Catalog, enter Report Parameters, then View Report. Export downloads the current
-        Execution; Print uses the browser on the HTML surface (PDF Export for high fidelity).
+        Browse the Catalog, enter Report Parameters, View Report, then use Drilldown, External Links,
+        Export, and Print. Export downloads the current Execution; Print uses the browser on the HTML
+        surface (PDF Export for high fidelity).
       </p>
       <p className={`status status-${apiStatus} no-print`} role="status">
         {detail}
@@ -93,15 +105,16 @@ function App() {
             )}
           </div>
           {render?.sessionId && (
-            <ViewerToolbar
-              sessionId={render.sessionId}
-              onError={(message) => setSurfaceError(message || null)}
-            />
+            <ViewerToolbar sessionId={render.sessionId} onError={handleSurfaceError} />
           )}
           <ReportSurface
             html={render?.html ?? null}
             sessionId={render?.sessionId ?? null}
+            busy={busy}
             error={surfaceError}
+            onHtmlReplaced={handleHtmlReplaced}
+            onError={handleSurfaceError}
+            onBusyChange={setBusy}
           />
         </>
       )}
