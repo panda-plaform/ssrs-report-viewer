@@ -139,6 +139,104 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
             "Expected ProblemDetails-shaped body");
     }
 
+    [Fact]
+    public async Task Non_find_rerenders_omit_FindString_after_successful_find()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            pageHtml:
+            [
+                "<div class=\"report\">Page one needle here</div>",
+                "<div class=\"report\">Page two also needle</div>",
+            ]);
+
+        var sessionId = await RenderSessionAsync("/Sales/Revenue");
+
+        var find = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/find",
+            new { findValue = "needle" });
+        Assert.Equal(HttpStatusCode.OK, find.StatusCode);
+        var findBody = await find.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(findBody);
+        Assert.True(findBody.Found);
+        Assert.Equal("needle", _factory.Fake.LastHtmlDeviceInfo?.FindString);
+        Assert.Contains(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            findBody.Html,
+            StringComparison.Ordinal);
+
+        var page = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/page",
+            new { action = "goto", page = 2 });
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var pageBody = await page.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(pageBody);
+        Assert.True(string.IsNullOrEmpty(_factory.Fake.LastHtmlDeviceInfo?.FindString));
+        Assert.DoesNotContain(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            pageBody.Html,
+            StringComparison.Ordinal);
+
+        var zoom = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/zoom",
+            new { zoomPercent = 150 });
+        Assert.Equal(HttpStatusCode.OK, zoom.StatusCode);
+        var zoomBody = await zoom.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(zoomBody);
+        Assert.True(string.IsNullOrEmpty(_factory.Fake.LastHtmlDeviceInfo?.FindString));
+        Assert.DoesNotContain(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            zoomBody.Html,
+            StringComparison.Ordinal);
+
+        var refresh = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/refresh",
+            new { });
+        Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
+        var refreshBody = await refresh.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(refreshBody);
+        Assert.True(string.IsNullOrEmpty(_factory.Fake.LastHtmlDeviceInfo?.FindString));
+        Assert.DoesNotContain(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            refreshBody.Html,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_sort_after_find_omits_FindString_device_info()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <div class="report">
+                    <a href="{ReplacementRoot}?rc:SortItem=Col1&amp;rc:SortDirection=Ascending">Sort Col1</a>
+                    <div class="rows">needle row</div>
+                  </div>
+                  """);
+
+        var sessionId = await RenderSessionAsync("/Sales/Revenue");
+
+        var find = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/find",
+            new { findValue = "needle" });
+        Assert.Equal(HttpStatusCode.OK, find.StatusCode);
+        Assert.Equal("needle", _factory.Fake.LastHtmlDeviceInfo?.FindString);
+
+        var sort = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/sort",
+            new { sortItem = "Col1", direction = "Ascending", clear = false });
+        Assert.Equal(HttpStatusCode.OK, sort.StatusCode);
+        var sorted = await sort.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(sorted);
+        Assert.True(string.IsNullOrEmpty(_factory.Fake.LastHtmlDeviceInfo?.FindString));
+        Assert.DoesNotContain(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            sorted.Html,
+            StringComparison.Ordinal);
+    }
+
     private async Task<string> RenderSessionAsync(string reportPath)
     {
         var render = await _client.PostAsJsonAsync(
