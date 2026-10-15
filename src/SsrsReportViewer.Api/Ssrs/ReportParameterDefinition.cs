@@ -13,7 +13,15 @@ public sealed record ReportParameterDefinition(
     IReadOnlyList<string> DefaultValues,
     IReadOnlyList<ReportParameterValidValue> ValidValues,
     IReadOnlyList<string> Dependencies,
-    bool PromptUser = true);
+    bool PromptUser = true)
+{
+    /// <summary>
+    /// Native SSRS parameter bar: PromptUser and a non-empty Prompt. Empty Prompt with
+    /// PromptUser still true (e.g. Report List <c>all_value</c>) is not shown.
+    /// </summary>
+    public bool ShownOnParameterForm =>
+        PromptUser && !string.IsNullOrWhiteSpace(Prompt);
+}
 
 public sealed record ReportParameterValidValue(string Label, string Value);
 
