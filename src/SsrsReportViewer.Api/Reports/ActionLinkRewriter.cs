@@ -156,7 +156,8 @@ public static partial class ActionLinkRewriter
 
     private static string RewriteSortAnchor(string href, string label)
     {
-        var decodedHref = href.Replace("&amp;", "&", StringComparison.Ordinal);
+        // Same separator decoding as Drillthrough: live HTML uses &amp;; SOAP may leave &amp;amp;.
+        var decodedHref = NormalizeQuerySeparators(href);
         var query = ExtractQuery(decodedHref);
         var sortItem = FirstQueryValue(query, "rc:SortItem", "SortItem", "rc:SortId", "SortId");
         var direction = FirstQueryValue(query, "rc:SortDirection", "SortDirection") ?? "Ascending";
