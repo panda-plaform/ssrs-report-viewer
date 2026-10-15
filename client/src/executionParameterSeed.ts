@@ -25,7 +25,6 @@ export function seedFormDefaults(parameters: ReportParameter[]): SeededParameter
     if (parameter.defaultValues?.length) {
       values[parameter.name] = [...parameter.defaultValues]
     } else {
-      // Boolean with no defaults stays empty/unselected; never invent false/true.
       values[parameter.name] = parameter.multiValue ? [] : ['']
     }
 
@@ -39,17 +38,23 @@ export function seedFormDefaults(parameters: ReportParameter[]): SeededParameter
 
 /**
  * Reseeds the parameter bar from current Execution parameters (RenderResponse.parameters).
- * Empty values on a nullable parameter mean NULL was applied to the Execution.
- * Execution seed wins over the fresh-load NULL default.
+ * Values still start from SSRS defaultValues, then Execution overlays.
+ * Unlike fresh-load, nullable nullChecked starts unchecked; only empty applied
+ * Execution values mark NULL. Parameters absent from the Execution payload stay unchecked.
  */
 export function seedFormFromExecution(
   parameters: ReportParameter[],
   execution: ParameterSubmission[],
 ): SeededParameterForm {
-  const { values, nullChecked } = seedFormDefaults(parameters)
+  const { values } = seedFormDefaults(parameters)
+  const nullChecked: Record<string, boolean> = {}
   const byName = new Map(execution.map((entry) => [entry.name, entry.values]))
 
   for (const parameter of parameters) {
+    if (parameter.nullable) {
+      nullChecked[parameter.name] = false
+    }
+
     const applied = byName.get(parameter.name)
     if (applied === undefined) {
       continue
@@ -67,6 +72,27 @@ export function seedFormFromExecution(
   }
 
   return { values, nullChecked }
+}
+
+/** After cascading refresh: drop selections that are no longer Valid Values. */
+export function mergeCascadedValues(
+  parameters: ReportParameter[],
+  previous: Record<string, string[]>,
+): Record<string, string[]> {
+  const next = { ...previous }
+  for (const parameter of parameters) {
+    const current = next[parameter.name] ?? []
+    if (parameter.validValues.length === 0) {
+      continue
+    }
+
+    const allowed = new Set(parameter.validValues.map((v) => v.value))
+    const filtered = current.filter((value) => allowed.has(value))
+    if (filtered.length !== current.length) {
+      next[parameter.name] = filtered.length > 0 ? filtered : parameter.multiValue ? [] : ['']
+    }
+  }
+  return next
 }
 
 /** After cascading refresh: keep tracked flags; newly seen nullable → NULL checked. */

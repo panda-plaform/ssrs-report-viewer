@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   mergeCascadedNullChecked,
+  mergeCascadedValues,
   seedFormDefaults,
   seedFormFromExecution,
   type ExecutionParameterSeed,
@@ -42,26 +43,6 @@ function dependencyFingerprint(
       return `${p.name}=${(values[p.name] ?? []).join('\u001f')}`
     })
     .join('|')
-}
-
-function mergeCascadedValues(
-  parameters: ReportParameter[],
-  previous: Record<string, string[]>,
-): Record<string, string[]> {
-  const next = { ...previous }
-  for (const parameter of parameters) {
-    const current = next[parameter.name] ?? []
-    if (parameter.validValues.length === 0) {
-      continue
-    }
-
-    const allowed = new Set(parameter.validValues.map((v) => v.value))
-    const filtered = current.filter((value) => allowed.has(value))
-    if (filtered.length !== current.length) {
-      next[parameter.name] = filtered.length > 0 ? filtered : parameter.multiValue ? [] : ['']
-    }
-  }
-  return next
 }
 
 export function ParameterForm({

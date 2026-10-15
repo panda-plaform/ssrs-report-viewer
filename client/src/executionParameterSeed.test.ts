@@ -101,6 +101,29 @@ describe('seedFormFromExecution', () => {
     })
   })
 
+  it('keeps nullable missing from Execution seed unchecked with defaultValues', () => {
+    const parameters = [
+      param({ name: 'Region', nullable: true, defaultValues: ['East'] }),
+      param({ name: 'Optional', nullable: true, defaultValues: ['Maybe'] }),
+      param({ name: 'Year', defaultValues: ['2023'] }),
+    ]
+
+    const seeded = seedFormFromExecution(parameters, [
+      { name: 'Region', values: ['West'] },
+      { name: 'Year', values: ['2024'] },
+    ])
+
+    expect(seeded.values).toEqual({
+      Region: ['West'],
+      Optional: ['Maybe'],
+      Year: ['2024'],
+    })
+    expect(seeded.nullChecked).toEqual({
+      Region: false,
+      Optional: false,
+    })
+  })
+
   it('unchecks NULL when Execution applied concrete values to a nullable parameter', () => {
     const parameters = [param({ name: 'Region', nullable: true, defaultValues: ['East'] })]
 
