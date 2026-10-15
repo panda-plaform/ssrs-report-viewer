@@ -431,6 +431,7 @@ public sealed partial class ReportViewerService
         }
 
         // Only found Find / Find next applies HTML DeviceInfo FindString for highlight chrome (#52).
+        // FindString is not persisted on the Viewer Session — non-Find RenderSession paths omit it (#53).
         var render = await RenderSessionAsync(
             session,
             cancellationToken,
@@ -441,6 +442,10 @@ public sealed partial class ReportViewerService
             new PageInfo(session.CurrentPage, session.PageCount));
     }
 
+    /// <param name="findString">
+    /// HTML DeviceInfo FindString for native highlight chrome. Pass only from found Find / Find next;
+    /// default null so View Report, Refresh, page, Zoom, Sort, and other non-Find renders stay clear (#53).
+    /// </param>
     private async Task<ViewReportResult> RenderSessionAsync(
         ViewerSession session,
         CancellationToken cancellationToken,
