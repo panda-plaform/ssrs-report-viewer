@@ -87,7 +87,9 @@ describe('ViewerToolbar native chrome', () => {
     expect(within(pageGroup).getByRole('button', { name: 'First' })).toBeInTheDocument()
     expect(within(pageGroup).getByRole('button', { name: 'Previous' })).toBeInTheDocument()
     expect(within(pageGroup).getByRole('spinbutton', { name: 'Report Page' })).toBeInTheDocument()
-    expect(within(pageGroup).getByText(/of\s*5/i)).toBeInTheDocument()
+    const pageCount = within(pageGroup).getByText(/of\s*5/i)
+    expect(pageCount).toBeInTheDocument()
+    expect(pageCount).not.toHaveAttribute('aria-hidden', 'true')
     expect(within(pageGroup).getByRole('button', { name: 'Next' })).toBeInTheDocument()
     expect(within(pageGroup).getByRole('button', { name: 'Last' })).toBeInTheDocument()
 

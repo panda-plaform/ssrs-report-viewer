@@ -197,8 +197,8 @@ function App() {
 
   return (
     <main className={reportMode ? 'shell shell-report' : 'shell'}>
-      <h1 className={reportMode ? 'shell-title-quiet no-print' : undefined}>SSRS Report Viewer</h1>
-      <p className={reportMode ? 'lede no-print shell-lede-quiet' : 'lede no-print'}>
+      <h1 className={reportMode ? 'visually-hidden no-print' : undefined}>SSRS Report Viewer</h1>
+      <p className={reportMode ? 'lede visually-hidden no-print' : 'lede no-print'}>
         Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
         Find, Drilldown, Sort, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and
         Print.
@@ -206,7 +206,7 @@ function App() {
       <p
         className={
           reportMode
-            ? `status status-${apiStatus} no-print shell-status-quiet`
+            ? `status status-${apiStatus} visually-hidden no-print`
             : `status status-${apiStatus} no-print`
         }
         role="status"
@@ -236,6 +236,8 @@ function App() {
               <ParameterForm
                 reportPath={selectedReportPath}
                 executionSeed={executionSeed}
+                busy={busy}
+                onBusyChange={setBusy}
                 onViewed={handleViewed}
                 onClearSurface={clearSurface}
                 onReturnToCatalog={handleReturnToCatalog}

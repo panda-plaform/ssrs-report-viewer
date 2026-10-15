@@ -26,6 +26,8 @@ type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 type Props = {
   reportPath: string
   executionSeed?: ExecutionParameterSeed | null
+  busy?: boolean
+  onBusyChange?: (busy: boolean) => void
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onReturnToCatalog?: () => void
@@ -55,6 +57,8 @@ function dependencyFingerprint(
 export function ParameterForm({
   reportPath,
   executionSeed = null,
+  busy = false,
+  onBusyChange,
   onViewed,
   onClearSurface,
   onReturnToCatalog,
@@ -65,6 +69,7 @@ export function ParameterForm({
   const [nullChecked, setNullChecked] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const formBusy = busy || submitting
   const skipCascadeRef = useRef(true)
   const valuesRef = useRef(values)
   const nullCheckedRef = useRef(nullChecked)
@@ -194,7 +199,12 @@ export function ParameterForm({
   }
 
   async function handleViewReport() {
+    if (formBusy) {
+      return
+    }
+
     setSubmitting(true)
+    onBusyChange?.(true)
     setError(null)
 
     const submissions = toParameterSubmissions(parameters, values, nullChecked)
@@ -207,6 +217,7 @@ export function ParameterForm({
       setError(err instanceof Error ? err.message : 'View Report failed')
     } finally {
       setSubmitting(false)
+      onBusyChange?.(false)
     }
   }
 
@@ -239,7 +250,7 @@ export function ParameterForm({
             <div className="parameters-strip">
               <p className="parameters-status">This Report has no parameters.</p>
               <div className="parameters-actions">
-                <button type="button" disabled={submitting} onClick={() => void handleViewReport()}>
+                <button type="button" disabled={formBusy} onClick={() => void handleViewReport()}>
                   {submitting ? 'Viewing…' : 'View Report'}
                 </button>
               </div>
@@ -258,13 +269,14 @@ export function ParameterForm({
                   parameter={parameter}
                   values={values[parameter.name] ?? []}
                   isNull={Boolean(nullChecked[parameter.name])}
+                  disabled={formBusy}
                   onNullChange={(checked) => setParameterNull(parameter.name, checked)}
                   onSingleChange={(value) => setSingleValue(parameter.name, value)}
                   onMultiChange={(next) => setMultiValues(parameter.name, next)}
                 />
               ))}
               <div className="parameters-actions">
-                <button type="submit" disabled={submitting}>
+                <button type="submit" disabled={formBusy}>
                   {submitting ? 'Viewing…' : 'View Report'}
                 </button>
               </div>
@@ -286,6 +298,7 @@ type FieldProps = {
   parameter: ReportParameter
   values: string[]
   isNull: boolean
+  disabled?: boolean
   onNullChange: (checked: boolean) => void
   onSingleChange: (value: string) => void
   onMultiChange: (values: string[]) => void
@@ -295,13 +308,14 @@ function ParameterField({
   parameter,
   values,
   isNull,
+  disabled = false,
   onNullChange,
   onSingleChange,
   onMultiChange,
 }: FieldProps) {
   const label = parameter.prompt || parameter.name
   const dataType = parameter.dataType.toLowerCase()
-  const valueDisabled = isNull
+  const valueDisabled = disabled || isNull
 
   let control: ReactNode
   if (parameter.multiValue) {
@@ -381,6 +395,7 @@ function ParameterField({
             <input
               type="checkbox"
               checked={isNull}
+              disabled={disabled}
               onChange={(event) => onNullChange(event.target.checked)}
             />
             NULL

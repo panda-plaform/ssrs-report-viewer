@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   downloadExport,
   findInReport,
@@ -21,18 +22,13 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'CSV', label: 'CSV' },
 ]
 
-export type ToolbarUpdateOptions = {
-  /** Back from Drillthrough: sync open Report path and reseed parameters. */
-  syncOpenReport?: boolean
-}
-
 type Props = {
   sessionId: string
   pageInfo: PageInfo
   zoomPercent: number
   busy: boolean
   canGoBack: boolean
-  onUpdated: (result: RenderResponse, options?: ToolbarUpdateOptions) => void
+  onUpdated: (result: RenderResponse, options?: HtmlReplacedOptions) => void
   onFindResult: (result: FindResponse) => void
   onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
@@ -216,7 +212,7 @@ export function ViewerToolbar({
             }}
           />
         </label>
-        <span className="viewer-toolbar-page-count" aria-hidden="true">
+        <span className="viewer-toolbar-page-count" aria-live="polite">
           of {pageInfo.pageCount}
         </span>
         <button
@@ -375,9 +371,9 @@ export function ViewerToolbar({
           Next
         </button>
         {findStatus && (
-          <p className="viewer-toolbar-find-status" role="status">
+          <span className="viewer-toolbar-find-status" role="status">
             {findStatus}
-          </p>
+          </span>
         )}
       </div>
     </div>

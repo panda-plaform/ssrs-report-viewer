@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { fetchParameters, viewReport } from './reportApi'
+import { fetchParameters, findInReport, viewReport } from './reportApi'
 
 vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
@@ -121,14 +121,93 @@ describe('Report Viewer chrome composition', () => {
     expect(shell).toHaveClass('shell-report')
 
     const title = within(shell).getByRole('heading', { name: 'SSRS Report Viewer', level: 1 })
-    expect(title).toHaveClass('shell-title-quiet')
+    // Title and API health stay in the tree for AT/diagnostics but leave the primary viewport.
+    expect(title).toHaveClass('visually-hidden')
 
     const lede = shell.querySelector('.lede')
-    expect(lede).toHaveClass('shell-lede-quiet')
+    expect(lede).toHaveClass('visually-hidden')
 
-    const status = screen.getByRole('status', { name: '' })
-    // API health status remains in the tree for assistive tech / diagnostics.
-    expect(status).toHaveClass('shell-status-quiet')
+    const status = within(shell).getByText(/API Healthy/i)
+    expect(status).toHaveClass('visually-hidden')
+
+    const parameters = screen.getByRole('region', { name: 'Report Parameters' })
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(title.compareDocumentPosition(parameters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(parameters.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shares App busy between the parameter strip and Viewer Toolbar', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+
+    let resolveView: ((value: typeof renderResult) => void) | undefined
+    vi.mocked(viewReport).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveView = resolve
+        }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Viewing…' })).toBeDisabled()
+    })
+
+    resolveView?.(renderResult)
+
+    const toolbar = await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+
+    let resolveFind: ((value: {
+      html: string
+      found: boolean
+      pageInfo: { currentPage: number; pageCount: number }
+    }) => void) | undefined
+    vi.mocked(findInReport).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFind = resolve
+        }),
+    )
+
+    const findField = within(toolbar).getByRole('searchbox', { name: 'Find' })
+    await user.type(findField, 'x')
+    await user.click(within(toolbar).getByRole('button', { name: 'Find' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Report' })).toBeDisabled()
+      expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toBeDisabled()
+    })
+
+    resolveFind?.({
+      html: '<div>found</div>',
+      found: true,
+      pageInfo: { currentPage: 1, pageCount: 3 },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Report' })).toBeEnabled()
+    })
+  })
+
+  it('keeps Find status inline in the toolbar without a full-width second band', async () => {
+    const user = await openReportChrome()
+    vi.mocked(findInReport).mockResolvedValueOnce({
+      html: '<div>found</div>',
+      found: false,
+      pageInfo: { currentPage: 1, pageCount: 3 },
+    })
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    await user.type(within(toolbar).getByRole('searchbox', { name: 'Find' }), 'missing')
+    await user.click(within(toolbar).getByRole('button', { name: 'Find' }))
+
+    const findStatus = await within(toolbar).findByRole('status')
+    expect(findStatus).toHaveClass('viewer-toolbar-find-status')
+    expect(getComputedStyle(findStatus).flexBasis).not.toBe('100%')
+    expect(findStatus.tagName.toLowerCase()).toBe('span')
   })
 
   it('shows NULL beside nullable controls and a DateTime calendar field in the strip', async () => {
