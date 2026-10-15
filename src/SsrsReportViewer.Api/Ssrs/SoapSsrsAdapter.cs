@@ -472,6 +472,7 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
 
     /// <summary>
     /// Parses ReportService2010 ArrayOfString children (<c>Value</c> or <c>string</c>).
+    /// Blank entries are dropped — SSRS often returns <c>[""]</c> for nullable DateTime with no default.
     /// </summary>
     private static string[] ParseStringArray(XElement? parent) =>
         parent?
@@ -482,6 +483,7 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
                 return local is "Value" or "string";
             })
             .Select(e => e.Value)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
             .ToArray()
         ?? [];
 

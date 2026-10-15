@@ -13,6 +13,7 @@ import {
   type RenderResponse,
 } from './reportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
+import { toDatetimeLocalValue } from './datetimeLocal'
 import {
   SELECT_ALL_LABEL,
   applySelectAll,
@@ -303,7 +304,7 @@ function ParameterField({
         {parameter.required ? ' *' : ''}
       </label>
 
-      {parameter.multiValue && parameter.validValues.length > 0 ? (
+      {parameter.multiValue ? (
         <MultiValueDropdown
           id={`param-${parameter.name}`}
           label={label}
@@ -326,8 +327,9 @@ function ParameterField({
       ) : dataType === 'datetime' ? (
         <input
           id={`param-${parameter.name}`}
-          type="date"
-          value={values[0] ?? ''}
+          type="datetime-local"
+          step={1}
+          value={toDatetimeLocalValue(values[0] ?? '')}
           disabled={valueDisabled}
           onChange={(event) => onSingleChange(event.target.value)}
         />

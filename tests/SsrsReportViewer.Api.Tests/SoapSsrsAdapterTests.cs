@@ -262,7 +262,9 @@ public sealed class SoapSsrsAdapterTests
                       <MultiValue>false</MultiValue>
                       <PromptUser>true</PromptUser>
                       <Prompt>End Date</Prompt>
-                      <DefaultValues />
+                      <DefaultValues>
+                        <Value></Value>
+                      </DefaultValues>
                       <Dependencies>
                         <Value>StartDate</Value>
                       </Dependencies>

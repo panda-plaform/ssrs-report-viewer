@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   mergeCascadedNullChecked,
+  mergeCascadedValues,
   seedFormDefaults,
   seedFormFromExecution,
 } from './executionParameterSeed'
@@ -21,17 +22,17 @@ function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name
 }
 
 describe('seedFormDefaults', () => {
-  it('checks NULL for nullable parameters only when SSRS provides no defaultValues', () => {
+  it('checks NULL for nullable parameters only when SSRS provides meaningful defaultValues', () => {
     const parameters = [
-      param({ name: 'StartDate', nullable: true, defaultValues: ['2026-10-14T22:25:13'] }),
-      param({ name: 'EndDate', nullable: true }),
+      param({ name: 'StartDate', nullable: true, defaultValues: ['10/14/2026 10:25:13 PM'] }),
+      param({ name: 'EndDate', nullable: true, defaultValues: [''] }),
       param({ name: 'Year', nullable: false, defaultValues: ['2023'] }),
     ]
 
     const seeded = seedFormDefaults(parameters)
 
     expect(seeded.nullChecked).toEqual({ StartDate: false, EndDate: true })
-    expect(seeded.values.StartDate).toEqual(['2026-10-14T22:25:13'])
+    expect(seeded.values.StartDate).toEqual(['10/14/2026 10:25:13 PM'])
     expect(seeded.values.EndDate).toEqual([''])
   })
 
@@ -51,6 +52,31 @@ describe('seedFormDefaults', () => {
       Tags: [],
       Region: [''],
     })
+  })
+
+  it('leaves multi-value defaults unpainted until Valid Values are available', () => {
+    const parameters = [
+      param({
+        name: 'UserName',
+        multiValue: true,
+        defaultValues: ['<ALL>'],
+        validValues: [],
+      }),
+      param({
+        name: 'ReportFolder',
+        multiValue: true,
+        defaultValues: ['<ALL>'],
+        validValues: [
+          { label: '<ALL>', value: '<ALL>' },
+          { label: 'Example Reports', value: 'Example Reports' },
+        ],
+      }),
+    ]
+
+    const seeded = seedFormDefaults(parameters)
+
+    expect(seeded.values.UserName).toEqual([])
+    expect(seeded.values.ReportFolder).toEqual(['<ALL>'])
   })
 })
 
@@ -153,6 +179,7 @@ describe('mergeCascadedNullChecked', () => {
       param({ name: 'Region', nullable: true }),
       param({ name: 'NewOptional', nullable: true }),
       param({ name: 'WithDefault', nullable: true, defaultValues: ['x'] }),
+      param({ name: 'BlankDefault', nullable: true, defaultValues: [''] }),
       param({ name: 'Year' }),
     ]
 
@@ -160,6 +187,27 @@ describe('mergeCascadedNullChecked', () => {
       Region: false,
       NewOptional: true,
       WithDefault: false,
+      BlankDefault: true,
+    })
+  })
+})
+
+describe('mergeCascadedValues', () => {
+  it('re-applies SSRS defaults when Valid Values arrive for an empty multi-value', () => {
+    const parameters = [
+      param({
+        name: 'UserName',
+        multiValue: true,
+        defaultValues: ['<ALL>'],
+        validValues: [
+          { label: '<ALL>', value: '<ALL>' },
+          { label: 'alice', value: 'alice' },
+        ],
+      }),
+    ]
+
+    expect(mergeCascadedValues(parameters, { UserName: [] })).toEqual({
+      UserName: ['<ALL>'],
     })
   })
 })
