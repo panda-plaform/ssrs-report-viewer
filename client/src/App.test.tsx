@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { fetchParameters, findInReport, goBack, viewReport } from './reportApi'
+import { drillthroughReport, fetchParameters, findInReport, goBack, viewReport } from './reportApi'
 
 vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
@@ -17,6 +17,7 @@ vi.mock('./reportApi', async () => {
     findInReport: vi.fn(),
     findNextInReport: vi.fn(),
     goBack: vi.fn(),
+    drillthroughReport: vi.fn(),
     navigateDocumentMap: vi.fn(),
   }
 })
@@ -91,6 +92,8 @@ describe('Report Viewer chrome composition', () => {
     })
 
     vi.mocked(viewReport).mockReset().mockResolvedValue(renderResult)
+    vi.mocked(goBack).mockReset()
+    vi.mocked(drillthroughReport).mockReset()
   })
 
   it('shows the Report Parameter strip before View Report', async () => {
@@ -389,6 +392,105 @@ describe('Report Viewer chrome composition', () => {
     const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
     await waitFor(() => {
       expect(within(parameters).getByLabelText(/Region/i)).toHaveValue('West')
+    })
+  })
+
+  it('syncs ?path=, selected Report path, and parameter form after Drillthrough with replaceState', async () => {
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
+    const pushStateSpy = vi.spyOn(window.history, 'pushState')
+
+    window.history.replaceState({}, '', '/?path=%2FSales%2FParent')
+
+    vi.mocked(fetchParameters).mockImplementation(async (path: string) => {
+      if (path === '/Sales/Child') {
+        return {
+          path: '/Sales/Child',
+          parameters: [
+            {
+              name: 'Region',
+              dataType: 'String',
+              nullable: false,
+              multiValue: false,
+              required: true,
+              prompt: 'Region',
+              defaultValues: ['North'],
+              validValues: [
+                { label: 'North', value: 'North' },
+                { label: 'South', value: 'South' },
+              ],
+              dependencies: [],
+            },
+          ],
+        }
+      }
+
+      return {
+        path: '/Sales/Parent',
+        parameters: [
+          {
+            name: 'Region',
+            dataType: 'String',
+            nullable: false,
+            multiValue: false,
+            required: true,
+            prompt: 'Region',
+            defaultValues: ['East'],
+            validValues: [
+              { label: 'East', value: 'East' },
+              { label: 'West', value: 'West' },
+            ],
+            dependencies: [],
+          },
+        ],
+      }
+    })
+
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      canGoBack: false,
+      reportPath: '/Sales/Parent',
+      parameters: [{ name: 'Region', values: ['West'] }],
+      html: `<div class="report-body">
+        Parent HTML
+        <a href="#" data-ssrs-action="drillthrough" data-ssrs-report-path="/Sales/Child" data-ssrs-parameters='[{"name":"Region","values":["North"]}]'>Open child</a>
+      </div>`,
+    })
+
+    vi.mocked(drillthroughReport).mockResolvedValueOnce({
+      ...renderResult,
+      canGoBack: true,
+      reportPath: '/Sales/Child',
+      parameters: [{ name: 'Region', values: ['North'] }],
+      html: '<div class="report-body">Child HTML</div>',
+    })
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+    await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+
+    expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Sales/Parent')
+
+    replaceStateSpy.mockClear()
+    pushStateSpy.mockClear()
+
+    await user.click(screen.getByRole('link', { name: 'Open child' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Sales/Child')
+    })
+    expect(window.location.search).toBe('?path=%2FSales%2FChild')
+    expect(replaceStateSpy).toHaveBeenCalled()
+    expect(pushStateSpy).not.toHaveBeenCalled()
+    expect(drillthroughReport).toHaveBeenCalledWith('session-1', '/Sales/Child', [
+      { name: 'Region', values: ['North'] },
+    ])
+
+    const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
+    await waitFor(() => {
+      expect(within(parameters).getByLabelText(/Region/i)).toHaveValue('North')
     })
   })
 })

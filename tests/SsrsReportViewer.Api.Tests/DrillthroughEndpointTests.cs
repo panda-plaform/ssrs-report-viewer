@@ -180,6 +180,60 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_back_restores_parent_page_and_zoom_when_execution_alive()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Parent",
+            parameters: [],
+            html: "<div>Parent home</div>",
+            pageCount: 3);
+        _factory.Fake.SeedReport("/Sales/Child", parameters: [], html: "<div>Child page</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Parent", parameters = Array.Empty<object>() });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+        Assert.Equal(1, parent.PageInfo!.CurrentPage);
+        Assert.Equal(100, parent.ZoomPercent);
+
+        var zoom = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/zoom",
+            new { zoomPercent = 150 });
+        Assert.Equal(HttpStatusCode.OK, zoom.StatusCode);
+        var afterZoom = await zoom.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(afterZoom);
+        Assert.Equal(150, afterZoom.ZoomPercent);
+
+        var page = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/page",
+            new { action = "goto", page = 2 });
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var afterPage = await page.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(afterPage);
+        Assert.Equal(2, afterPage.PageInfo!.CurrentPage);
+        Assert.Equal(3, afterPage.PageInfo.PageCount);
+        Assert.Equal(150, afterPage.ZoomPercent);
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        var child = await drillthrough.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.Equal(1, child.PageInfo!.CurrentPage);
+
+        var back = await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null);
+        Assert.Equal(HttpStatusCode.OK, back.StatusCode);
+        var restored = await back.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(restored);
+        Assert.Equal("/Sales/Parent", restored.ReportPath);
+        Assert.Equal(2, restored.PageInfo!.CurrentPage);
+        Assert.Equal(3, restored.PageInfo.PageCount);
+        Assert.Equal(150, restored.ZoomPercent);
+    }
+
+    [Fact]
     public async Task Post_nested_drillthrough_pops_one_level_per_back()
     {
         _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>Parent home</div>");
@@ -391,7 +445,11 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
         string Html,
         bool CanGoBack,
         string? ReportPath = null,
-        AppliedParameter[]? Parameters = null);
+        AppliedParameter[]? Parameters = null,
+        PageInfoResponse? PageInfo = null,
+        int ZoomPercent = 0);
+
+    private sealed record PageInfoResponse(int CurrentPage, int PageCount);
 
     private sealed record AppliedParameter(string Name, string[] Values);
 }
