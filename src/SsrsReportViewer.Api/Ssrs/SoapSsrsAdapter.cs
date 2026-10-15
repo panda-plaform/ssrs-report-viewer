@@ -462,7 +462,9 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             .Select(e => e.Value)
             .ToArray() ?? [];
 
-        var required = promptUser && !nullable && !allowBlank && defaults.Length == 0;
+        // Match native parameter bar: empty Prompt is not shown, so not user-required.
+        var shownOnForm = promptUser && !string.IsNullOrWhiteSpace(prompt);
+        var required = shownOnForm && !nullable && !allowBlank && defaults.Length == 0;
         return new ReportParameterDefinition(
             name,
             dataType,

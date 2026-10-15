@@ -64,7 +64,7 @@ public sealed class ReportViewerService
             valuesForCascading: null,
             cancellationToken);
         var missing = definitions
-            .Where(d => d.Required)
+            .Where(d => d.ShownOnParameterForm && d.Required)
             .Where(d =>
             {
                 var submitted = parameters.FirstOrDefault(p =>
@@ -84,7 +84,7 @@ public sealed class ReportViewerService
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
         await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, cancellationToken);
 
-        // Session / client payload: prompted only. SetParameters already got full resolved.
+        // Session / client payload: form-visible only. SetParameters already got full resolved.
         var session = _sessions.Create(
             reportPath,
             execution,
@@ -222,7 +222,7 @@ public sealed class ReportViewerService
                     valuesForCascading: null,
                     ct);
                 var missing = definitions
-                    .Where(d => d.Required)
+                    .Where(d => d.ShownOnParameterForm && d.Required)
                     .Where(d =>
                     {
                         var submitted = parameters.FirstOrDefault(p =>
@@ -596,7 +596,8 @@ public sealed class ReportViewerService
 
         foreach (var definition in definitions)
         {
-            if (definition.PromptUser || submittedNames.Contains(definition.Name))
+            // Not on the parameter form (hidden or empty Prompt): apply DefaultValues when present.
+            if (definition.ShownOnParameterForm || submittedNames.Contains(definition.Name))
             {
                 continue;
             }
@@ -611,21 +612,21 @@ public sealed class ReportViewerService
     }
 
     /// <summary>
-    /// Client / Viewer Session parameter bar: only Report Parameters SSRS prompts for.
+    /// Client / Viewer Session parameter bar: only Report Parameters shown on the form.
     /// </summary>
     internal static IReadOnlyList<ParameterValue> FilterPromptedParameters(
         IReadOnlyList<ReportParameterDefinition> definitions,
         IReadOnlyList<ParameterValue> resolved)
     {
         var promptedNames = definitions
-            .Where(d => d.PromptUser)
+            .Where(d => d.ShownOnParameterForm)
             .Select(d => d.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return resolved.Where(p => promptedNames.Contains(p.Name)).ToArray();
     }
 
     /// <summary>
-    /// Adds non-prompted DefaultValues when the cascading client payload omitted them.
+    /// Adds off-form DefaultValues when the cascading client payload omitted them.
     /// </summary>
     internal static IReadOnlyList<ParameterValue> MergeNonPromptedDefaultsForCascading(
         IReadOnlyList<ReportParameterDefinition> definitions,
@@ -639,7 +640,7 @@ public sealed class ReportViewerService
 
         foreach (var definition in definitions)
         {
-            if (definition.PromptUser ||
+            if (definition.ShownOnParameterForm ||
                 definition.DefaultValues.Count == 0 ||
                 byName.ContainsKey(definition.Name))
             {

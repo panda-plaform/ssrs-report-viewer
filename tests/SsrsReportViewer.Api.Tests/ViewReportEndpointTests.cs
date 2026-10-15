@@ -97,6 +97,86 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_parameters_omits_empty_prompt_even_when_prompt_user()
+    {
+        // Matches SSRS Report List all_value: PromptUser true, blank Prompt — not on native bar.
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "",
+                    Required: true,
+                    PromptUser: true),
+            ]);
+
+        var response = await _client.GetAsync("/api/reports/parameters?path=/Sales/Revenue");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ParametersResponse>();
+        Assert.NotNull(body);
+        Assert.Equal("Region", Assert.Single(body.Parameters).Name);
+        Assert.DoesNotContain(body.Parameters, p => p.Name == "all_value");
+    }
+
+    [Fact]
+    public async Task Post_render_succeeds_when_empty_prompt_param_omitted_and_loadreport_default_applies()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+                new FakeReportParameter(
+                    Name: "all_value",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "",
+                    Required: true,
+                    PromptUser: true,
+                    DefaultValues: ["*"]),
+            ],
+            html: "<div class=\"report\">Region={{Region}} all_value={{all_value}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+        Assert.Contains("all_value=*", body.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain(body.Parameters!, p => p.Name == "all_value");
+    }
+
+    [Fact]
     public async Task Get_parameters_returns_text_boolean_date_and_multi_value_metadata()
     {
         _factory.Fake.SeedReport(

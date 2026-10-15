@@ -80,9 +80,9 @@ app.MapGet("/api/reports/parameters", async (
             forRendering: true,
             valuesForCascading,
             cancellationToken);
-        // Parameter-form list only: omit Report Parameters SSRS does not prompt for.
-        // View Report / drillthrough keep the full definition list for execution defaults.
-        var prompted = parameters.Where(p => p.PromptUser);
+        // Parameter-form list only: omit params native SSRS does not show (PromptUser false
+        // or empty Prompt). View Report / drillthrough keep the full definition list.
+        var prompted = parameters.Where(p => p.ShownOnParameterForm);
         return Results.Ok(new
         {
             path = reportPath,
