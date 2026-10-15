@@ -193,16 +193,24 @@ function App() {
   )
 
   const mode = viewerModeFromReportPath(selectedReportPath)
+  const reportMode = mode === 'report'
 
   return (
-    <main className="shell">
-      <h1>SSRS Report Viewer</h1>
-      <p className="lede no-print">
+    <main className={reportMode ? 'shell shell-report' : 'shell'}>
+      <h1 className={reportMode ? 'shell-title-quiet no-print' : undefined}>SSRS Report Viewer</h1>
+      <p className={reportMode ? 'lede no-print shell-lede-quiet' : 'lede no-print'}>
         Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
         Find, Drilldown, Sort, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and
         Print.
       </p>
-      <p className={`status status-${apiStatus} no-print`} role="status">
+      <p
+        className={
+          reportMode
+            ? `status status-${apiStatus} no-print shell-status-quiet`
+            : `status status-${apiStatus} no-print`
+        }
+        role="status"
+      >
         {detail}
       </p>
       {apiStatus === 'ok' && (
@@ -215,7 +223,7 @@ function App() {
               />
             </div>
           )}
-          {mode === 'report' && selectedReportPath && (
+          {reportMode && selectedReportPath && (
             <div className="no-print report-view">
               <div className="report-view-bar">
                 <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
@@ -232,21 +240,19 @@ function App() {
                 onClearSurface={clearSurface}
                 onReturnToCatalog={handleReturnToCatalog}
               />
-            </div>
-          )}
-          {render?.sessionId && (
-            <div className="no-print">
-              <ViewerToolbar
-                sessionId={render.sessionId}
-                pageInfo={render.pageInfo}
-                zoomPercent={render.zoomPercent}
-                busy={busy}
-                canGoBack={render.canGoBack}
-                onUpdated={handleHtmlReplaced}
-                onFindResult={handleFindResult}
-                onError={handleSurfaceError}
-                onBusyChange={setBusy}
-              />
+              {render?.sessionId && (
+                <ViewerToolbar
+                  sessionId={render.sessionId}
+                  pageInfo={render.pageInfo}
+                  zoomPercent={render.zoomPercent}
+                  busy={busy}
+                  canGoBack={render.canGoBack}
+                  onUpdated={handleHtmlReplaced}
+                  onFindResult={handleFindResult}
+                  onError={handleSurfaceError}
+                  onBusyChange={setBusy}
+                />
+              )}
             </div>
           )}
           {render ? (
@@ -271,7 +277,7 @@ function App() {
                 onBusyChange={setBusy}
               />
             </div>
-          ) : mode === 'report' ? (
+          ) : reportMode ? (
             <ReportSurface
               html={null}
               sessionId={null}
