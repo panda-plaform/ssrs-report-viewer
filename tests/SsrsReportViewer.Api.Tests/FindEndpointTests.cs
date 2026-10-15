@@ -94,6 +94,50 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_find_next_wraps_to_first_match_with_highlights()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            pageHtml:
+            [
+                "<div class=\"report\">first hit: needle</div>",
+                "<div class=\"report\">no match</div>",
+                "<div class=\"report\">last hit: needle</div>",
+            ]);
+
+        var sessionId = await RenderSessionAsync("/Sales/Revenue");
+
+        var last = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/find",
+            new { findValue = "needle" });
+        Assert.Equal(HttpStatusCode.OK, last.StatusCode);
+        // Jump to last match page via find next once.
+        var toLast = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/find/next",
+            new { findValue = "needle" });
+        Assert.Equal(HttpStatusCode.OK, toLast.StatusCode);
+        var onLast = await toLast.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(onLast);
+        Assert.Equal(3, onLast.PageInfo.CurrentPage);
+
+        var wrap = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/find/next",
+            new { findValue = "needle" });
+        Assert.Equal(HttpStatusCode.OK, wrap.StatusCode);
+        var wrapBody = await wrap.Content.ReadFromJsonAsync<FindResponse>();
+        Assert.NotNull(wrapBody);
+        Assert.True(wrapBody.Found);
+        Assert.Equal(1, wrapBody.PageInfo.CurrentPage);
+        Assert.Equal("needle", _factory.Fake.LastHtmlDeviceInfo?.FindString);
+        Assert.Contains(
+            FakeSsrsAdapter.FindHighlightOpenTag + "needle" + FakeSsrsAdapter.FindHighlightCloseTag,
+            wrapBody.Html,
+            StringComparison.Ordinal);
+        Assert.Contains("first hit", wrapBody.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Post_find_returns_found_false_when_string_missing()
     {
         _factory.Fake.SeedReport(
