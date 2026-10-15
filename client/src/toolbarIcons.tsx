@@ -3,8 +3,8 @@ type IconProps = {
 }
 
 const svgProps = {
-  width: 16,
-  height: 16,
+  width: 20,
+  height: 20,
   viewBox: '0 0 16 16',
   fill: 'none',
   stroke: 'currentColor',
@@ -74,6 +74,14 @@ export function IconExport(_props: IconProps) {
       <path d="M5 11V5.5h6V11" />
       <path d="M5 7.5h6" />
       <path d="M5 9.5h4" />
+    </svg>
+  )
+}
+
+export function IconChevronDown(_props: IconProps) {
+  return (
+    <svg {...svgProps} width={12} height={12} viewBox="0 0 10 10">
+      <path d="M2 3.5L5 7l3-3.5" />
     </svg>
   )
 }

@@ -154,35 +154,118 @@ describe('ViewerToolbar native chrome', () => {
     expect(downloadExport).toHaveBeenCalledWith('session-1', 'CSV')
   })
 
+  it('disables Find when Find text is empty and Find next until a Find completes', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    expect(screen.getByRole('button', { name: 'Find' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText('Enter text to Find.')).not.toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Find' }), 'revenue')
+
+    expect(screen.getByRole('button', { name: 'Find' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Find' }))
+
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeEnabled()
+  })
+
+  it('enables Find next after Find completes with no matches', async () => {
+    const user = userEvent.setup()
+    vi.mocked(findInReport).mockResolvedValueOnce({
+      html: '<div>page</div>',
+      found: false,
+      pageInfo: { currentPage: 2, pageCount: 5 },
+    })
+    renderToolbar()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Find' }), 'missing')
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Find' }))
+
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('No matches in the current Execution.')
+  })
+
+  it('disables Find next again when Find text changes after a completed search', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    const findField = screen.getByRole('searchbox', { name: 'Find' })
+    await user.type(findField, 'revenue')
+    await user.click(screen.getByRole('button', { name: 'Find' }))
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeEnabled()
+
+    await user.type(findField, 's')
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+  })
+
+  it('keeps Find next disabled when Find fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(findInReport).mockRejectedValueOnce(new Error('Find failed'))
+    renderToolbar()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Find' }), 'revenue')
+    await user.click(screen.getByRole('button', { name: 'Find' }))
+
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+  })
+
   it('calls findInReport and findNextInReport from the toolbar Find icon controls', async () => {
     const user = userEvent.setup()
     const { onFindResult } = renderToolbar()
 
     const findField = screen.getByRole('searchbox', { name: 'Find' })
     await user.type(findField, 'revenue')
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeDisabled()
+
     await user.click(screen.getByRole('button', { name: 'Find' }))
 
     expect(findInReport).toHaveBeenCalledWith('session-1', 'revenue')
     expect(onFindResult).toHaveBeenCalledWith(
       expect.objectContaining({ found: true, pageInfo: { currentPage: 3, pageCount: 5 } }),
     )
+    expect(screen.getByRole('button', { name: 'Find next' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'Find next' }))
     expect(findNextInReport).toHaveBeenCalledWith('session-1', 'revenue')
   })
 
-  it('toggles Maximize via onMaximizedChange', async () => {
+  it('enters browser fullscreen when Maximize is clicked', async () => {
     const user = userEvent.setup()
     const { onMaximizedChange } = renderToolbar({ maximized: false })
 
     await user.click(screen.getByRole('button', { name: 'Maximize' }))
+    expect(document.fullscreenElement).toBe(document.documentElement)
     expect(onMaximizedChange).toHaveBeenCalledWith(true)
+  })
+
+  it('exits browser fullscreen when Restore is clicked', async () => {
+    const user = userEvent.setup()
+    await document.documentElement.requestFullscreen()
+    renderToolbar({ maximized: true })
+
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(document.fullscreenElement).toBeNull()
   })
 
   it('shows Restore when maximized', () => {
     renderToolbar({ maximized: true })
     expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Maximize' })).not.toBeInTheDocument()
+  })
+
+  it('places Maximize after the toolbar spacer on the far right', () => {
+    renderToolbar()
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    const spacer = toolbar.querySelector('.viewer-toolbar-spacer')
+    const maximize = within(toolbar).getByRole('button', { name: 'Maximize' })
+    expect(spacer).not.toBeNull()
+    expect(spacer!.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('changes Report Page via First and Last using goto at boundaries', async () => {

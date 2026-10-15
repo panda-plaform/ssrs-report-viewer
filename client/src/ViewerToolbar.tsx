@@ -15,6 +15,7 @@ import {
 } from './reportApi'
 import {
   IconBack,
+  IconChevronDown,
   IconExport,
   IconFind,
   IconFindNext,
@@ -69,6 +70,7 @@ export function ViewerToolbar({
 }: Props) {
   const [pageValue, setPageValue] = useState(String(pageInfo.currentPage))
   const [findValue, setFindValue] = useState('')
+  const [completedFindText, setCompletedFindText] = useState<string | null>(null)
   const [findStatus, setFindStatus] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [busyFormat, setBusyFormat] = useState<ExportFormat | null>(null)
@@ -93,6 +95,28 @@ export function ViewerToolbar({
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [exportOpen])
+
+  useEffect(() => {
+    function syncFullscreen() {
+      onMaximizedChange(Boolean(document.fullscreenElement))
+    }
+
+    syncFullscreen()
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen)
+  }, [onMaximizedChange])
+
+  async function handleMaximizeClick() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      } else {
+        await document.documentElement.requestFullscreen()
+      }
+    } catch {
+      // Browser may deny Fullscreen without a user gesture or policy allow.
+    }
+  }
 
   async function run(action: () => Promise<RenderResponse>) {
     if (busy) {
@@ -158,7 +182,9 @@ export function ViewerToolbar({
   async function runFind(next: boolean) {
     const value = findValue.trim()
     if (!value) {
-      setFindStatus('Enter text to Find.')
+      return
+    }
+    if (next && completedFindText !== value) {
       return
     }
 
@@ -168,6 +194,9 @@ export function ViewerToolbar({
       const result = next
         ? await findNextInReport(sessionId, value)
         : await findInReport(sessionId, value)
+      if (!next) {
+        setCompletedFindText(value)
+      }
       onFindResult(result)
       setFindStatus(
         result.found
@@ -189,6 +218,9 @@ export function ViewerToolbar({
 
   const atFirst = pageInfo.currentPage <= 1
   const atLast = pageInfo.currentPage >= pageInfo.pageCount
+  const trimmedFind = findValue.trim()
+  const canFind = trimmedFind.length > 0
+  const canFindNext = canFind && completedFindText === trimmedFind
 
   return (
     <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
@@ -213,27 +245,25 @@ export function ViewerToolbar({
         >
           <IconPrevious />
         </button>
-        <span className="viewer-toolbar-page-compact">
-          <label className="viewer-toolbar-page-field">
-            <span className="visually-hidden">Report Page</span>
-            <input
-              type="number"
-              min={1}
-              max={pageInfo.pageCount}
-              value={pageValue}
-              disabled={busy}
-              aria-label="Report Page"
-              onChange={(event) => setPageValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  gotoPage(Number(pageValue))
-                }
-              }}
-            />
-          </label>
-          <span className="viewer-toolbar-page-count" aria-live="polite">
-            of {pageInfo.pageCount}
-          </span>
+        <label className="viewer-toolbar-page-field">
+          <span className="visually-hidden">Report Page</span>
+          <input
+            type="number"
+            min={1}
+            max={pageInfo.pageCount}
+            value={pageValue}
+            disabled={busy}
+            aria-label="Report Page"
+            onChange={(event) => setPageValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                gotoPage(Number(pageValue))
+              }
+            }}
+          />
+        </label>
+        <span className="viewer-toolbar-page-count" aria-live="polite">
+          of {pageInfo.pageCount}
         </span>
         <button
           type="button"
@@ -259,31 +289,32 @@ export function ViewerToolbar({
 
       <span className="viewer-toolbar-sep" aria-hidden="true" />
 
-      <button
-        type="button"
-        className="viewer-toolbar-icon"
-        aria-label="Refresh"
-        title="Refresh"
-        disabled={busy}
-        onClick={() => void run(() => refreshReport(sessionId))}
-      >
-        <IconRefresh />
-      </button>
-
-      <button
-        type="button"
-        className="viewer-toolbar-icon"
-        aria-label="Back"
-        title="Back"
-        disabled={busy || !canGoBack}
-        onClick={() => void handleBack()}
-      >
-        <IconBack />
-      </button>
+      <div className="viewer-toolbar-group" role="group" aria-label="Refresh and Back">
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="Refresh"
+          title="Refresh"
+          disabled={busy}
+          onClick={() => void run(() => refreshReport(sessionId))}
+        >
+          <IconRefresh />
+        </button>
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="Back"
+          title="Back"
+          disabled={busy || !canGoBack}
+          onClick={() => void handleBack()}
+        >
+          <IconBack />
+        </button>
+      </div>
 
       <span className="viewer-toolbar-sep" aria-hidden="true" />
 
-      <label className="viewer-toolbar-field">
+      <label className="viewer-toolbar-field viewer-toolbar-zoom">
         <span className="visually-hidden">Zoom</span>
         <select
           value={zoomPercent}
@@ -310,7 +341,7 @@ export function ViewerToolbar({
       <div className="viewer-toolbar-export" ref={exportRef}>
         <button
           type="button"
-          className="viewer-toolbar-icon"
+          className="viewer-toolbar-icon viewer-toolbar-export-trigger"
           aria-label="Export"
           title="Export"
           aria-haspopup="menu"
@@ -320,6 +351,7 @@ export function ViewerToolbar({
           onClick={() => setExportOpen((open) => !open)}
         >
           <IconExport />
+          <IconChevronDown />
         </button>
         {exportOpen && (
           <div id={exportMenuId} className="viewer-toolbar-menu" role="menu" aria-label="Export formats">
@@ -338,6 +370,8 @@ export function ViewerToolbar({
         )}
       </div>
 
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
       <button
         type="button"
         className="viewer-toolbar-icon"
@@ -351,7 +385,7 @@ export function ViewerToolbar({
 
       <span className="viewer-toolbar-sep" aria-hidden="true" />
 
-      <div className="viewer-toolbar-group viewer-toolbar-find" aria-label="Find">
+      <div className="viewer-toolbar-find" role="group" aria-label="Find">
         <label className="viewer-toolbar-find-field">
           <span className="visually-hidden">Find</span>
           <input
@@ -371,44 +405,51 @@ export function ViewerToolbar({
         </label>
         <button
           type="button"
-          className="viewer-toolbar-icon"
-          disabled={busy}
+          className="viewer-toolbar-icon viewer-toolbar-find-action"
+          disabled={busy || !canFind}
           aria-label="Find"
           title="Find"
           onClick={() => void runFind(false)}
         >
           <IconFind />
         </button>
+        <span className="viewer-toolbar-find-pipe" aria-hidden="true" />
         <button
           type="button"
-          className="viewer-toolbar-icon"
-          disabled={busy}
+          className="viewer-toolbar-icon viewer-toolbar-find-action"
+          disabled={busy || !canFindNext}
           aria-label="Find next"
           title="Find next"
           onClick={() => void runFind(true)}
         >
           <IconFindNext />
         </button>
-        {findStatus && (
-          <span className="viewer-toolbar-find-status" role="status">
-            {findStatus}
-          </span>
-        )}
       </div>
+      {findStatus && (
+        <span className="viewer-toolbar-find-status" role="status">
+          {findStatus}
+        </span>
+      )}
+
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
 
       <span className="viewer-toolbar-spacer" aria-hidden="true" />
 
-      <button
-        type="button"
-        className="viewer-toolbar-icon"
-        aria-label={maximized ? 'Restore' : 'Maximize'}
-        title={maximized ? 'Restore' : 'Maximize'}
-        aria-pressed={maximized}
-        disabled={busy}
-        onClick={() => onMaximizedChange(!maximized)}
-      >
-        {maximized ? <IconRestore /> : <IconMaximize />}
-      </button>
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
+      <div className="viewer-toolbar-group viewer-toolbar-maximize">
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label={maximized ? 'Restore' : 'Maximize'}
+          title={maximized ? 'Restore' : 'Maximize'}
+          aria-pressed={maximized}
+          disabled={busy}
+          onClick={() => void handleMaximizeClick()}
+        >
+          {maximized ? <IconRestore /> : <IconMaximize />}
+        </button>
+      </div>
     </div>
   )
 }

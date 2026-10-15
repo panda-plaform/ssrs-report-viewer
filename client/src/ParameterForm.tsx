@@ -388,9 +388,10 @@ function ParameterField({
         {parameter.required ? ' *' : ''}
       </label>
 
-      <div className="parameter-control-row">
-        {control}
-        {parameter.nullable && (
+      <div className="parameter-control">{control}</div>
+
+      <div className="parameter-null-row">
+        {parameter.nullable ? (
           <label className="parameter-null">
             <input
               type="checkbox"
@@ -400,7 +401,7 @@ function ParameterField({
             />
             NULL
           </label>
-        )}
+        ) : null}
       </div>
     </div>
   )

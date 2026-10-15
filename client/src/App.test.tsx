@@ -101,19 +101,24 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
   })
 
-  it('collapses parameters and Return to Catalog after View Report until Show parameters', async () => {
+  it('keeps parameters visible after View Report and allows Hide / Show', async () => {
     const user = await openReportChrome()
-
-    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Return to Catalog' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show parameters' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
     const parameters = screen.getByRole('region', { name: 'Report Parameters' })
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    const layout = document.querySelector('.viewer-layout')
     expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide parameters' })).toBeInTheDocument()
+    expect(parameters.closest('.report-view')).not.toBeNull()
+    expect(layout).toContainElement(toolbar)
     expect(parameters.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Hide parameters' }))
+    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show parameters' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
+    expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
   })
 
   it('keeps Document Map available when the Execution provides nodes', async () => {
@@ -181,7 +186,6 @@ describe('Report Viewer chrome composition', () => {
     resolveView?.(renderResult)
 
     const toolbar = await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
-    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
     let resolveFind:
       | ((value: {
@@ -235,15 +239,15 @@ describe('Report Viewer chrome composition', () => {
     expect(findStatus.tagName.toLowerCase()).toBe('span')
   })
 
-  it('hides parameters and Document Map when Maximize is on, and restores them', async () => {
+  it('enters fullscreen on Maximize and hides parameters / Document Map until Restore', async () => {
     const user = await openReportChrome()
 
-    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Maximize' }))
 
+    expect(document.fullscreenElement).toBe(document.documentElement)
     expect(screen.getByRole('main')).toHaveClass('shell-maximized')
     expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
@@ -252,28 +256,31 @@ describe('Report Viewer chrome composition', () => {
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
+    expect(document.fullscreenElement).toBeNull()
     expect(screen.getByRole('main')).not.toHaveClass('shell-maximized')
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })
 
-  it('shows NULL beside nullable controls and a DateTime calendar field in the strip', async () => {
+  it('shows NULL under nullable controls and a DateTime calendar field in the strip', async () => {
     render(<App />)
 
     const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
-    const startDateField = within(parameters).getByLabelText(/Start Date/i)
+    const startDateField = await within(parameters).findByLabelText(/Start Date/i)
     expect(startDateField).toHaveAttribute('type', 'date')
 
     const nullCheckbox = within(parameters).getByRole('checkbox', { name: 'NULL' })
     const field = startDateField.closest('.parameter-field')
     expect(field).not.toBeNull()
-    expect(field!.compareDocumentPosition(nullCheckbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(field!.querySelector('.parameter-control-row')).toContainElement(nullCheckbox)
+    expect(field!.querySelector('.parameter-control')).toContainElement(startDateField)
+    expect(field!.querySelector('.parameter-null-row')).toContainElement(nullCheckbox)
+    expect(
+      startDateField.compareDocumentPosition(nullCheckbox) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('marks report chrome as no-print so print CSS can hide it', async () => {
-    const user = await openReportChrome()
-    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
+    await openReportChrome()
 
     const parameters = screen.getByRole('region', { name: 'Report Parameters' })
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })

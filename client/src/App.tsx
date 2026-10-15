@@ -79,6 +79,9 @@ function App() {
     setExecutionSeed(null)
     setParametersExpanded(true)
     setMaximized(false)
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined)
+    }
   }, [])
 
   const syncFromLocation = useCallback(() => {
@@ -113,7 +116,6 @@ function App() {
   function handleViewed(result: RenderResponse) {
     setSurfaceError(null)
     setRender(result)
-    setParametersExpanded(false)
   }
 
   function handleFindResult(result: FindResponse) {
@@ -167,6 +169,9 @@ function App() {
       setBusy(false)
       setParametersExpanded(true)
       setMaximized(false)
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => undefined)
+      }
       setSurfaceError(error.message)
       return
     }
@@ -292,7 +297,11 @@ function App() {
                   </button>
                 </div>
               )}
-              {render?.sessionId && (
+            </div>
+          )}
+          {render ? (
+            <div className={layoutClass} data-has-document-map={hasDocumentMap ? 'true' : 'false'}>
+              {render.sessionId && (
                 <ViewerToolbar
                   sessionId={render.sessionId}
                   pageInfo={render.pageInfo}
@@ -307,10 +316,6 @@ function App() {
                   onBusyChange={setBusy}
                 />
               )}
-            </div>
-          )}
-          {render ? (
-            <div className={layoutClass} data-has-document-map={hasDocumentMap ? 'true' : 'false'}>
               {hasDocumentMap && (
                 <div className="no-print viewer-layout-map">
                   <DocumentMapSidebar
