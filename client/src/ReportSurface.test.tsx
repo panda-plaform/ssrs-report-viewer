@@ -178,17 +178,19 @@ describe('ReportSurface Action Links', () => {
     expect(drillthroughReport).not.toHaveBeenCalled()
   })
 
-  it('passes Descending and clear Sort directions to the session API', async () => {
+  it('passes Descending and clear Sort attributes to the session API', async () => {
     const user = userEvent.setup()
     vi.mocked(sortReport).mockResolvedValueOnce({
       ...sortedResult,
       html: '<div>Sort cleared</div>',
     })
 
+    // Clear links mirror ActionLinkRewriter: Clear=True keeps the URL SortDirection
+    // (typically Ascending) and sets data-ssrs-sort-clear="true".
     const { onHtmlReplaced } = renderSurface({
       html: `<div>
         <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Col1" data-ssrs-sort-direction="Descending" data-ssrs-sort-clear="false">Desc</a>
-        <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Col1" data-ssrs-sort-direction="None" data-ssrs-sort-clear="true">Clear</a>
+        <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Col1" data-ssrs-sort-direction="Ascending" data-ssrs-sort-clear="true">Clear</a>
       </div>`,
     })
 
@@ -199,7 +201,7 @@ describe('ReportSurface Action Links', () => {
 
     await user.click(screen.getByRole('link', { name: 'Clear' }))
     await waitFor(() => {
-      expect(sortReport).toHaveBeenCalledWith('session-1', 'Col1', 'None', true)
+      expect(sortReport).toHaveBeenCalledWith('session-1', 'Col1', 'Ascending', true)
     })
     expect(onHtmlReplaced).toHaveBeenCalledTimes(2)
   })

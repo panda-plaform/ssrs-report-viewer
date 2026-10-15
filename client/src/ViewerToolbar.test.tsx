@@ -235,6 +235,34 @@ describe('ViewerToolbar native chrome', () => {
     ])
   })
 
+  it('places separators between native Export format groups only', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    const menu = screen.getByRole('menu', { name: 'Export formats' })
+
+    expect(within(menu).getAllByRole('separator')).toHaveLength(3)
+
+    const sequence = [...menu.children].map((el) =>
+      el.getAttribute('role') === 'separator' ? '|' : el.textContent,
+    )
+    expect(sequence).toEqual([
+      'Word',
+      'Excel',
+      'PowerPoint',
+      '|',
+      'PDF',
+      'Accessible PDF',
+      '|',
+      'TIFF file',
+      'MHTML (web archive)',
+      '|',
+      'CSV (comma delimited)',
+      'XML file with report data',
+    ])
+  })
+
   it('calls downloadExport from the Export menu for each native format', async () => {
     const user = userEvent.setup()
     renderToolbar()
