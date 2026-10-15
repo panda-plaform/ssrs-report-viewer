@@ -235,32 +235,27 @@ describe('ViewerToolbar native chrome', () => {
     ])
   })
 
-  it('places separators between native Export format groups only', async () => {
+  it('marks the toolbar so the Export menu can paint over the report', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(toolbar).not.toHaveClass('viewer-toolbar-export-open')
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(toolbar).toHaveClass('viewer-toolbar-export-open')
+    expect(screen.getByRole('menu', { name: 'Export formats' })).toBeInTheDocument()
+  })
+
+  it('renders Export formats as contiguous menuitems with native chrome', async () => {
     const user = userEvent.setup()
     renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
     const menu = screen.getByRole('menu', { name: 'Export formats' })
 
-    expect(within(menu).getAllByRole('separator')).toHaveLength(3)
-
-    const sequence = [...menu.children].map((el) =>
-      el.getAttribute('role') === 'separator' ? '|' : el.textContent,
-    )
-    expect(sequence).toEqual([
-      'Word',
-      'Excel',
-      'PowerPoint',
-      '|',
-      'PDF',
-      'Accessible PDF',
-      '|',
-      'TIFF file',
-      'MHTML (web archive)',
-      '|',
-      'CSV (comma delimited)',
-      'XML file with report data',
-    ])
+    expect(within(menu).queryAllByRole('separator')).toHaveLength(0)
+    expect([...menu.children].every((el) => el.getAttribute('role') === 'menuitem')).toBe(true)
   })
 
   it('calls downloadExport from the Export menu for each native format', async () => {

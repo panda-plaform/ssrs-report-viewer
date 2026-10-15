@@ -282,9 +282,9 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         bool clear,
         CancellationToken cancellationToken = default)
     {
-        var directionName = clear || direction == SortDirection.None
-            ? "None"
-            : direction.ToString();
+        // Clear means "clear other sorts", not Direction=None. Unsorted column links send
+        // ClearSort=TRUE with Ascending/Descending; forcing None prevented the icon from changing.
+        var directionName = direction == SortDirection.None ? "None" : direction.ToString();
 
         var body = new XElement(
             Exec + "Sort",
@@ -493,6 +493,8 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         sb.Append("<DeviceInfo>");
         sb.Append("<HTMLFragment>").Append(deviceInfo.HtmlFragment ? "true" : "false").Append("</HTMLFragment>");
         sb.Append("<Toolbar>").Append(deviceInfo.Toolbar ? "true" : "false").Append("</Toolbar>");
+        // Interactive Sort / toggle images and scripts need JS enabled (HTML device info default is true).
+        sb.Append("<JavaScript>true</JavaScript>");
         sb.Append("<Zoom>").Append(deviceInfo.ZoomPercent.ToString(CultureInfo.InvariantCulture)).Append("</Zoom>");
         if (deviceInfo.Section is int section and > 0)
         {

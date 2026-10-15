@@ -504,7 +504,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             throw new ArgumentException("sortItem is required.", nameof(sortItem));
         }
 
-        if (clear || direction == SortDirection.None)
+        // Clear = clear other sorts (implicit here with one ActiveSort); Direction=None removes sort.
+        if (direction == SortDirection.None)
         {
             exec.ActiveSort = null;
         }

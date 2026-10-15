@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   DEFAULT_PRINT_SETTINGS,
@@ -42,25 +42,17 @@ import {
 /** Percent zooms matching the native SSRS toolbar order (Page Width / Whole Page are out of scope — see ADR 0004). */
 const ZOOM_OPTIONS = [500, 200, 150, 100, 75, 50, 25, 10] as const
 
-/** Native SSRS Export groups: Office | PDF pair | image-web | data. */
-const EXPORT_FORMAT_GROUPS: { format: ExportFormat; label: string }[][] = [
-  [
-    { format: 'WORDOPENXML', label: 'Word' },
-    { format: 'EXCELOPENXML', label: 'Excel' },
-    { format: 'PPTX', label: 'PowerPoint' },
-  ],
-  [
-    { format: 'PDF', label: 'PDF' },
-    { format: 'ACCESSIBLEPDF', label: 'Accessible PDF' },
-  ],
-  [
-    { format: 'TIFF', label: 'TIFF file' },
-    { format: 'MHTML', label: 'MHTML (web archive)' },
-  ],
-  [
-    { format: 'CSV', label: 'CSV (comma delimited)' },
-    { format: 'XML', label: 'XML file with report data' },
-  ],
+/** Native SSRS Export labels and order (per-item hairlines in the menu chrome). */
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: 'WORDOPENXML', label: 'Word' },
+  { format: 'EXCELOPENXML', label: 'Excel' },
+  { format: 'PPTX', label: 'PowerPoint' },
+  { format: 'PDF', label: 'PDF' },
+  { format: 'ACCESSIBLEPDF', label: 'Accessible PDF' },
+  { format: 'TIFF', label: 'TIFF file' },
+  { format: 'MHTML', label: 'MHTML (web archive)' },
+  { format: 'CSV', label: 'CSV (comma delimited)' },
+  { format: 'XML', label: 'XML file with report data' },
 ]
 
 const PAGE_SIZE_LABELS: Record<PrintPageSize, string> = {
@@ -324,7 +316,11 @@ export function ViewerToolbar({
 
   return (
     <>
-    <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
+    <div
+      className={`viewer-toolbar no-print${exportOpen ? ' viewer-toolbar-export-open' : ''}`}
+      role="toolbar"
+      aria-label="Report Viewer toolbar"
+    >
       <div className="viewer-toolbar-group viewer-toolbar-page" role="group" aria-label="Report Page">
         <button
           type="button"
@@ -456,23 +452,16 @@ export function ViewerToolbar({
         </button>
         {exportOpen && (
           <div id={exportMenuId} className="viewer-toolbar-menu" role="menu" aria-label="Export formats">
-            {EXPORT_FORMAT_GROUPS.map((group, groupIndex) => (
-              <Fragment key={group[0].format}>
-                {groupIndex > 0 && (
-                  <div className="viewer-toolbar-menu-separator" role="separator" />
-                )}
-                {group.map(({ format, label }) => (
-                  <button
-                    key={format}
-                    type="button"
-                    role="menuitem"
-                    disabled={busyFormat !== null || busy}
-                    onClick={() => void handleExport(format)}
-                  >
-                    {busyFormat === format ? `Exporting ${label}…` : label}
-                  </button>
-                ))}
-              </Fragment>
+            {EXPORT_FORMATS.map(({ format, label }) => (
+              <button
+                key={format}
+                type="button"
+                role="menuitem"
+                disabled={busyFormat !== null || busy}
+                onClick={() => void handleExport(format)}
+              >
+                {busyFormat === format ? `Exporting ${label}…` : label}
+              </button>
             ))}
           </div>
         )}
