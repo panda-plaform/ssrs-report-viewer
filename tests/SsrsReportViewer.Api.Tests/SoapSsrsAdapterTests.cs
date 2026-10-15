@@ -312,6 +312,44 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
+    public void ParseFindStringPage_prefers_PageNumber_like_ReportExecution2005_wsdl()
+    {
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <FindStringResponse xmlns="http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices">
+                  <PageNumber>2</PageNumber>
+                </FindStringResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        var page = SoapSsrsAdapter.ParseFindStringPage(System.Xml.Linq.XDocument.Parse(soap));
+
+        Assert.Equal(2, page);
+    }
+
+    [Fact]
+    public void ParseFindStringPage_falls_back_to_FindStringResult()
+    {
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <FindStringResponse xmlns="http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices">
+                  <FindStringResult>3</FindStringResult>
+                </FindStringResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        var page = SoapSsrsAdapter.ParseFindStringPage(System.Xml.Linq.XDocument.Parse(soap));
+
+        Assert.Equal(3, page);
+    }
+
+    [Fact]
     public async Task ListChildren_maps_item_not_found_fault_to_CatalogPathNotFoundException()
     {
         const string soap = """
