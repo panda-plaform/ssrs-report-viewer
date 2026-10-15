@@ -13,7 +13,11 @@ public sealed record DeviceInfo(
     string? ReplacementRoot = null,
     string? ResourceStreamRoot = null,
     string? PageWidth = null,
-    string? PageHeight = null);
+    string? PageHeight = null,
+    /// <summary>IMAGE Export OutputFormat (e.g. TIFF).</summary>
+    string? OutputFormat = null,
+    /// <summary>PDF AccessiblePDF DeviceInfo (tagged / accessible PDF).</summary>
+    bool AccessiblePdf = false);
 
 public sealed record RenderResult(
     byte[] Content,

@@ -527,6 +527,18 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
                 .Append("</PageHeight>");
         }
 
+        if (!string.IsNullOrWhiteSpace(deviceInfo.OutputFormat))
+        {
+            sb.Append("<OutputFormat>")
+                .Append(System.Security.SecurityElement.Escape(deviceInfo.OutputFormat))
+                .Append("</OutputFormat>");
+        }
+
+        if (deviceInfo.AccessiblePdf)
+        {
+            sb.Append("<AccessiblePDF>true</AccessiblePDF>");
+        }
+
         sb.Append("</DeviceInfo>");
         return sb.ToString();
     }

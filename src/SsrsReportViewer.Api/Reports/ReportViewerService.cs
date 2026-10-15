@@ -349,9 +349,10 @@ public sealed class ReportViewerService
         string? pageSize = null,
         string? orientation = null)
     {
-        var normalized = NormalizeExportFormat(format);
+        var resolved = ResolveExportFormat(format);
         PdfPageLayout? pdfLayout = null;
-        if (normalized == "PDF" &&
+        if (resolved.SsrsFormat == "PDF" &&
+            !resolved.AccessiblePdf &&
             (!string.IsNullOrWhiteSpace(pageSize) || !string.IsNullOrWhiteSpace(orientation)))
         {
             pdfLayout = ResolvePdfPageLayout(pageSize, orientation);
@@ -361,9 +362,13 @@ public sealed class ReportViewerService
             sessionId,
             async (session, ct) =>
             {
-                var deviceInfo = CreateExportDeviceInfo(session, pdfLayout);
-                var render = await _ssrs.RenderAsync(session.Execution, normalized, deviceInfo, ct);
-                var fileName = BuildExportFileName(session.ReportPath, normalized);
+                var deviceInfo = CreateExportDeviceInfo(
+                    session,
+                    pdfLayout,
+                    resolved.OutputFormat,
+                    resolved.AccessiblePdf);
+                var render = await _ssrs.RenderAsync(session.Execution, resolved.SsrsFormat, deviceInfo, ct);
+                var fileName = BuildExportFileName(session.ReportPath, resolved.FileExtension);
                 return new ExportResult(render.Content, render.MimeType, fileName);
             },
             cancellationToken);
@@ -474,7 +479,11 @@ public sealed class ReportViewerService
             ResourceStreamRoot: resourceRoot);
     }
 
-    private static DeviceInfo CreateExportDeviceInfo(ViewerSession session, PdfPageLayout? pdfLayout)
+    private static DeviceInfo CreateExportDeviceInfo(
+        ViewerSession session,
+        PdfPageLayout? pdfLayout,
+        string? outputFormat = null,
+        bool accessiblePdf = false)
     {
         // Printer-friendly PDF uses full Execution pages; omit HTML Section / Zoom DeviceInfo.
         if (pdfLayout is not null)
@@ -485,10 +494,18 @@ public sealed class ReportViewerService
                 ZoomPercent: 100,
                 Section: null,
                 PageWidth: pdfLayout.PageWidth,
-                PageHeight: pdfLayout.PageHeight);
+                PageHeight: pdfLayout.PageHeight,
+                OutputFormat: outputFormat,
+                AccessiblePdf: accessiblePdf);
         }
 
-        return CreateDeviceInfo(session, includeActionRoots: false);
+        var baseInfo = CreateDeviceInfo(session, includeActionRoots: false);
+        if (outputFormat is null && !accessiblePdf)
+        {
+            return baseInfo;
+        }
+
+        return baseInfo with { OutputFormat = outputFormat, AccessiblePdf = accessiblePdf };
     }
 
     private static PdfPageLayout ResolvePdfPageLayout(string? pageSize, string? orientation)
@@ -524,7 +541,11 @@ public sealed class ReportViewerService
         };
     }
 
-    private static string NormalizeExportFormat(string format)
+    /// <summary>
+    /// Maps client Export format tokens to SSRS Render format + DeviceInfo extras + file extension.
+    /// Accessible PDF → PDF + AccessiblePDF; TIFF → IMAGE + OutputFormat=TIFF.
+    /// </summary>
+    private static ResolvedExportFormat ResolveExportFormat(string format)
     {
         if (string.IsNullOrWhiteSpace(format))
         {
@@ -534,14 +555,26 @@ public sealed class ReportViewerService
         var normalized = format.Trim().ToUpperInvariant();
         return normalized switch
         {
-            "PDF" => "PDF",
-            "EXCELOPENXML" => "EXCELOPENXML",
-            "CSV" => "CSV",
+            "WORDOPENXML" => new ResolvedExportFormat("WORDOPENXML", "docx"),
+            "EXCELOPENXML" => new ResolvedExportFormat("EXCELOPENXML", "xlsx"),
+            "PPTX" => new ResolvedExportFormat("PPTX", "pptx"),
+            "PDF" => new ResolvedExportFormat("PDF", "pdf"),
+            "ACCESSIBLEPDF" => new ResolvedExportFormat("PDF", "pdf", AccessiblePdf: true),
+            "TIFF" => new ResolvedExportFormat("IMAGE", "tiff", OutputFormat: "TIFF"),
+            "MHTML" => new ResolvedExportFormat("MHTML", "mhtml"),
+            "CSV" => new ResolvedExportFormat("CSV", "csv"),
+            "XML" => new ResolvedExportFormat("XML", "xml"),
             _ => throw new UnsupportedExportFormatException(format),
         };
     }
 
-    private static string BuildExportFileName(string reportPath, string format)
+    private sealed record ResolvedExportFormat(
+        string SsrsFormat,
+        string FileExtension,
+        string? OutputFormat = null,
+        bool AccessiblePdf = false);
+
+    private static string BuildExportFileName(string reportPath, string fileExtension)
     {
         var leaf = reportPath.Trim('/').Split('/').LastOrDefault();
         if (string.IsNullOrWhiteSpace(leaf))
@@ -549,15 +582,7 @@ public sealed class ReportViewerService
             leaf = "report";
         }
 
-        var extension = format switch
-        {
-            "PDF" => "pdf",
-            "EXCELOPENXML" => "xlsx",
-            "CSV" => "csv",
-            _ => "bin",
-        };
-
-        return $"{leaf}.{extension}";
+        return $"{leaf}.{fileExtension}";
     }
 
     private static string PrepareHtml(RenderResult render, string resourceRoot, string? replacementRoot)
@@ -799,7 +824,8 @@ public sealed record ExportResult(byte[] Content, string MimeType, string FileNa
 public sealed class UnsupportedExportFormatException : Exception
 {
     public UnsupportedExportFormatException(string format)
-        : base($"Unsupported Export format '{format}'. Use PDF, EXCELOPENXML, or CSV.")
+        : base(
+            $"Unsupported Export format '{format}'. Use WORDOPENXML, EXCELOPENXML, PPTX, PDF, ACCESSIBLEPDF, TIFF, MHTML, CSV, or XML.")
     {
         Format = format;
     }
