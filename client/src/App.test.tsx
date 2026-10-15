@@ -93,35 +93,60 @@ describe('Report Viewer chrome composition', () => {
     vi.mocked(viewReport).mockReset().mockResolvedValue(renderResult)
   })
 
-  it('places the Report Parameter strip above the unified toolbar in report mode', async () => {
-    await openReportChrome()
+  it('shows the Report Parameter strip before View Report', async () => {
+    render(<App />)
 
-    const shell = screen.getByRole('main')
-    expect(shell).toHaveClass('shell-report')
+    const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
+    expect(await within(parameters).findByRole('button', { name: 'View Report' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+  })
+
+  it('collapses parameters and Return to Catalog after View Report until Show parameters', async () => {
+    const user = await openReportChrome()
+
+    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Return to Catalog' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show parameters' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
     const parameters = screen.getByRole('region', { name: 'Report Parameters' })
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
-
-    const position = parameters.compareDocumentPosition(toolbar)
-    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+    expect(parameters.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('keeps Return to Catalog and Document Map available when a Report is open', async () => {
+  it('keeps Document Map available when the Execution provides nodes', async () => {
     await openReportChrome()
 
-    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+    const layout = document.querySelector('.viewer-layout')
+    expect(layout).toHaveClass('viewer-layout-with-map')
+    expect(layout).toHaveAttribute('data-has-document-map', 'true')
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Section A' })).toBeInTheDocument()
   })
 
-  it('tones down shell marketing chrome so parameter strip and toolbar lead the viewport', async () => {
+  it('uses a single-column report-only layout when Document Map is empty', async () => {
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      documentMap: null,
+    })
+
+    await openReportChrome()
+
+    const layout = document.querySelector('.viewer-layout')
+    expect(layout).toHaveClass('viewer-layout-report-only')
+    expect(layout).toHaveAttribute('data-has-document-map', 'false')
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+  })
+
+  it('tones down shell marketing chrome so toolbar and report lead after View Report', async () => {
     await openReportChrome()
 
     const shell = screen.getByRole('main')
     expect(shell).toHaveClass('shell-report')
 
     const title = within(shell).getByRole('heading', { name: 'SSRS Report Viewer', level: 1 })
-    // Title and API health stay in the tree for AT/diagnostics but leave the primary viewport.
     expect(title).toHaveClass('visually-hidden')
 
     const lede = shell.querySelector('.lede')
@@ -130,13 +155,10 @@ describe('Report Viewer chrome composition', () => {
     const status = within(shell).getByText(/API Healthy/i)
     expect(status).toHaveClass('visually-hidden')
 
-    const parameters = screen.getByRole('region', { name: 'Report Parameters' })
-    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
-    expect(title.compareDocumentPosition(parameters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(parameters.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()
   })
 
-  it('shares App busy between the parameter strip and Viewer Toolbar', async () => {
+  it('shares App busy between the parameter strip and Viewer Toolbar when parameters are shown', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -159,12 +181,15 @@ describe('Report Viewer chrome composition', () => {
     resolveView?.(renderResult)
 
     const toolbar = await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
-    let resolveFind: ((value: {
-      html: string
-      found: boolean
-      pageInfo: { currentPage: number; pageCount: number }
-    }) => void) | undefined
+    let resolveFind:
+      | ((value: {
+          html: string
+          found: boolean
+          pageInfo: { currentPage: number; pageCount: number }
+        }) => void)
+      | undefined
     vi.mocked(findInReport).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -210,6 +235,28 @@ describe('Report Viewer chrome composition', () => {
     expect(findStatus.tagName.toLowerCase()).toBe('span')
   })
 
+  it('hides parameters and Document Map when Maximize is on, and restores them', async () => {
+    const user = await openReportChrome()
+
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
+    expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Maximize' }))
+
+    expect(screen.getByRole('main')).toHaveClass('shell-maximized')
+    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+
+    expect(screen.getByRole('main')).not.toHaveClass('shell-maximized')
+    expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+  })
+
   it('shows NULL beside nullable controls and a DateTime calendar field in the strip', async () => {
     render(<App />)
 
@@ -224,15 +271,9 @@ describe('Report Viewer chrome composition', () => {
     expect(field!.querySelector('.parameter-control-row')).toContainElement(nullCheckbox)
   })
 
-  it('keeps View Report with the parameter strip', async () => {
-    render(<App />)
-
-    const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
-    expect(within(parameters).getByRole('button', { name: 'View Report' })).toBeInTheDocument()
-  })
-
   it('marks report chrome as no-print so print CSS can hide it', async () => {
-    await openReportChrome()
+    const user = await openReportChrome()
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
     const parameters = screen.getByRole('region', { name: 'Report Parameters' })
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })

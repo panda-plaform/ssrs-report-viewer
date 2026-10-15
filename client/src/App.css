@@ -9,11 +9,17 @@
 .shell.shell-report {
   max-width: none;
   margin: 0;
-  padding: 0.35rem 0.75rem 0;
+  padding: 0;
   min-height: 100vh;
+  height: 100vh;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.shell.shell-maximized {
+  padding: 0;
 }
 
 .shell h1 {
@@ -159,30 +165,36 @@
 }
 
 .report-view {
-  margin-top: 0.15rem;
+  margin-top: 0;
   flex: 0 0 auto;
+  padding: 0.5rem 0.75rem 0;
 }
 
 .shell-report .report-view {
   margin-top: 0;
 }
 
+.shell-has-session .report-view {
+  padding-bottom: 0;
+}
+
 .report-view-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 0.35rem;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
 }
 
-.report-view-path {
-  margin: 0;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 0.8rem;
-  color: #555;
+.show-parameters-bar {
+  display: flex;
+  align-items: center;
+  margin: 0 0 0.35rem;
+  padding: 0;
 }
 
-.return-to-catalog {
+.show-parameters,
+.hide-parameters {
   padding: 0.25rem 0.55rem;
   border: 1px solid #bbb;
   background: #fff;
@@ -191,15 +203,31 @@
   font-size: 0.8rem;
 }
 
+.report-view-path {
+  margin: 0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.return-to-catalog {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
 .parameters {
   margin-top: 2rem;
 }
 
 .parameters-bar {
-  margin-top: 0;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid #c8c8c8;
-  background: #f3f3f3;
+  margin: 0 0 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  border-radius: 2px;
 }
 
 .parameters-header {
@@ -211,15 +239,7 @@
 }
 
 .parameters-bar .parameters-header {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  margin-bottom: 0.5rem;
 }
 
 .parameters-header h2 {
@@ -236,7 +256,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  gap: 0.65rem 1rem;
 }
 
 .parameters-path {
@@ -274,11 +294,11 @@
 }
 
 .parameters-bar .parameters-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.4rem 0.75rem;
-  margin-bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  align-items: start;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.65rem;
 }
 
 .parameter-field {
@@ -288,12 +308,11 @@
 }
 
 .parameters-bar .parameter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 8.5rem;
-  max-width: 16rem;
-  flex: 0 1 auto;
+  grid-template-rows: auto auto minmax(1.25rem, auto);
+  gap: 0.2rem;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
 }
 
 .parameter-label {
@@ -302,10 +321,7 @@
 }
 
 .parameters-bar .parameter-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #333;
-  white-space: nowrap;
+  font-size: 0.8rem;
 }
 
 .parameter-control-row {
@@ -339,13 +355,13 @@
   max-width: none;
   width: 100%;
   box-sizing: border-box;
-  min-height: 1.75rem;
-  padding: 0.2rem 0.35rem;
-  font-size: 0.85rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.9rem;
 }
 
 .parameters-bar .parameter-datetime {
-  min-width: 9.5rem;
+  min-width: 0;
 }
 
 .parameter-multivalue-dropdown {
@@ -439,10 +455,10 @@
 
 .parameter-null {
   display: flex;
-  gap: 0.3rem;
+  gap: 0.35rem;
   align-items: center;
   flex: 0 0 auto;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: #444;
   white-space: nowrap;
 }
@@ -463,15 +479,13 @@
 
 .parameters-bar .parameters-actions {
   display: flex;
-  align-items: flex-end;
-  padding-bottom: 0.05rem;
-  margin-left: 0.15rem;
+  align-items: center;
+  grid-column: 1 / -1;
 }
 
 .parameters-bar .parameters-actions button {
-  padding: 0.25rem 0.65rem;
-  font-size: 0.85rem;
-  min-height: 1.75rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
 }
 
 .parameters-actions button:disabled {
@@ -494,33 +508,46 @@
 
 .viewer-layout {
   display: grid;
-  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
-  gap: 1.25rem;
-  margin-top: 2rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin-top: 0;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.viewer-layout-with-map {
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
 }
 
 .shell-report .viewer-layout {
   flex: 1 1 auto;
-  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0;
+  margin: 0;
   min-height: 0;
-  align-items: stretch;
+}
+
+.viewer-layout-map {
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #c8c8c8;
 }
 
 @media (max-width: 48rem) {
-  .viewer-layout,
-  .shell-report .viewer-layout {
+  .viewer-layout-with-map {
     grid-template-columns: 1fr;
+  }
+
+  .viewer-layout-map {
+    border-right: 0;
+    border-bottom: 1px solid #c8c8c8;
   }
 }
 
 .document-map {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
+  padding: 0.5rem;
+  border: 0;
   background: #fafafa;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .document-map h2 {
@@ -567,18 +594,42 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.5rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  padding: 0.35rem 0.5rem;
+  gap: 0.2rem 0.35rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
   background: #e8e8e8;
-  border: 1px solid #c8c8c8;
-  border-radius: 2px;
+  border: 0;
+  border-bottom: 1px solid #b0b0b0;
+  border-radius: 0;
 }
 
 .shell-report .viewer-toolbar {
-  margin-top: 0.35rem;
-  margin-bottom: 0;
+  margin: 0;
+}
+
+.viewer-toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0.5rem;
+}
+
+.viewer-toolbar-page-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.15rem;
+  border: 1px solid #aaa;
+  background: #fff;
+}
+
+.viewer-toolbar-page-compact .viewer-toolbar-page-field input[type='number'] {
+  border: 0;
+  width: 2.5rem;
+  padding: 0.15rem 0.2rem;
+}
+
+.viewer-toolbar-page-compact .viewer-toolbar-page-count {
+  margin: 0 0.25rem 0 0;
+  font-size: 0.8rem;
 }
 
 .viewer-toolbar-group {
@@ -686,9 +737,17 @@
 }
 
 .viewer-toolbar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 1.75rem;
-  font-size: 1rem;
-  font-weight: 600;
+  min-height: 1.75rem;
+  padding: 0.15rem;
+  color: #222;
+}
+
+.viewer-toolbar-icon svg {
+  display: block;
 }
 
 .viewer-toolbar button:disabled {
@@ -697,8 +756,9 @@
 }
 
 .report-surface {
-  margin-top: 0.5rem;
+  margin-top: 0;
   min-width: 0;
+  min-height: 0;
 }
 
 .shell-report .report-surface {
@@ -706,11 +766,12 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
 }
 
 .shell-report .report-html {
   flex: 1 1 auto;
-  min-height: 18rem;
+  min-height: 0;
 }
 
 .report-busy {
@@ -729,8 +790,8 @@
 
 .report-html {
   overflow: auto;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
+  padding: 0;
+  border: 0;
   background: #fff;
 }
 

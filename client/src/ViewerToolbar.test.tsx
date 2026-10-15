@@ -36,12 +36,14 @@ function renderToolbar(
     pageInfo: { currentPage: number; pageCount: number }
     canGoBack: boolean
     busy: boolean
+    maximized: boolean
   }> = {},
 ) {
   const onUpdated = vi.fn()
   const onFindResult = vi.fn()
   const onError = vi.fn()
   const onBusyChange = vi.fn()
+  const onMaximizedChange = vi.fn()
 
   render(
     <ViewerToolbar
@@ -50,6 +52,8 @@ function renderToolbar(
       zoomPercent={100}
       busy={overrides.busy ?? false}
       canGoBack={overrides.canGoBack ?? false}
+      maximized={overrides.maximized ?? false}
+      onMaximizedChange={onMaximizedChange}
       onUpdated={onUpdated}
       onFindResult={onFindResult}
       onError={onError}
@@ -57,7 +61,7 @@ function renderToolbar(
     />,
   )
 
-  return { onUpdated, onFindResult, onError, onBusyChange }
+  return { onUpdated, onFindResult, onError, onBusyChange, onMaximizedChange }
 }
 
 describe('ViewerToolbar native chrome', () => {
@@ -77,7 +81,7 @@ describe('ViewerToolbar native chrome', () => {
     vi.mocked(goBack).mockReset().mockResolvedValue({ ...pageResult, canGoBack: true })
   })
 
-  it('exposes Report Page, Back, Refresh, Zoom, Export, Print, and Find in one toolbar', () => {
+  it('exposes Report Page, Refresh, Back, Zoom, Export, Print, Find, and Maximize in one toolbar', () => {
     renderToolbar()
 
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
@@ -93,17 +97,29 @@ describe('ViewerToolbar native chrome', () => {
     expect(within(pageGroup).getByRole('button', { name: 'Next' })).toBeInTheDocument()
     expect(within(pageGroup).getByRole('button', { name: 'Last' })).toBeInTheDocument()
 
-    expect(within(toolbar).getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('combobox', { name: 'Zoom' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: 'Print' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('searchbox', { name: 'Find' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: 'Find' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: 'Find next' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'Maximize' })).toBeInTheDocument()
 
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).toBe(
+      within(pageGroup).getByRole('button', { name: 'Next' }),
+    )
     expect(screen.queryByRole('heading', { name: 'Find' })).not.toBeInTheDocument()
+  })
+
+  it('places Refresh before Back in the toolbar', () => {
+    renderToolbar()
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    const refresh = within(toolbar).getByRole('button', { name: 'Refresh' })
+    const back = within(toolbar).getByRole('button', { name: 'Back' })
+    expect(refresh.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('disables Back when canGoBack is false', () => {
@@ -138,7 +154,7 @@ describe('ViewerToolbar native chrome', () => {
     expect(downloadExport).toHaveBeenCalledWith('session-1', 'CSV')
   })
 
-  it('calls findInReport and findNextInReport from the toolbar Find controls', async () => {
+  it('calls findInReport and findNextInReport from the toolbar Find icon controls', async () => {
     const user = userEvent.setup()
     const { onFindResult } = renderToolbar()
 
@@ -153,6 +169,20 @@ describe('ViewerToolbar native chrome', () => {
 
     await user.click(screen.getByRole('button', { name: 'Find next' }))
     expect(findNextInReport).toHaveBeenCalledWith('session-1', 'revenue')
+  })
+
+  it('toggles Maximize via onMaximizedChange', async () => {
+    const user = userEvent.setup()
+    const { onMaximizedChange } = renderToolbar({ maximized: false })
+
+    await user.click(screen.getByRole('button', { name: 'Maximize' }))
+    expect(onMaximizedChange).toHaveBeenCalledWith(true)
+  })
+
+  it('shows Restore when maximized', () => {
+    renderToolbar({ maximized: true })
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Maximize' })).not.toBeInTheDocument()
   })
 
   it('changes Report Page via First and Last using goto at boundaries', async () => {
@@ -174,6 +204,8 @@ describe('ViewerToolbar native chrome', () => {
         zoomPercent={100}
         busy={false}
         canGoBack={false}
+        maximized={false}
+        onMaximizedChange={() => {}}
         onUpdated={() => {}}
         onFindResult={() => {}}
         onError={() => {}}
@@ -194,6 +226,8 @@ describe('ViewerToolbar native chrome', () => {
         zoomPercent={100}
         busy={false}
         canGoBack={false}
+        maximized={false}
+        onMaximizedChange={() => {}}
         onUpdated={() => {}}
         onFindResult={() => {}}
         onError={() => {}}
