@@ -47,6 +47,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>Execution id from the most recent RenderAsync call.</summary>
     public string? LastRenderedExecutionId { get; private set; }
 
+    /// <summary>DeviceInfo from the most recent non-HTML RenderAsync (Export) call.</summary>
+    public DeviceInfo? LastExportDeviceInfo { get; private set; }
+
     /// <summary>forRendering flag from the most recent GetParametersAsync call.</summary>
     public bool? LastGetParametersForRendering { get; private set; }
 
@@ -72,6 +75,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ToggleDelay = TimeSpan.Zero;
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
+        LastExportDeviceInfo = null;
         LastGetParametersForRendering = null;
         LastSetParameters = null;
         LastGetParametersValues = null;
@@ -278,6 +282,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         if (!string.Equals(format, "HTML4.0", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(format, "HTML5", StringComparison.OrdinalIgnoreCase))
         {
+            LastExportDeviceInfo = deviceInfo;
             return Task.FromResult(RenderExport(exec, format, deviceInfo));
         }
 

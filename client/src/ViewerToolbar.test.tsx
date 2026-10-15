@@ -180,6 +180,94 @@ describe('ViewerToolbar native chrome', () => {
     expect(downloadExport).toHaveBeenCalledWith('session-1', 'CSV')
   })
 
+  it('opens a Print settings dialog instead of calling window.print', async () => {
+    const user = userEvent.setup()
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Print' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByText(/printer-friendly PDF/i)).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Page size' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Page orientation' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Print' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(printSpy).not.toHaveBeenCalled()
+    expect(downloadExport).not.toHaveBeenCalled()
+    printSpy.mockRestore()
+  })
+
+  it('does not download a PDF when Print Cancel or Close is used', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(downloadExport).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(downloadExport).not.toHaveBeenCalled()
+  })
+
+  it('dismisses Print settings with Escape without downloading', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    expect(screen.getByRole('dialog', { name: 'Print' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(downloadExport).not.toHaveBeenCalled()
+  })
+
+  it('confirms Print by downloading a PDF with chosen page size and orientation', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    const dialog = screen.getByRole('dialog', { name: 'Print' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Page size' }), 'A3')
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Page orientation' }),
+      'Landscape',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Print' }))
+
+    expect(downloadExport).toHaveBeenCalledWith('session-1', 'PDF', {
+      pageSize: 'A3',
+      orientation: 'Landscape',
+    })
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+  })
+
+  it('surfaces Print errors and keeps Export free of the Print dialog', async () => {
+    const user = userEvent.setup()
+    vi.mocked(downloadExport).mockRejectedValueOnce(new Error('Print PDF failed'))
+    const { onError } = renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Print' })).getByRole('button', { name: 'Print' }),
+    )
+
+    expect(onError).toHaveBeenCalled()
+    expect(downloadExport).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('dialog', { name: 'Print' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(screen.getByRole('menuitem', { name: 'PDF' }))
+    expect(downloadExport).toHaveBeenLastCalledWith('session-1', 'PDF')
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+  })
+
   it('disables Find when Find text is empty and Find next until a Find completes', async () => {
     const user = userEvent.setup()
     renderToolbar()

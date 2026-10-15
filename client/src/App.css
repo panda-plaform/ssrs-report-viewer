@@ -822,6 +822,113 @@
   cursor: not-allowed;
 }
 
+.print-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.print-settings-dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem 1.15rem 1.1rem;
+  border: 1px solid #888;
+  border-radius: 2px;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.print-settings-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.print-settings-dialog-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.print-settings-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #444;
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.print-settings-close:hover:not(:disabled) {
+  background: #ececec;
+}
+
+.print-settings-copy {
+  margin: 0 0 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #444;
+}
+
+.print-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.print-settings-field select {
+  padding: 0.35rem 0.4rem;
+  font: inherit;
+}
+
+.print-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.print-settings-actions button {
+  min-width: 4.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #888;
+  background: #f5f5f5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.print-settings-actions button:first-child {
+  border-color: #2f6fed;
+  background: #2f6fed;
+  color: #fff;
+}
+
+.print-settings-actions button:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.print-settings-actions button:disabled,
+.print-settings-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .report-surface {
   margin-top: 0;
   min-width: 0;

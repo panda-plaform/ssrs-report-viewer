@@ -179,6 +179,12 @@ export function sortReport(
 
 export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
 
+/** Page layout for printer-friendly PDF (Print settings → Export DeviceInfo). */
+export type PrintPdfSettings = {
+  pageSize: 'A4' | 'A3' | 'Letter' | 'Legal'
+  orientation: 'Portrait' | 'Landscape'
+}
+
 function fileNameFromContentDisposition(header: string | null, fallback: string): string {
   if (!header) {
     return fallback
@@ -198,8 +204,16 @@ function fileNameFromContentDisposition(header: string | null, fallback: string)
 }
 
 /** Downloads Export of the current Execution for the Viewer Session. */
-export async function downloadExport(sessionId: string, format: ExportFormat): Promise<void> {
+export async function downloadExport(
+  sessionId: string,
+  format: ExportFormat,
+  printSettings?: PrintPdfSettings,
+): Promise<void> {
   const query = new URLSearchParams({ format })
+  if (format === 'PDF' && printSettings) {
+    query.set('pageSize', printSettings.pageSize)
+    query.set('orientation', printSettings.orientation)
+  }
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/export?${query}`)
   await throwIfNotOk(response)
 

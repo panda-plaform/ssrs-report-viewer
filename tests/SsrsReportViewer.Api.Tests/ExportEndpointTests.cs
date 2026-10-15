@@ -77,5 +77,54 @@ public sealed class ExportEndpointTests : IClassFixture<ApiFactory>
         Assert.DoesNotContain(parentExecutionId, text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Get_export_pdf_with_page_size_and_orientation_applies_device_info()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Revenue</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var response = await _client.GetAsync(
+            $"/api/sessions/{body.SessionId}/export?format=PDF&pageSize=A4&orientation=Landscape");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var deviceInfo = _factory.Fake.LastExportDeviceInfo;
+        Assert.NotNull(deviceInfo);
+        Assert.Equal("11.69in", deviceInfo.PageWidth);
+        Assert.Equal("8.27in", deviceInfo.PageHeight);
+        Assert.Null(deviceInfo.Section);
+    }
+
+    [Fact]
+    public async Task Get_export_pdf_without_print_settings_omits_page_dimensions()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Revenue</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var response = await _client.GetAsync($"/api/sessions/{body.SessionId}/export?format=PDF");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var deviceInfo = _factory.Fake.LastExportDeviceInfo;
+        Assert.NotNull(deviceInfo);
+        Assert.Null(deviceInfo.PageWidth);
+        Assert.Null(deviceInfo.PageHeight);
+    }
+
     private sealed record RenderResponse(string SessionId, string Html);
 }

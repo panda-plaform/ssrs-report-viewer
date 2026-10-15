@@ -513,6 +513,20 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
                 .Append("</ResourceStreamRoot>");
         }
 
+        if (!string.IsNullOrWhiteSpace(deviceInfo.PageWidth))
+        {
+            sb.Append("<PageWidth>")
+                .Append(System.Security.SecurityElement.Escape(deviceInfo.PageWidth))
+                .Append("</PageWidth>");
+        }
+
+        if (!string.IsNullOrWhiteSpace(deviceInfo.PageHeight))
+        {
+            sb.Append("<PageHeight>")
+                .Append(System.Security.SecurityElement.Escape(deviceInfo.PageHeight))
+                .Append("</PageHeight>");
+        }
+
         sb.Append("</DeviceInfo>");
         return sb.ToString();
     }
