@@ -617,12 +617,14 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
             parameters: [],
             html: """
                   <img src="http://ssrs-host/ReportServer?rs:Command=Get&amp;rc:StreamId=img1" alt="folder" />
-                  <img src="https://ssrs-host/ReportServer/Reserved.ReportViewerWebControl.axd?StreamID=status2" />
+                  <img src='https://ssrs-host/reportSERVER/Reserved.ReportViewerWebControl.axd?StreamID=status2' />
+                  <input type="image" src="http://ssrs-host/ReportServer?rc:StreamId=btn1" alt="Go" />
                   """,
             streams:
             [
                 new FakeStream("img1", "image/png", [0x89, 0x50, 0x4E, 0x47]),
                 new FakeStream("status2", "image/gif", [0x47, 0x49, 0x46]),
+                new FakeStream("btn1", "image/png", [0x01, 0x02]),
             ]);
 
         var render = await _client.PostAsJsonAsync(
@@ -634,8 +636,10 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
 
         var img1Url = $"/api/sessions/{body.SessionId}/resources/img1";
         var status2Url = $"/api/sessions/{body.SessionId}/resources/status2";
+        var btn1Url = $"/api/sessions/{body.SessionId}/resources/btn1";
         Assert.Contains(img1Url, body.Html, StringComparison.Ordinal);
         Assert.Contains(status2Url, body.Html, StringComparison.Ordinal);
+        Assert.Contains(btn1Url, body.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("reportserver", body.Html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ssrs-host", body.Html, StringComparison.OrdinalIgnoreCase);
 
@@ -646,6 +650,55 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
         var status2 = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/status2");
         Assert.Equal(HttpStatusCode.OK, status2.StatusCode);
         Assert.Equal([0x47, 0x49, 0x46], await status2.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task Zoom_re_render_keeps_session_resource_urls_for_reportserver_images()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <img src="http://ssrs-host/ReportServer?rs:Command=Get&amp;rc:StreamId=img1" alt="folder" />
+                  <img src="https://ssrs-host/Reserved.ReportViewerWebControl.axd?StreamID=status2" />
+                  """,
+            streams:
+            [
+                new FakeStream("img1", "image/png", [0x89, 0x50, 0x4E, 0x47]),
+                new FakeStream("status2", "image/gif", [0x47, 0x49, 0x46]),
+            ],
+            pageCount: 2);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var initial = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(initial);
+
+        var zoom = await _client.PostAsJsonAsync(
+            $"/api/sessions/{initial.SessionId}/zoom",
+            new { zoomPercent = 150 });
+        Assert.Equal(HttpStatusCode.OK, zoom.StatusCode);
+        var afterZoom = await zoom.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(afterZoom);
+
+        var img1Url = $"/api/sessions/{initial.SessionId}/resources/img1";
+        var status2Url = $"/api/sessions/{initial.SessionId}/resources/status2";
+        Assert.Contains(img1Url, afterZoom.Html, StringComparison.Ordinal);
+        Assert.Contains(status2Url, afterZoom.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportserver", afterZoom.Html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ssrs-host", afterZoom.Html, StringComparison.OrdinalIgnoreCase);
+
+        var page = await _client.PostAsJsonAsync(
+            $"/api/sessions/{initial.SessionId}/page",
+            new { action = "next" });
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var afterPage = await page.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(afterPage);
+        Assert.Contains(img1Url, afterPage.Html, StringComparison.Ordinal);
+        Assert.Contains(status2Url, afterPage.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportserver", afterPage.Html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -779,7 +832,7 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Concurrent_session_ops_serialize_extras_are_conflict()
+    public async Task Concurrent_resource_fetches_wait_on_gate_instead_of_conflict()
     {
         _factory.Fake.SeedReport(
             "/Sales/Revenue",
@@ -794,19 +847,17 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
         var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
         Assert.NotNull(body);
 
+        // Browsers load many report images in parallel; resources must queue, not 409.
         var first = _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
         await Task.Delay(50);
-        var second = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
-
-        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var second = _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
 
         var firstResponse = await first;
+        var secondResponse = await second;
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
-
-        // Second concurrent mutating op must not corrupt the Execution after the first completes.
-        var after = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
-        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
-        Assert.Equal(new byte[] { 1 }, await after.Content.ReadAsByteArrayAsync());
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        Assert.Equal(new byte[] { 1 }, await firstResponse.Content.ReadAsByteArrayAsync());
+        Assert.Equal(new byte[] { 1 }, await secondResponse.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
