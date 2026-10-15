@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   downloadExport,
+  findInReport,
+  findNextInReport,
+  goBack,
   refreshReport,
   setReportPage,
   setZoom,
   type ExportFormat,
+  type FindResponse,
   type PageInfo,
   type RenderResponse,
 } from './reportApi'
@@ -17,34 +21,64 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'CSV', label: 'CSV' },
 ]
 
+export type ToolbarUpdateOptions = {
+  /** Back from Drillthrough: sync open Report path and reseed parameters. */
+  syncOpenReport?: boolean
+}
+
 type Props = {
   sessionId: string
   pageInfo: PageInfo
   zoomPercent: number
   busy: boolean
-  onUpdated: (result: RenderResponse) => void
+  canGoBack: boolean
+  onUpdated: (result: RenderResponse, options?: ToolbarUpdateOptions) => void
+  onFindResult: (result: FindResponse) => void
   onError: (error: unknown) => void
   onBusyChange: (busy: boolean) => void
 }
 
 /**
- * Report Viewer chrome: Zoom / Report Page / Refresh plus Export and Print.
+ * Unified native-style Report Viewer toolbar: Report Page, Back, Refresh, Zoom,
+ * Export menu, Print, and Find.
  */
 export function ViewerToolbar({
   sessionId,
   pageInfo,
   zoomPercent,
   busy,
+  canGoBack,
   onUpdated,
+  onFindResult,
   onError,
   onBusyChange,
 }: Props) {
-  const [gotoValue, setGotoValue] = useState(String(pageInfo.currentPage))
+  const [pageValue, setPageValue] = useState(String(pageInfo.currentPage))
+  const [findValue, setFindValue] = useState('')
+  const [findStatus, setFindStatus] = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const [busyFormat, setBusyFormat] = useState<ExportFormat | null>(null)
+  const exportMenuId = useId()
+  const exportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setGotoValue(String(pageInfo.currentPage))
+    setPageValue(String(pageInfo.currentPage))
   }, [pageInfo.currentPage])
+
+  useEffect(() => {
+    if (!exportOpen) {
+      return
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(event.target as Node)) {
+        setExportOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [exportOpen])
 
   async function run(action: () => Promise<RenderResponse>) {
     if (busy) {
@@ -55,7 +89,7 @@ export function ViewerToolbar({
     onError('')
     try {
       const result = await action()
-      setGotoValue(String(result.pageInfo.currentPage))
+      setPageValue(String(result.pageInfo.currentPage))
       onUpdated(result)
     } catch (err) {
       onError(err instanceof Error ? err : 'Viewer Session action failed')
@@ -64,11 +98,19 @@ export function ViewerToolbar({
     }
   }
 
+  function gotoPage(page: number) {
+    if (!Number.isFinite(page)) {
+      return
+    }
+    void run(() => setReportPage(sessionId, 'goto', page))
+  }
+
   async function handleExport(format: ExportFormat) {
     if (busy) {
       return
     }
 
+    setExportOpen(false)
     onBusyChange(true)
     setBusyFormat(format)
     onError('')
@@ -82,17 +124,157 @@ export function ViewerToolbar({
     }
   }
 
+  async function handleBack() {
+    if (busy || !canGoBack) {
+      return
+    }
+
+    onBusyChange(true)
+    onError('')
+    try {
+      const result = await goBack(sessionId)
+      onUpdated(result, { syncOpenReport: true })
+    } catch (err) {
+      onError(err instanceof Error ? err : 'Back failed')
+    } finally {
+      onBusyChange(false)
+    }
+  }
+
+  async function runFind(next: boolean) {
+    const value = findValue.trim()
+    if (!value) {
+      setFindStatus('Enter text to Find.')
+      return
+    }
+
+    onBusyChange(true)
+    setFindStatus(null)
+    try {
+      const result = next
+        ? await findNextInReport(sessionId, value)
+        : await findInReport(sessionId, value)
+      onFindResult(result)
+      setFindStatus(
+        result.found
+          ? `Found on Report Page ${result.pageInfo.currentPage} of ${result.pageInfo.pageCount}.`
+          : 'No matches in the current Execution.',
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Find failed'
+      onError(error instanceof Error ? error : message)
+      setFindStatus(message)
+    } finally {
+      onBusyChange(false)
+    }
+  }
+
   function handlePrint() {
     window.print()
   }
 
+  const atFirst = pageInfo.currentPage <= 1
+  const atLast = pageInfo.currentPage >= pageInfo.pageCount
+
   return (
     <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
+      <div className="viewer-toolbar-group" role="group" aria-label="Report Page">
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="First"
+          title="First"
+          disabled={busy || atFirst}
+          onClick={() => gotoPage(1)}
+        >
+          «
+        </button>
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="Previous"
+          title="Previous"
+          disabled={busy || atFirst}
+          onClick={() => void run(() => setReportPage(sessionId, 'previous'))}
+        >
+          ‹
+        </button>
+        <label className="viewer-toolbar-page-field">
+          <span className="visually-hidden">Report Page</span>
+          <input
+            type="number"
+            min={1}
+            max={pageInfo.pageCount}
+            value={pageValue}
+            disabled={busy}
+            aria-label="Report Page"
+            onChange={(event) => setPageValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                gotoPage(Number(pageValue))
+              }
+            }}
+          />
+        </label>
+        <span className="viewer-toolbar-page-count" aria-hidden="true">
+          of {pageInfo.pageCount}
+        </span>
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="Next"
+          title="Next"
+          disabled={busy || atLast}
+          onClick={() => void run(() => setReportPage(sessionId, 'next'))}
+        >
+          ›
+        </button>
+        <button
+          type="button"
+          className="viewer-toolbar-icon"
+          aria-label="Last"
+          title="Last"
+          disabled={busy || atLast}
+          onClick={() => gotoPage(pageInfo.pageCount)}
+        >
+          »
+        </button>
+      </div>
+
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
+      <button
+        type="button"
+        className="viewer-toolbar-icon"
+        aria-label="Back"
+        title="Back"
+        disabled={busy || !canGoBack}
+        onClick={() => void handleBack()}
+      >
+        ←
+      </button>
+
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
+      <button
+        type="button"
+        className="viewer-toolbar-icon"
+        aria-label="Refresh"
+        title="Refresh"
+        disabled={busy}
+        onClick={() => void run(() => refreshReport(sessionId))}
+      >
+        ↻
+      </button>
+
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
       <label className="viewer-toolbar-field">
-        Zoom
+        <span className="visually-hidden">Zoom</span>
         <select
           value={zoomPercent}
           disabled={busy}
+          aria-label="Zoom"
           onChange={(event) => {
             const next = Number(event.target.value)
             void run(() => setZoom(sessionId, next))
@@ -109,39 +291,67 @@ export function ViewerToolbar({
         </select>
       </label>
 
-      <div className="viewer-toolbar-group" aria-label="Report Page">
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
+      <div className="viewer-toolbar-export" ref={exportRef}>
         <button
           type="button"
-          disabled={busy || pageInfo.currentPage <= 1}
-          onClick={() => void run(() => setReportPage(sessionId, 'previous'))}
+          className="viewer-toolbar-icon"
+          aria-label="Export"
+          title="Export"
+          aria-haspopup="menu"
+          aria-expanded={exportOpen}
+          aria-controls={exportMenuId}
+          disabled={busyFormat !== null || busy}
+          onClick={() => setExportOpen((open) => !open)}
         >
-          Previous
+          ⇩
         </button>
-        <span className="viewer-toolbar-page">
-          Page {pageInfo.currentPage} of {pageInfo.pageCount}
-        </span>
-        <button
-          type="button"
-          disabled={busy || pageInfo.currentPage >= pageInfo.pageCount}
-          onClick={() => void run(() => setReportPage(sessionId, 'next'))}
-        >
-          Next
-        </button>
-        <label className="viewer-toolbar-field">
-          Go to
+        {exportOpen && (
+          <div id={exportMenuId} className="viewer-toolbar-menu" role="menu" aria-label="Export formats">
+            {EXPORT_FORMATS.map(({ format, label }) => (
+              <button
+                key={format}
+                type="button"
+                role="menuitem"
+                disabled={busyFormat !== null || busy}
+                onClick={() => void handleExport(format)}
+              >
+                {busyFormat === format ? `Exporting ${label}…` : label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        className="viewer-toolbar-icon"
+        aria-label="Print"
+        title="Print"
+        disabled={busy}
+        onClick={handlePrint}
+      >
+        ⎙
+      </button>
+
+      <span className="viewer-toolbar-sep" aria-hidden="true" />
+
+      <div className="viewer-toolbar-group viewer-toolbar-find" aria-label="Find">
+        <label className="viewer-toolbar-find-field">
+          <span className="visually-hidden">Find</span>
           <input
-            type="number"
-            min={1}
-            max={pageInfo.pageCount}
-            value={gotoValue}
+            type="search"
+            name="findValue"
+            value={findValue}
             disabled={busy}
-            onChange={(event) => setGotoValue(event.target.value)}
+            aria-label="Find"
+            placeholder="Find"
+            onChange={(event) => setFindValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                const page = Number(gotoValue)
-                if (Number.isFinite(page)) {
-                  void run(() => setReportPage(sessionId, 'goto', page))
-                }
+                event.preventDefault()
+                void runFind(false)
               }
             }}
           />
@@ -149,43 +359,26 @@ export function ViewerToolbar({
         <button
           type="button"
           disabled={busy}
-          onClick={() => {
-            const page = Number(gotoValue)
-            if (Number.isFinite(page)) {
-              void run(() => setReportPage(sessionId, 'goto', page))
-            }
-          }}
+          aria-label="Find"
+          title="Find"
+          onClick={() => void runFind(false)}
         >
-          Go
+          Find
         </button>
-      </div>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void run(() => refreshReport(sessionId))}
-      >
-        Refresh
-      </button>
-
-      <div className="viewer-toolbar-group">
-        <span className="viewer-toolbar-label">Export</span>
-        {EXPORT_FORMATS.map(({ format, label }) => (
-          <button
-            key={format}
-            type="button"
-            disabled={busyFormat !== null || busy}
-            onClick={() => void handleExport(format)}
-          >
-            {busyFormat === format ? `Exporting ${label}…` : label}
-          </button>
-        ))}
-      </div>
-
-      <div className="viewer-toolbar-group">
-        <button type="button" disabled={busy} onClick={handlePrint}>
-          Print
+        <button
+          type="button"
+          disabled={busy}
+          aria-label="Find next"
+          title="Find next"
+          onClick={() => void runFind(true)}
+        >
+          Next
         </button>
+        {findStatus && (
+          <p className="viewer-toolbar-find-status" role="status">
+            {findStatus}
+          </p>
+        )}
       </div>
     </div>
   )

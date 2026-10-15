@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
-import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
@@ -242,14 +241,9 @@ function App() {
                 pageInfo={render.pageInfo}
                 zoomPercent={render.zoomPercent}
                 busy={busy}
-                onUpdated={setRender}
-                onError={handleSurfaceError}
-                onBusyChange={setBusy}
-              />
-              <FindToolbar
-                sessionId={render.sessionId}
-                busy={busy}
-                onResult={handleFindResult}
+                canGoBack={render.canGoBack}
+                onUpdated={handleHtmlReplaced}
+                onFindResult={handleFindResult}
                 onError={handleSurfaceError}
                 onBusyChange={setBusy}
               />
@@ -270,7 +264,6 @@ function App() {
                 html={render.html}
                 sessionId={render.sessionId}
                 pageInfo={render.pageInfo}
-                canGoBack={render.canGoBack}
                 busy={busy}
                 error={surfaceError}
                 onHtmlReplaced={handleHtmlReplaced}
@@ -283,7 +276,6 @@ function App() {
               html={null}
               sessionId={null}
               pageInfo={null}
-              canGoBack={false}
               busy={busy}
               error={surfaceError}
               onHtmlReplaced={handleHtmlReplaced}
