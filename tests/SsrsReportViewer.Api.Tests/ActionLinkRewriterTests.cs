@@ -179,4 +179,46 @@ public sealed class ActionLinkRewriterTests
         Assert.DoesNotContain("data-ssrs-parameters=\"[]\"", rewritten, StringComparison.Ordinal);
         Assert.DoesNotContain("rc:Parameters", rewritten, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_sortitem_action_link_with_encoded_separators(string amp)
+    {
+        // Column-header Sort Action Links use rc:SortItem + rc:SortDirection; live HTML
+        // uses &amp; separators and SOAP can leave them double-encoded as &amp;amp;.
+        var html =
+            $"""
+            <a tabindex="3" href="/api/sessions/s1/actions/?rc:SortItem=Region{amp}rc:SortDirection=Descending">Sort Region</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"sort\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-item=\"Region\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-direction=\"Descending\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-clear=\"false\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("rc:SortItem", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("amp;rc:SortDirection", rewritten, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_sortid_and_clear_on_reportserver_urls(string amp)
+    {
+        var html =
+            $"""
+            <a href="http://reportserver.example/ReportServer?/Sales/Revenue{amp}rc:SortId=ColA{amp}rc:SortDirection=Ascending{amp}rc:Clear=True">Clear sort</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html);
+
+        Assert.Contains("data-ssrs-action=\"sort\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-item=\"ColA\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-direction=\"Ascending\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-clear=\"true\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportServer", rewritten, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("amp;rc:SortId", rewritten, StringComparison.Ordinal);
+    }
 }
