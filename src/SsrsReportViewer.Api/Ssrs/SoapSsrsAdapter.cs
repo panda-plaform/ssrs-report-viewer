@@ -541,6 +541,13 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             sb.Append("<AccessiblePDF>true</AccessiblePDF>");
         }
 
+        if (!string.IsNullOrWhiteSpace(deviceInfo.FindString))
+        {
+            sb.Append("<FindString>")
+                .Append(System.Security.SecurityElement.Escape(deviceInfo.FindString))
+                .Append("</FindString>");
+        }
+
         sb.Append("</DeviceInfo>");
         return sb.ToString();
     }
