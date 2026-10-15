@@ -18,9 +18,15 @@ public sealed class ExportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Theory]
-    [InlineData("PDF", "application/pdf", "FAKE-PDF:")]
+    [InlineData("WORDOPENXML", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "FAKE-DOCX:")]
     [InlineData("EXCELOPENXML", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "FAKE-XLSX:")]
+    [InlineData("PPTX", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "FAKE-PPTX:")]
+    [InlineData("PDF", "application/pdf", "FAKE-PDF:")]
+    [InlineData("ACCESSIBLEPDF", "application/pdf", "FAKE-ACCESSIBLE-PDF:")]
+    [InlineData("TIFF", "image/tiff", "FAKE-TIFF:")]
+    [InlineData("MHTML", "multipart/related", "FAKE-MHTML:")]
     [InlineData("CSV", "text/csv", "FAKE-CSV:")]
+    [InlineData("XML", "application/xml", "FAKE-XML:")]
     public async Task Get_export_returns_downloadable_file_for_current_execution(
         string format,
         string expectedMediaType,
@@ -50,6 +56,73 @@ public sealed class ExportEndpointTests : IClassFixture<ApiFactory>
 
         var text = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
         Assert.Equal($"{expectedPayloadPrefix}{executionId}", text);
+    }
+
+    [Fact]
+    public async Task Get_export_accessible_pdf_sets_accessible_pdf_device_info()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Revenue</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var response = await _client.GetAsync($"/api/sessions/{body.SessionId}/export?format=ACCESSIBLEPDF");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var deviceInfo = _factory.Fake.LastExportDeviceInfo;
+        Assert.NotNull(deviceInfo);
+        Assert.True(deviceInfo.AccessiblePdf);
+    }
+
+    [Fact]
+    public async Task Get_export_tiff_uses_image_format_with_tiff_output()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Revenue</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var response = await _client.GetAsync($"/api/sessions/{body.SessionId}/export?format=TIFF");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var deviceInfo = _factory.Fake.LastExportDeviceInfo;
+        Assert.NotNull(deviceInfo);
+        Assert.Equal("TIFF", deviceInfo.OutputFormat);
+        var text = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
+        Assert.StartsWith("FAKE-TIFF:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_export_unsupported_format_returns_bad_request_without_breaking_session()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Revenue</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var bad = await _client.GetAsync($"/api/sessions/{body.SessionId}/export?format=ATOM");
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var ok = await _client.GetAsync($"/api/sessions/{body.SessionId}/export?format=PDF");
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
     }
 
     [Fact]

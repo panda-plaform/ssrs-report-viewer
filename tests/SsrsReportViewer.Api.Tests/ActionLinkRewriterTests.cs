@@ -179,4 +179,94 @@ public sealed class ActionLinkRewriterTests
         Assert.DoesNotContain("data-ssrs-parameters=\"[]\"", rewritten, StringComparison.Ordinal);
         Assert.DoesNotContain("rc:Parameters", rewritten, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_sortitem_action_link_with_encoded_separators(string amp)
+    {
+        // Column-header Sort Action Links use rc:SortItem + rc:SortDirection; live HTML
+        // uses &amp; separators and SOAP can leave them double-encoded as &amp;amp;.
+        var html =
+            $"""
+            <a tabindex="3" href="/api/sessions/s1/actions/?rc:SortItem=Region{amp}rc:SortDirection=Descending">Sort Region</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"sort\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-item=\"Region\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-direction=\"Descending\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-clear=\"false\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("rc:SortItem", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("amp;rc:SortDirection", rewritten, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_sortid_and_clear_on_reportserver_urls(string amp)
+    {
+        var html =
+            $"""
+            <a href="http://reportserver.example/ReportServer?/Sales/Revenue{amp}rc:SortId=ColA{amp}rc:SortDirection=Ascending{amp}rc:Clear=True">Clear sort</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html);
+
+        Assert.Contains("data-ssrs-action=\"sort\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-item=\"ColA\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-direction=\"Ascending\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-clear=\"true\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportServer", rewritten, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("amp;rc:SortId", rewritten, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_html_document_rs_sortid_command_sort_links(string amp)
+    {
+        // HTMLFragment=false emits rs:Command=Sort with percent-encoded rs:SortId and built-in GIF icons.
+        var html =
+            $"""
+            <a tabindex="1" href="/api/sessions/s1/actions/http://thor/ReportServer?%2FReports%2FList{amp}rs%3ACommand=Sort{amp}rs%3ASortId=29iT0{amp}rs%3ASortDirection=Ascending{amp}rs%3AClearSort=TRUE"><IMG ALT="Unsorted" BORDER="0" SRC="/api/sessions/s1/resources/2022.1.0.0unsorted.gif"/></a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"sort\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-item=\"29iT0\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-direction=\"Ascending\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-sort-clear=\"true\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("ssrs-sort-icon", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("unsorted.gif", rewritten, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("rs:Command=Sort", rewritten, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Sorted Ascending", true, "M4.5 10.5h7L8 5z")]
+    [InlineData("Sorted Descending", true, "M4.5 5.5h7L8 11z")]
+    [InlineData("Unsorted", false, "M3.5 6.5h9L8 2.5z")]
+    public void SortIconLabel_matches_native_ssrs_states(string alt, bool circled, string pathSnippet)
+    {
+        var label = $"""<IMG ALT="{alt}" BORDER="0" SRC="/resources/icon.gif"/>""";
+
+        var icon = ActionLinkRewriter.SortIconLabel(label, "Ascending", clear: false);
+
+        Assert.StartsWith("<img ", icon, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data:image/svg+xml,", icon, StringComparison.Ordinal);
+        Assert.Contains(Uri.EscapeDataString(pathSnippet), icon, StringComparison.Ordinal);
+        Assert.Contains($"title=\"{alt}\"", icon, StringComparison.Ordinal);
+        Assert.Contains($"alt=\"{alt}\"", icon, StringComparison.Ordinal);
+        if (circled)
+        {
+            Assert.Contains("ssrs-sort-icon-active", icon, StringComparison.Ordinal);
+            Assert.Contains(Uri.EscapeDataString("<circle"), icon, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain(Uri.EscapeDataString("<circle"), icon, StringComparison.Ordinal);
+        }
+    }
 }

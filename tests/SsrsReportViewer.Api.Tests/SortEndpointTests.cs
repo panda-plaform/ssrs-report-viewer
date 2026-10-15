@@ -75,5 +75,73 @@ public sealed class SortEndpointTests : IClassFixture<ApiFactory>
             "Expected ProblemDetails-shaped body");
     }
 
+    [Fact]
+    public async Task Post_sort_supports_descending_then_clear_on_same_execution()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <div class="report">
+                    <div class="rows" data-sort-state="{sort:Col1}">row-body</div>
+                  </div>
+                  """);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var rendered = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(rendered);
+        Assert.Contains("data-sort-state=\"unsorted\"", rendered.Html, StringComparison.Ordinal);
+
+        var descending = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/sort",
+            new { sortItem = "Col1", direction = "Descending", clear = false });
+        Assert.Equal(HttpStatusCode.OK, descending.StatusCode);
+        var descBody = await descending.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(descBody);
+        Assert.Equal(rendered.SessionId, descBody.SessionId);
+        Assert.Contains("data-sort-state=\"Descending\"", descBody.Html, StringComparison.Ordinal);
+
+        var clear = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/sort",
+            new { sortItem = "Col1", direction = "None", clear = true });
+        Assert.Equal(HttpStatusCode.OK, clear.StatusCode);
+        var cleared = await clear.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(cleared);
+        Assert.Equal(rendered.SessionId, cleared.SessionId);
+        Assert.Contains("data-sort-state=\"unsorted\"", cleared.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_sort_clear_true_with_ascending_still_applies_sort()
+    {
+        // Native unsorted icons send ClearSort=TRUE with Ascending — Clear must not force Direction=None.
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <div class="report">
+                    <div class="rows" data-sort-state="{sort:Col1}">row-body</div>
+                  </div>
+                  """);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var rendered = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(rendered);
+
+        var sorted = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/sort",
+            new { sortItem = "Col1", direction = "Ascending", clear = true });
+        Assert.Equal(HttpStatusCode.OK, sorted.StatusCode);
+        var body = await sorted.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(body);
+        Assert.Contains("data-sort-state=\"Ascending\"", body.Html, StringComparison.Ordinal);
+    }
+
     private sealed record SessionHtmlResponse(string SessionId, string Html);
 }

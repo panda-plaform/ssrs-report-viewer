@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { drillthroughReport, toggleDrilldown } from './reportApi'
+import { drillthroughReport, sortReport, toggleDrilldown } from './reportApi'
 import { ReportSurface } from './ReportSurface'
 
 vi.mock('./reportApi', () => ({
@@ -20,6 +20,17 @@ const childResult = {
   canGoBack: true,
   reportPath: '/Sales/Child',
   parameters: [{ name: 'Region', values: ['North'] }],
+}
+
+const sortedResult = {
+  sessionId: 'session-1',
+  html: '<div>Sorted Ascending</div>',
+  pageInfo: { currentPage: 1, pageCount: 1 },
+  zoomPercent: 100,
+  documentMap: null,
+  canGoBack: false,
+  reportPath: '/Sales/Revenue',
+  parameters: [],
 }
 
 function renderSurface(overrides: {
@@ -62,6 +73,7 @@ describe('ReportSurface Action Links', () => {
       html: '<div>Parent toggled</div>',
       parameters: [],
     })
+    vi.mocked(sortReport).mockReset().mockResolvedValue(sortedResult)
   })
 
   it('calls Drillthrough session API and requests open-report sync', async () => {
@@ -145,5 +157,64 @@ describe('ReportSurface Action Links', () => {
       collapseParameters: true,
     })
     })
+  })
+
+  it('calls Sort session API and replaces HTML in the Viewer Session', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onBusyChange } = renderSurface({
+      html: `<div>
+        <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Region" data-ssrs-sort-direction="Ascending" data-ssrs-sort-clear="false">Sort Region</a>
+      </div>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Sort Region' }))
+
+    await waitFor(() => {
+      expect(sortReport).toHaveBeenCalledWith('session-1', 'Region', 'Ascending', false)
+    })
+    expect(onHtmlReplaced).toHaveBeenCalledWith(sortedResult, undefined)
+    expect(onBusyChange).toHaveBeenCalledWith(true)
+    expect(onBusyChange).toHaveBeenCalledWith(false)
+    expect(drillthroughReport).not.toHaveBeenCalled()
+  })
+
+  it('passes Descending and clear Sort attributes to the session API', async () => {
+    const user = userEvent.setup()
+    vi.mocked(sortReport).mockResolvedValueOnce({
+      ...sortedResult,
+      html: '<div>Sort cleared</div>',
+    })
+
+    // Clear links mirror ActionLinkRewriter: Clear=True keeps the URL SortDirection
+    // (typically Ascending) and sets data-ssrs-sort-clear="true".
+    const { onHtmlReplaced } = renderSurface({
+      html: `<div>
+        <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Col1" data-ssrs-sort-direction="Descending" data-ssrs-sort-clear="false">Desc</a>
+        <a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Col1" data-ssrs-sort-direction="Ascending" data-ssrs-sort-clear="true">Clear</a>
+      </div>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Desc' }))
+    await waitFor(() => {
+      expect(sortReport).toHaveBeenCalledWith('session-1', 'Col1', 'Descending', false)
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Clear' }))
+    await waitFor(() => {
+      expect(sortReport).toHaveBeenCalledWith('session-1', 'Col1', 'Ascending', true)
+    })
+    expect(onHtmlReplaced).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not double-submit Sort while busy', async () => {
+    const user = userEvent.setup()
+    renderSurface({
+      busy: true,
+      html: `<a href="#" data-ssrs-action="sort" data-ssrs-sort-item="Region" data-ssrs-sort-direction="Ascending" data-ssrs-sort-clear="false">Sort Region</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Sort Region' }))
+
+    expect(sortReport).not.toHaveBeenCalled()
   })
 })

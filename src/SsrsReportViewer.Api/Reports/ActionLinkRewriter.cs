@@ -156,11 +156,23 @@ public static partial class ActionLinkRewriter
 
     private static string RewriteSortAnchor(string href, string label)
     {
-        var decodedHref = href.Replace("&amp;", "&", StringComparison.Ordinal);
+        // Same separator decoding as Drillthrough: live HTML uses &amp;; SOAP may leave &amp;amp;.
+        var decodedHref = NormalizeQuerySeparators(href);
         var query = ExtractQuery(decodedHref);
-        var sortItem = FirstQueryValue(query, "rc:SortItem", "SortItem", "rc:SortId", "SortId");
-        var direction = FirstQueryValue(query, "rc:SortDirection", "SortDirection") ?? "Ascending";
-        var clearRaw = FirstQueryValue(query, "rc:Clear", "Clear");
+        // HTMLFragment=false emits rs:Command=Sort with rs:SortId (often percent-encoded as rs%3ASortId).
+        var sortItem = FirstQueryValue(
+            query,
+            "rc:SortItem",
+            "SortItem",
+            "rs:SortId",
+            "rc:SortId",
+            "SortId");
+        var direction = FirstQueryValue(
+            query,
+            "rs:SortDirection",
+            "rc:SortDirection",
+            "SortDirection") ?? "Ascending";
+        var clearRaw = FirstQueryValue(query, "rs:ClearSort", "rc:Clear", "Clear", "ClearSort");
         var clear = IsTruthy(clearRaw);
 
         if (string.IsNullOrEmpty(sortItem))
@@ -168,7 +180,64 @@ public static partial class ActionLinkRewriter
             return $"<a href=\"#\">{label}</a>";
         }
 
-        return SortAnchor(sortItem, direction, clear, label);
+        // Built-in renderer GIFs (e.g. 2022.1.0.0unsorted.gif) are not RenderStream ids — use SVG.
+        return SortAnchor(sortItem, direction, clear, SortIconLabel(label, direction, clear));
+    }
+
+    /// <summary>
+    /// Native Interactive Sort chrome: double-triangle (unsorted) or single chevron (active direction).
+    /// Replaces SSRS renderer resource GIFs that cannot be fetched via RenderStream.
+    /// </summary>
+    internal static string SortIconLabel(string label, string direction, bool clear)
+    {
+        var alt = "Unsorted";
+        var altMatch = SortIconAltRegex().Match(label);
+        if (altMatch.Success)
+        {
+            alt = altMatch.Groups[1].Value.Trim();
+        }
+        else if (!clear &&
+                 string.Equals(direction, "Descending", StringComparison.OrdinalIgnoreCase))
+        {
+            alt = "Sorted Descending";
+        }
+        else if (!clear &&
+                 string.Equals(direction, "Ascending", StringComparison.OrdinalIgnoreCase))
+        {
+            alt = "Sorted Ascending";
+        }
+
+        // Emit <img> like native RendererResources unsorted.gif (16×16) so header row height matches.
+        if (alt.Contains("Descending", StringComparison.OrdinalIgnoreCase))
+        {
+            return SortIconImg(
+                alt,
+                active: true,
+                """<circle cx="8" cy="8" r="7" fill="#fff" stroke="#333" stroke-width="1"/><path fill="#111" d="M4.5 5.5h7L8 11z"/>""");
+        }
+
+        if (alt.Contains("Ascending", StringComparison.OrdinalIgnoreCase) &&
+            !alt.Contains("Unsorted", StringComparison.OrdinalIgnoreCase))
+        {
+            return SortIconImg(
+                alt,
+                active: true,
+                """<circle cx="8" cy="8" r="7" fill="#fff" stroke="#333" stroke-width="1"/><path fill="#111" d="M4.5 10.5h7L8 5z"/>""");
+        }
+
+        return SortIconImg(
+            alt,
+            active: false,
+            """<path fill="#444" d="M3.5 6.5h9L8 2.5z"/><path fill="#444" d="M3.5 9.5h9L8 13.5z"/>""");
+    }
+
+    private static string SortIconImg(string alt, bool active, string svgContent)
+    {
+        var svg =
+            $"""<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">{svgContent}</svg>""";
+        var src = "data:image/svg+xml," + Uri.EscapeDataString(svg);
+        var cssClass = active ? "ssrs-sort-icon ssrs-sort-icon-active" : "ssrs-sort-icon";
+        return $"""<img class="{cssClass}" alt="{EscapeAttr(alt)}" title="{EscapeAttr(alt)}" width="16" height="16" border="0" src="{src}" />""";
     }
 
     private static string ExtractQuery(string href)
@@ -398,10 +467,16 @@ public static partial class ActionLinkRewriter
             .Replace("<", "&lt;", StringComparison.Ordinal);
 
     // Allow attributes before href (SSRS often emits tabindex=… before href=…).
+    // Matches rc:SortItem and rs:SortId (literal or percent-encoded %3A).
     [GeneratedRegex(
         """<a\b[^>]*?\bhref\s*=\s*"(?<href>[^"]*(?:SortItem|SortId)=[^"]*)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex SortAnchorRegex();
+
+    [GeneratedRegex(
+        @"\bALT\s*=\s*""(?<alt>[^""]*)""",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex SortIconAltRegex();
 
     [GeneratedRegex(
         """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",

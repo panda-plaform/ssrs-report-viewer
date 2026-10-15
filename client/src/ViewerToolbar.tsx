@@ -42,10 +42,17 @@ import {
 /** Percent zooms matching the native SSRS toolbar order (Page Width / Whole Page are out of scope — see ADR 0004). */
 const ZOOM_OPTIONS = [500, 200, 150, 100, 75, 50, 25, 10] as const
 
+/** Native SSRS Export labels and order (per-item hairlines in the menu chrome). */
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
-  { format: 'PDF', label: 'PDF' },
+  { format: 'WORDOPENXML', label: 'Word' },
   { format: 'EXCELOPENXML', label: 'Excel' },
-  { format: 'CSV', label: 'CSV' },
+  { format: 'PPTX', label: 'PowerPoint' },
+  { format: 'PDF', label: 'PDF' },
+  { format: 'ACCESSIBLEPDF', label: 'Accessible PDF' },
+  { format: 'TIFF', label: 'TIFF file' },
+  { format: 'MHTML', label: 'MHTML (web archive)' },
+  { format: 'CSV', label: 'CSV (comma delimited)' },
+  { format: 'XML', label: 'XML file with report data' },
 ]
 
 const PAGE_SIZE_LABELS: Record<PrintPageSize, string> = {
@@ -309,7 +316,11 @@ export function ViewerToolbar({
 
   return (
     <>
-    <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
+    <div
+      className={`viewer-toolbar no-print${exportOpen ? ' viewer-toolbar-export-open' : ''}`}
+      role="toolbar"
+      aria-label="Report Viewer toolbar"
+    >
       <div className="viewer-toolbar-group viewer-toolbar-page" role="group" aria-label="Report Page">
         <button
           type="button"

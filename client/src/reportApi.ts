@@ -185,7 +185,29 @@ export function sortReport(
   return postSessionAction(sessionId, 'sort', { sortItem, direction, clear })
 }
 
-export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
+/** Client Export format tokens (native menu order). ACCESSIBLEPDF / TIFF map server-side to DeviceInfo. */
+export type ExportFormat =
+  | 'WORDOPENXML'
+  | 'EXCELOPENXML'
+  | 'PPTX'
+  | 'PDF'
+  | 'ACCESSIBLEPDF'
+  | 'TIFF'
+  | 'MHTML'
+  | 'CSV'
+  | 'XML'
+
+const EXPORT_FALLBACK_NAMES: Record<ExportFormat, string> = {
+  WORDOPENXML: 'report.docx',
+  EXCELOPENXML: 'report.xlsx',
+  PPTX: 'report.pptx',
+  PDF: 'report.pdf',
+  ACCESSIBLEPDF: 'report.pdf',
+  TIFF: 'report.tiff',
+  MHTML: 'report.mhtml',
+  CSV: 'report.csv',
+  XML: 'report.xml',
+}
 
 function fileNameFromContentDisposition(header: string | null, fallback: string): string {
   if (!header) {
@@ -219,11 +241,9 @@ async function fetchExportBlob(
   await throwIfNotOk(response)
 
   const blob = await response.blob()
-  const fallback =
-    format === 'PDF' ? 'report.pdf' : format === 'EXCELOPENXML' ? 'report.xlsx' : 'report.csv'
   const fileName = fileNameFromContentDisposition(
     response.headers.get('Content-Disposition'),
-    fallback,
+    EXPORT_FALLBACK_NAMES[format],
   )
   return { blob, fileName }
 }

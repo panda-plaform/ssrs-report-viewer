@@ -54,9 +54,9 @@ Viewer Session interactions (serialized per session; Zoom via SSRS DeviceInfo re
 - `POST /api/sessions/{sessionId}/drillthrough` `{ reportPath, parameters[{ name, values }] }` → pushes the current Execution onto the Viewer Session back stack, loads the child report, returns session HTML with `canGoBack: true`
 - `POST /api/sessions/{sessionId}/back` → pops the back stack; restores the prior Execution when SSRS still holds it, otherwise reloads path + parameters (reload-fallback)
 
-Export (current Execution for a Viewer Session — the child after Drillthrough): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment. Optional query parameters for PDF layout: `pageSize=A4|A3|Letter|Legal` and `orientation=Portrait|Landscape` (PDF DeviceInfo; ignored for non-PDF formats).
+Export (current Execution for a Viewer Session — the child after Drillthrough): `GET /api/sessions/{sessionId}/export?format=WORDOPENXML|EXCELOPENXML|PPTX|PDF|ACCESSIBLEPDF|TIFF|MHTML|CSV|XML` → downloadable attachment. Menu labels match native SSRS (Word, Excel, PowerPoint, PDF, Accessible PDF, TIFF file, MHTML (web archive), CSV (comma delimited), XML file with report data). `ACCESSIBLEPDF` renders as PDF with AccessiblePDF DeviceInfo; `TIFF` renders as IMAGE with OutputFormat=TIFF. Optional query parameters for PDF layout: `pageSize=A4|A3|Letter|Legal` and `orientation=Portrait|Landscape` (PDF DeviceInfo; ignored for non-PDF formats and Accessible PDF).
 
-Print: Report Viewer toolbar opens a settings prompt (page size and orientation), fetches a printer-friendly PDF via Export with those layout parameters, then opens the browser print dialog on that PDF (no automatic download). Export menu PDF/Excel/CSV stays a direct download without that prompt.
+Print: Report Viewer toolbar opens a settings prompt (page size and orientation), fetches a printer-friendly PDF via Export with those layout parameters, then opens the browser print dialog on that PDF (no automatic download). Export menu formats stay a direct download without that prompt.
 
 ## Tests
 

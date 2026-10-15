@@ -440,13 +440,25 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         var normalized = format.Trim().ToUpperInvariant();
         var (prefix, mime) = normalized switch
         {
+            "WORDOPENXML" => (
+                "FAKE-DOCX:",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            "EXCELOPENXML" => (
+                "FAKE-XLSX:",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "PPTX" => (
+                "FAKE-PPTX:",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+            "PDF" when deviceInfo.AccessiblePdf => ("FAKE-ACCESSIBLE-PDF:", "application/pdf"),
             "PDF" => ("FAKE-PDF:", "application/pdf"),
-            "EXCELOPENXML" => ("FAKE-XLSX:", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "IMAGE" when string.Equals(deviceInfo.OutputFormat, "TIFF", StringComparison.OrdinalIgnoreCase) =>
+                ("FAKE-TIFF:", "image/tiff"),
+            "MHTML" => ("FAKE-MHTML:", "multipart/related"),
             "CSV" => ("FAKE-CSV:", "text/csv"),
+            "XML" => ("FAKE-XML:", "application/xml"),
             _ => throw new InvalidOperationException($"Unsupported Export format '{format}'."),
         };
 
-        _ = deviceInfo;
         var bytes = Encoding.UTF8.GetBytes(prefix + exec.Id);
         return new RenderResult(bytes, mime, StreamIds: [], PageCount: 1, CurrentPage: 1);
     }
@@ -492,7 +504,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
             throw new ArgumentException("sortItem is required.", nameof(sortItem));
         }
 
-        if (clear || direction == SortDirection.None)
+        // Clear = clear other sorts (implicit here with one ActiveSort); Direction=None removes sort.
+        if (direction == SortDirection.None)
         {
             exec.ActiveSort = null;
         }

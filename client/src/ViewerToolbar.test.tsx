@@ -212,21 +212,88 @@ describe('ViewerToolbar native chrome', () => {
     })
   })
 
-  it('calls downloadExport from the Export menu for PDF, Excel, and CSV', async () => {
+  it('lists native Export formats in native order', async () => {
     const user = userEvent.setup()
     renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    await user.click(screen.getByRole('menuitem', { name: 'PDF' }))
-    expect(downloadExport).toHaveBeenCalledWith('session-1', 'PDF')
+    const menu = screen.getByRole('menu', { name: 'Export formats' })
+    const labels = within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent)
+
+    expect(labels).toEqual([
+      'Word',
+      'Excel',
+      'PowerPoint',
+      'PDF',
+      'Accessible PDF',
+      'TIFF file',
+      'MHTML (web archive)',
+      'CSV (comma delimited)',
+      'XML file with report data',
+    ])
+  })
+
+  it('marks the toolbar so the Export menu can paint over the report', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(toolbar).not.toHaveClass('viewer-toolbar-export-open')
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Excel' }))
-    expect(downloadExport).toHaveBeenCalledWith('session-1', 'EXCELOPENXML')
+    expect(toolbar).toHaveClass('viewer-toolbar-export-open')
+    expect(screen.getByRole('menu', { name: 'Export formats' })).toBeInTheDocument()
+  })
+
+  it('renders Export formats as contiguous menuitems with native chrome', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    await user.click(screen.getByRole('menuitem', { name: 'CSV' }))
-    expect(downloadExport).toHaveBeenCalledWith('session-1', 'CSV')
+    const menu = screen.getByRole('menu', { name: 'Export formats' })
+
+    expect(within(menu).queryAllByRole('separator')).toHaveLength(0)
+    expect([...menu.children].every((el) => el.getAttribute('role') === 'menuitem')).toBe(true)
+  })
+
+  it('calls downloadExport from the Export menu for each native format', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    const cases: [string, string][] = [
+      ['Word', 'WORDOPENXML'],
+      ['Excel', 'EXCELOPENXML'],
+      ['PowerPoint', 'PPTX'],
+      ['PDF', 'PDF'],
+      ['Accessible PDF', 'ACCESSIBLEPDF'],
+      ['TIFF file', 'TIFF'],
+      ['MHTML (web archive)', 'MHTML'],
+      ['CSV (comma delimited)', 'CSV'],
+      ['XML file with report data', 'XML'],
+    ]
+
+    for (const [label, format] of cases) {
+      await user.click(screen.getByRole('button', { name: 'Export' }))
+      await user.click(screen.getByRole('menuitem', { name: label }))
+      expect(downloadExport).toHaveBeenCalledWith('session-1', format)
+    }
+  })
+
+  it('surfaces Export errors without losing the Viewer Session toolbar', async () => {
+    const user = userEvent.setup()
+    vi.mocked(downloadExport).mockRejectedValueOnce(new Error('Unsupported Export format'))
+    const { onError } = renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Word' }))
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'Unsupported Export format' }))
+    })
+    expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
   })
 
   it('opens a Print settings dialog without fetching or downloading a PDF', async () => {

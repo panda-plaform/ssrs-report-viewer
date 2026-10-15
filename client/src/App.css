@@ -606,6 +606,8 @@
 }
 
 .viewer-toolbar {
+  position: relative;
+  z-index: 5;
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
@@ -618,6 +620,11 @@
   border-bottom: 1px solid #c0c0c0;
   border-radius: 0;
   overflow-x: auto;
+}
+
+/* overflow-x: auto otherwise clips the Export menu; open state must paint over the report. */
+.viewer-toolbar.viewer-toolbar-export-open {
+  overflow: visible;
 }
 
 .shell-report .viewer-toolbar {
@@ -760,34 +767,22 @@
   min-width: 2.5rem;
 }
 
+.viewer-toolbar-export-trigger[aria-expanded='true'] {
+  background: #e8e8e8;
+}
+
 .viewer-toolbar-menu {
   position: absolute;
-  top: calc(100% + 1px);
+  top: 100%;
   left: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  min-width: 7rem;
-  padding: 0.15rem 0;
+  min-width: 11rem;
+  padding: 0;
   background: #fff;
-  border: 1px solid #aaa;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-}
-
-.viewer-toolbar-menu button {
-  display: block;
-  width: 100%;
-  padding: 0.35rem 0.75rem;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-}
-
-.viewer-toolbar-menu button:hover:not(:disabled),
-.viewer-toolbar-menu button:focus-visible {
-  background: #e8f0f8;
+  border: 1px solid #c0c0c0;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.12);
 }
 
 .viewer-toolbar button {
@@ -797,6 +792,36 @@
   cursor: pointer;
   font: inherit;
   line-height: 1;
+}
+
+/* After the toolbar button reset so Export items keep native padding + indent. */
+.viewer-toolbar .viewer-toolbar-menu button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.65rem 1.25rem 0.65rem 1.75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #000;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+/* Native SSRS Export menu: hairline between every format. */
+.viewer-toolbar .viewer-toolbar-menu button + button {
+  border-top: 1px solid #e0e0e0;
+}
+
+.viewer-toolbar .viewer-toolbar-menu button:hover:not(:disabled),
+.viewer-toolbar .viewer-toolbar-menu button:focus-visible {
+  background: #e8e8e8;
+  outline: none;
 }
 
 .viewer-toolbar-icon {
@@ -930,6 +955,8 @@
 }
 
 .report-surface {
+  position: relative;
+  z-index: 0;
   margin-top: 0;
   min-width: 0;
   min-height: 0;
@@ -967,6 +994,44 @@
   padding: 0;
   border: 0;
   background: #fff;
+  /*
+   * SSRS HTML4.0 cells inherit font for &nbsp; struts beside sort GIFs.
+   * App chrome is 16px; that inflated header rows above Report Manager (~22px).
+   * Classes like .a34 still set their own 8pt where needed.
+   */
+  font-family: Tahoma, "Segoe UI", sans-serif;
+  font-size: 8pt;
+  line-height: normal;
+}
+
+/*
+ * Interactive Sort chrome — Report Manager pins the icon to the far right of the
+ * header cell. Native .r18 is display:inline-table (shrink-wrap); stretch only that
+ * nested table so the label stays centered in the remaining space. Never match the
+ * outer tablix (that broke body icon+text columns).
+ */
+.report-html table.r18:has(a[data-ssrs-action='sort']) {
+  width: 100%;
+}
+
+.report-html table.r18:has(a[data-ssrs-action='sort']) > tr > td:has(> a[data-ssrs-action='sort']),
+.report-html table.r18:has(a[data-ssrs-action='sort']) > tbody > tr > td:has(> a[data-ssrs-action='sort']) {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.report-html a[data-ssrs-action='sort'] {
+  text-decoration: none;
+}
+
+.report-html img.ssrs-sort-icon {
+  display: inline;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  vertical-align: top;
 }
 
 /* Print: browser HTML print of the report surface (PDF Export remains high-fidelity). */

@@ -2,6 +2,12 @@
   box-sizing: border-box;
 }
 
+/*
+ * Report Manager / ReportViewer also use border-box on report HTML.
+ * Keep the global reset so header HEIGHT (e.g. 5.79mm) matches native
+ * ~22px chrome; content-box made our headers taller than Report Manager.
+ */
+
 body {
   margin: 0;
   background: #fafafa;
