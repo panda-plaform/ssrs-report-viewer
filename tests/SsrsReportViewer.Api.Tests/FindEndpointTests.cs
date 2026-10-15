@@ -45,6 +45,11 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
         Assert.Equal(3, body.PageInfo.PageCount);
         Assert.Contains("needle", body.Html, StringComparison.Ordinal);
         Assert.Contains("Page two", body.Html, StringComparison.Ordinal);
+        Assert.Equal("needle", _factory.Fake.LastHtmlDeviceInfo?.FindString);
+        Assert.Contains(
+            FakeSsrsAdapter.FindHighlightOpenTag + "needle" + FakeSsrsAdapter.FindHighlightCloseTag,
+            body.Html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,6 +86,11 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
         Assert.True(nextBody.Found);
         Assert.Equal(3, nextBody.PageInfo.CurrentPage);
         Assert.Contains("second hit", nextBody.Html, StringComparison.Ordinal);
+        Assert.Equal("needle", _factory.Fake.LastHtmlDeviceInfo?.FindString);
+        Assert.Contains(
+            FakeSsrsAdapter.FindHighlightOpenTag + "needle" + FakeSsrsAdapter.FindHighlightCloseTag,
+            nextBody.Html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -108,6 +118,11 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
         Assert.False(body.Found);
         Assert.Equal(1, body.PageInfo.CurrentPage);
         Assert.Contains("alpha", body.Html, StringComparison.Ordinal);
+        Assert.True(string.IsNullOrEmpty(_factory.Fake.LastHtmlDeviceInfo?.FindString));
+        Assert.DoesNotContain(
+            FakeSsrsAdapter.FindHighlightOpenTag,
+            body.Html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
