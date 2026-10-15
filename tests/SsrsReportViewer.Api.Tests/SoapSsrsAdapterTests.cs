@@ -231,6 +231,63 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
+    public async Task GetParameters_parses_DefaultValues_Value_elements_from_ReportService2010()
+    {
+        // ItemParameter.DefaultValues is [XmlArrayItem("Value")], not Serialization Arrays <string>.
+        // Mis-parsing left defaults empty so the viewer forced NULL on nullable DateTime params.
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <GetItemParametersResponse xmlns="http://schemas.microsoft.com/sqlserver/reporting/2010/03/01/ReportServer">
+                  <Parameters>
+                    <ItemParameter>
+                      <Name>StartDate</Name>
+                      <ParameterTypeName>DateTime</ParameterTypeName>
+                      <Nullable>true</Nullable>
+                      <AllowBlank>false</AllowBlank>
+                      <MultiValue>false</MultiValue>
+                      <PromptUser>true</PromptUser>
+                      <Prompt>Start Date</Prompt>
+                      <DefaultValues>
+                        <Value>2026-10-14T22:25:13</Value>
+                      </DefaultValues>
+                      <Dependencies />
+                    </ItemParameter>
+                    <ItemParameter>
+                      <Name>EndDate</Name>
+                      <ParameterTypeName>DateTime</ParameterTypeName>
+                      <Nullable>true</Nullable>
+                      <AllowBlank>false</AllowBlank>
+                      <MultiValue>false</MultiValue>
+                      <PromptUser>true</PromptUser>
+                      <Prompt>End Date</Prompt>
+                      <DefaultValues />
+                      <Dependencies>
+                        <Value>StartDate</Value>
+                      </Dependencies>
+                    </ItemParameter>
+                  </Parameters>
+                </GetItemParametersResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        using var adapter = CreateAdapter(soap);
+        var parameters = await adapter.GetParametersAsync(
+            "/Example Reports/Execution Log",
+            forRendering: true);
+
+        var start = Assert.Single(parameters, p => p.Name == "StartDate");
+        Assert.Equal(["2026-10-14T22:25:13"], start.DefaultValues);
+        Assert.True(start.Nullable);
+
+        var end = Assert.Single(parameters, p => p.Name == "EndDate");
+        Assert.Empty(end.DefaultValues);
+        Assert.Equal(["StartDate"], end.Dependencies);
+    }
+
+    [Fact]
     public async Task ListChildren_maps_item_not_found_fault_to_CatalogPathNotFoundException()
     {
         const string soap = """
