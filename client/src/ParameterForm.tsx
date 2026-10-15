@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   mergeCascadedNullChecked,
   mergeCascadedValues,
@@ -26,6 +26,8 @@ type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 type Props = {
   reportPath: string
   executionSeed?: ExecutionParameterSeed | null
+  busy?: boolean
+  onBusyChange?: (busy: boolean) => void
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onReturnToCatalog?: () => void
@@ -55,6 +57,8 @@ function dependencyFingerprint(
 export function ParameterForm({
   reportPath,
   executionSeed = null,
+  busy = false,
+  onBusyChange,
   onViewed,
   onClearSurface,
   onReturnToCatalog,
@@ -65,6 +69,7 @@ export function ParameterForm({
   const [nullChecked, setNullChecked] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const formBusy = busy || submitting
   const skipCascadeRef = useRef(true)
   const valuesRef = useRef(values)
   const nullCheckedRef = useRef(nullChecked)
@@ -194,7 +199,12 @@ export function ParameterForm({
   }
 
   async function handleViewReport() {
+    if (formBusy) {
+      return
+    }
+
     setSubmitting(true)
+    onBusyChange?.(true)
     setError(null)
 
     const submissions = toParameterSubmissions(parameters, values, nullChecked)
@@ -207,6 +217,7 @@ export function ParameterForm({
       setError(err instanceof Error ? err.message : 'View Report failed')
     } finally {
       setSubmitting(false)
+      onBusyChange?.(false)
     }
   }
 
@@ -236,7 +247,14 @@ export function ParameterForm({
       {loadState === 'ok' && (
         <>
           {parameters.length === 0 ? (
-            <p className="parameters-status">This Report has no parameters.</p>
+            <div className="parameters-strip">
+              <p className="parameters-status">This Report has no parameters.</p>
+              <div className="parameters-actions">
+                <button type="button" disabled={formBusy} onClick={() => void handleViewReport()}>
+                  {submitting ? 'Viewing…' : 'View Report'}
+                </button>
+              </div>
+            </div>
           ) : (
             <form
               className="parameters-form"
@@ -251,19 +269,19 @@ export function ParameterForm({
                   parameter={parameter}
                   values={values[parameter.name] ?? []}
                   isNull={Boolean(nullChecked[parameter.name])}
+                  disabled={formBusy}
                   onNullChange={(checked) => setParameterNull(parameter.name, checked)}
                   onSingleChange={(value) => setSingleValue(parameter.name, value)}
                   onMultiChange={(next) => setMultiValues(parameter.name, next)}
                 />
               ))}
+              <div className="parameters-actions">
+                <button type="submit" disabled={formBusy}>
+                  {submitting ? 'Viewing…' : 'View Report'}
+                </button>
+              </div>
             </form>
           )}
-
-          <div className="parameters-actions">
-            <button type="button" disabled={submitting} onClick={() => void handleViewReport()}>
-              {submitting ? 'Viewing…' : 'View Report'}
-            </button>
-          </div>
 
           {error && (
             <p className="parameters-status parameters-error" role="alert">
@@ -280,6 +298,7 @@ type FieldProps = {
   parameter: ReportParameter
   values: string[]
   isNull: boolean
+  disabled?: boolean
   onNullChange: (checked: boolean) => void
   onSingleChange: (value: string) => void
   onMultiChange: (values: string[]) => void
@@ -289,13 +308,78 @@ function ParameterField({
   parameter,
   values,
   isNull,
+  disabled = false,
   onNullChange,
   onSingleChange,
   onMultiChange,
 }: FieldProps) {
   const label = parameter.prompt || parameter.name
   const dataType = parameter.dataType.toLowerCase()
-  const valueDisabled = isNull
+  const valueDisabled = disabled || isNull
+
+  let control: ReactNode
+  if (parameter.multiValue) {
+    control = (
+      <MultiValueDropdown
+        id={`param-${parameter.name}`}
+        label={label}
+        validValues={parameter.validValues}
+        values={values}
+        disabled={valueDisabled}
+        onChange={onMultiChange}
+      />
+    )
+  } else if (dataType === 'boolean') {
+    control = (
+      <select
+        id={`param-${parameter.name}`}
+        value={values[0] ?? ''}
+        disabled={valueDisabled}
+        onChange={(event) => onSingleChange(event.target.value)}
+      >
+        <option value="">Select…</option>
+        <option value="true">True</option>
+        <option value="false">False</option>
+      </select>
+    )
+  } else if (dataType === 'datetime') {
+    control = (
+      <input
+        id={`param-${parameter.name}`}
+        className="parameter-datetime"
+        type="date"
+        value={toDateInputValue(values[0] ?? '')}
+        disabled={valueDisabled}
+        onChange={(event) => onSingleChange(event.target.value)}
+      />
+    )
+  } else if (parameter.validValues.length > 0) {
+    control = (
+      <select
+        id={`param-${parameter.name}`}
+        value={values[0] ?? ''}
+        disabled={valueDisabled}
+        onChange={(event) => onSingleChange(event.target.value)}
+      >
+        <option value="">Select…</option>
+        {parameter.validValues.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )
+  } else {
+    control = (
+      <input
+        id={`param-${parameter.name}`}
+        type="text"
+        value={values[0] ?? ''}
+        disabled={valueDisabled}
+        onChange={(event) => onSingleChange(event.target.value)}
+      />
+    )
+  }
 
   return (
     <div className="parameter-field">
@@ -304,68 +388,21 @@ function ParameterField({
         {parameter.required ? ' *' : ''}
       </label>
 
-      {parameter.multiValue ? (
-        <MultiValueDropdown
-          id={`param-${parameter.name}`}
-          label={label}
-          validValues={parameter.validValues}
-          values={values}
-          disabled={valueDisabled}
-          onChange={onMultiChange}
-        />
-      ) : dataType === 'boolean' ? (
-        <select
-          id={`param-${parameter.name}`}
-          value={values[0] ?? ''}
-          disabled={valueDisabled}
-          onChange={(event) => onSingleChange(event.target.value)}
-        >
-          <option value="">Select…</option>
-          <option value="true">True</option>
-          <option value="false">False</option>
-        </select>
-      ) : dataType === 'datetime' ? (
-        <input
-          id={`param-${parameter.name}`}
-          type="date"
-          value={toDateInputValue(values[0] ?? '')}
-          disabled={valueDisabled}
-          onChange={(event) => onSingleChange(event.target.value)}
-        />
-      ) : parameter.validValues.length > 0 ? (
-        <select
-          id={`param-${parameter.name}`}
-          value={values[0] ?? ''}
-          disabled={valueDisabled}
-          onChange={(event) => onSingleChange(event.target.value)}
-        >
-          <option value="">Select…</option>
-          {parameter.validValues.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          id={`param-${parameter.name}`}
-          type="text"
-          value={values[0] ?? ''}
-          disabled={valueDisabled}
-          onChange={(event) => onSingleChange(event.target.value)}
-        />
-      )}
+      <div className="parameter-control">{control}</div>
 
-      {parameter.nullable && (
-        <label className="parameter-null">
-          <input
-            type="checkbox"
-            checked={isNull}
-            onChange={(event) => onNullChange(event.target.checked)}
-          />
-          NULL
-        </label>
-      )}
+      <div className="parameter-null-row">
+        {parameter.nullable ? (
+          <label className="parameter-null">
+            <input
+              type="checkbox"
+              checked={isNull}
+              disabled={disabled}
+              onChange={(event) => onNullChange(event.target.checked)}
+            />
+            NULL
+          </label>
+        ) : null}
+      </div>
     </div>
   )
 }

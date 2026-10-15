@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
-import { FindToolbar } from './FindToolbar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
@@ -37,6 +36,8 @@ function App() {
   const [surfaceError, setSurfaceError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [executionSeed, setExecutionSeed] = useState<ExecutionParameterSeed | null>(null)
+  const [parametersExpanded, setParametersExpanded] = useState(true)
+  const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -76,6 +77,11 @@ function App() {
     setSurfaceError(null)
     setBusy(false)
     setExecutionSeed(null)
+    setParametersExpanded(true)
+    setMaximized(false)
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined)
+    }
   }, [])
 
   const syncFromLocation = useCallback(() => {
@@ -161,6 +167,11 @@ function App() {
     if (isViewerSessionExpiredError(error)) {
       setRender(null)
       setBusy(false)
+      setParametersExpanded(true)
+      setMaximized(false)
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => undefined)
+      }
       setSurfaceError(error.message)
       return
     }
@@ -194,16 +205,43 @@ function App() {
   )
 
   const mode = viewerModeFromReportPath(selectedReportPath)
+  const reportMode = mode === 'report'
+  const hasSession = Boolean(render?.sessionId)
+  const showReportViewBar = !maximized
+  const showParameterForm = (!hasSession || parametersExpanded) && !maximized
+  const documentMapNodes = render?.documentMap
+  const hasDocumentMap =
+    !maximized && Array.isArray(documentMapNodes) && documentMapNodes.length > 0
+
+  const shellClass = [
+    reportMode ? 'shell shell-report' : 'shell',
+    maximized ? 'shell-maximized' : '',
+    hasSession ? 'shell-has-session' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const layoutClass = [
+    'viewer-layout',
+    hasDocumentMap ? 'viewer-layout-with-map' : 'viewer-layout-report-only',
+  ].join(' ')
 
   return (
-    <main className="shell">
-      <h1>SSRS Report Viewer</h1>
-      <p className="lede no-print">
+    <main className={shellClass}>
+      <h1 className={reportMode ? 'visually-hidden no-print' : undefined}>SSRS Report Viewer</h1>
+      <p className={reportMode ? 'lede visually-hidden no-print' : 'lede no-print'}>
         Browse the Catalog, enter Report Parameters, View Report, then use Zoom, Report Page, Refresh,
         Find, Drilldown, Sort, Drillthrough, Back, Document Map, Bookmark Action Links, Export, and
         Print.
       </p>
-      <p className={`status status-${apiStatus} no-print`} role="status">
+      <p
+        className={
+          reportMode
+            ? `status status-${apiStatus} visually-hidden no-print`
+            : `status status-${apiStatus} no-print`
+        }
+        role="status"
+      >
         {detail}
       </p>
       {apiStatus === 'ok' && (
@@ -216,61 +254,81 @@ function App() {
               />
             </div>
           )}
-          {mode === 'report' && selectedReportPath && (
+          {reportMode && selectedReportPath && (
             <div className="no-print report-view">
-              <div className="report-view-bar">
-                <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
-                  Return to Catalog
-                </button>
-                <p className="report-view-path" aria-label="Open Report path">
-                  {selectedReportPath}
-                </p>
-              </div>
-              <ParameterForm
-                reportPath={selectedReportPath}
-                executionSeed={executionSeed}
-                onViewed={handleViewed}
-                onClearSurface={clearSurface}
-                onReturnToCatalog={handleReturnToCatalog}
-              />
-            </div>
-          )}
-          {render?.sessionId && (
-            <div className="no-print">
-              <ViewerToolbar
-                sessionId={render.sessionId}
-                pageInfo={render.pageInfo}
-                zoomPercent={render.zoomPercent}
-                busy={busy}
-                onUpdated={setRender}
-                onError={handleSurfaceError}
-                onBusyChange={setBusy}
-              />
-              <FindToolbar
-                sessionId={render.sessionId}
-                busy={busy}
-                onResult={handleFindResult}
-                onError={handleSurfaceError}
-                onBusyChange={setBusy}
-              />
+              {showReportViewBar && (
+                <div className="report-view-bar">
+                  <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
+                    Return to Catalog
+                  </button>
+                  <p className="report-view-path" aria-label="Open Report path">
+                    {selectedReportPath}
+                  </p>
+                  {hasSession &&
+                    (parametersExpanded ? (
+                      <button
+                        type="button"
+                        className="hide-parameters"
+                        onClick={() => setParametersExpanded(false)}
+                      >
+                        Hide parameters
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="show-parameters"
+                        onClick={() => setParametersExpanded(true)}
+                      >
+                        Show parameters
+                      </button>
+                    ))}
+                </div>
+              )}
+              {showParameterForm && (
+                <ParameterForm
+                  reportPath={selectedReportPath}
+                  executionSeed={executionSeed}
+                  busy={busy}
+                  onBusyChange={setBusy}
+                  onViewed={handleViewed}
+                  onClearSurface={clearSurface}
+                  onReturnToCatalog={handleReturnToCatalog}
+                />
+              )}
             </div>
           )}
           {render ? (
-            <div className="viewer-layout">
-              <div className="no-print">
-                <DocumentMapSidebar
-                  nodes={render.documentMap}
+            <div className={layoutClass} data-has-document-map={hasDocumentMap ? 'true' : 'false'}>
+              {render.sessionId && (
+                <ViewerToolbar
+                  sessionId={render.sessionId}
+                  pageInfo={render.pageInfo}
+                  zoomPercent={render.zoomPercent}
                   busy={busy}
-                  onNavigate={(id) => {
-                    void handleDocumentMapNavigate(id)
-                  }}
+                  canGoBack={render.canGoBack}
+                  maximized={maximized}
+                  onMaximizedChange={setMaximized}
+                  onUpdated={handleHtmlReplaced}
+                  onFindResult={handleFindResult}
+                  onError={handleSurfaceError}
+                  onBusyChange={setBusy}
                 />
-              </div>
+              )}
+              {hasDocumentMap && (
+                <div className="no-print viewer-layout-map">
+                  <DocumentMapSidebar
+                    nodes={documentMapNodes}
+                    busy={busy}
+                    onNavigate={(id) => {
+                      void handleDocumentMapNavigate(id)
+                    }}
+                  />
+                </div>
+              )}
               <ReportSurface
                 html={render.html}
                 sessionId={render.sessionId}
                 pageInfo={render.pageInfo}
-                canGoBack={render.canGoBack}
                 busy={busy}
                 error={surfaceError}
                 onHtmlReplaced={handleHtmlReplaced}
@@ -278,12 +336,11 @@ function App() {
                 onBusyChange={setBusy}
               />
             </div>
-          ) : mode === 'report' ? (
+          ) : reportMode ? (
             <ReportSurface
               html={null}
               sessionId={null}
               pageInfo={null}
-              canGoBack={false}
               busy={busy}
               error={surfaceError}
               onHtmlReplaced={handleHtmlReplaced}

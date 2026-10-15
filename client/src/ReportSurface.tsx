@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
   drillthroughReport,
-  goBack,
   navigateBookmark,
   sortReport,
   toggleDrilldown,
@@ -20,7 +19,6 @@ type Props = {
   html: string | null
   sessionId: string | null
   pageInfo: PageInfo | null
-  canGoBack: boolean
   busy: boolean
   error: string | null
   onHtmlReplaced: (result: RenderResponse, options?: HtmlReplacedOptions) => void
@@ -30,13 +28,13 @@ type Props = {
 
 /**
  * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
- * Drilldown / Drillthrough / Bookmark to session APIs; Back when stack non-empty; External Links in a new tab.
+ * Drilldown / Drillthrough / Bookmark to session APIs; External Links in a new tab.
+ * Back lives on the Viewer Toolbar (native chrome).
  */
 export function ReportSurface({
   html,
   sessionId,
   pageInfo,
-  canGoBack,
   busy,
   error,
   onHtmlReplaced,
@@ -204,56 +202,21 @@ export function ReportSurface({
     }
   }, [sessionId, busy, onHtmlReplaced, onError, onBusyChange])
 
-  async function handleBack() {
-    if (!sessionId || busy || !canGoBack) {
-      return
-    }
-
-    onBusyChange(true)
-    try {
-      const result = await goBack(sessionId)
-      onHtmlReplaced(result, { syncOpenReport: true })
-    } catch (err) {
-      onError(err instanceof Error ? err : 'Back failed')
-    } finally {
-      onBusyChange(false)
-    }
-  }
-
   if (!html && !error) {
     return null
   }
 
   return (
     <section className="report-surface" aria-labelledby="report-surface-heading">
-      <header className="report-surface-header no-print">
-        <h2 id="report-surface-heading">Report</h2>
-        {pageInfo && (
-          <p className="report-page" aria-label="Report Page">
-            Page {pageInfo.currentPage} of {pageInfo.pageCount}
-          </p>
-        )}
-        {sessionId && (
-          <p className="report-session" aria-label="Viewer Session id">
-            Viewer Session {sessionId}
-          </p>
-        )}
-        {canGoBack && (
-          <button
-            type="button"
-            className="report-back"
-            onClick={() => void handleBack()}
-            disabled={busy}
-          >
-            Back
-          </button>
-        )}
-        {busy && (
-          <p className="report-busy" role="status">
-            Updating…
-          </p>
-        )}
-      </header>
+      <h2 id="report-surface-heading" className="visually-hidden">
+        Report
+        {pageInfo ? ` — Page ${pageInfo.currentPage} of ${pageInfo.pageCount}` : ''}
+      </h2>
+      {busy && (
+        <p className="report-busy no-print" role="status">
+          Updating…
+        </p>
+      )}
       {error && (
         <p className="report-surface-error no-print" role="alert">
           {error}
