@@ -1,3 +1,11 @@
+import type { PrintPdfSettings } from './printPdfSettings'
+
+export type {
+  PrintOrientation,
+  PrintPageSize,
+  PrintPdfSettings,
+} from './printPdfSettings'
+
 export type ParameterValidValue = {
   label: string
   value: string
@@ -178,12 +186,6 @@ export function sortReport(
 }
 
 export type ExportFormat = 'PDF' | 'EXCELOPENXML' | 'CSV'
-
-/** Page layout for printer-friendly PDF (Print settings → Export DeviceInfo). */
-export type PrintPdfSettings = {
-  pageSize: 'A4' | 'A3' | 'Letter' | 'Legal'
-  orientation: 'Portrait' | 'Landscape'
-}
 
 function fileNameFromContentDisposition(header: string | null, fallback: string): string {
   if (!header) {

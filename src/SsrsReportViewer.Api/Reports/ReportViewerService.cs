@@ -1,13 +1,12 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Reports;
 
-public sealed partial class ReportViewerService
+public sealed class ReportViewerService
 {
     private readonly ISsrsAdapter _ssrs;
     private readonly IViewerSessionStore _sessions;
@@ -506,26 +505,22 @@ public sealed partial class ReportViewerService
 
     private static PdfPageLayout ResolvePdfPageLayout(string? pageSize, string? orientation)
     {
-        var sizeKey = string.IsNullOrWhiteSpace(pageSize) ? "A4" : pageSize.Trim();
-        if (!PdfPageSizes.TryGetValue(sizeKey, out var size))
+        var sizeKey = string.IsNullOrWhiteSpace(pageSize)
+            ? PdfPrintSettings.DefaultPageSize
+            : pageSize.Trim();
+        if (!PdfPrintSettings.PageSizes.TryGetValue(sizeKey, out var size))
         {
             throw new InvalidViewerInteractionException($"Unknown page size '{pageSize}'.");
         }
 
-        var isLandscape = string.Equals(orientation?.Trim(), "Landscape", StringComparison.OrdinalIgnoreCase);
+        var isLandscape = string.Equals(
+            orientation?.Trim(),
+            PdfPrintSettings.Landscape,
+            StringComparison.OrdinalIgnoreCase);
         return isLandscape
             ? new PdfPageLayout(size.Height, size.Width)
             : new PdfPageLayout(size.Width, size.Height);
     }
-
-    private static readonly Dictionary<string, (string Width, string Height)> PdfPageSizes =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["A4"] = ("8.27in", "11.69in"),
-            ["A3"] = ("11.69in", "16.54in"),
-            ["Letter"] = ("8.5in", "11in"),
-            ["Legal"] = ("8.5in", "14in"),
-        };
 
     private sealed record PdfPageLayout(string PageWidth, string PageHeight);
 
@@ -581,8 +576,8 @@ public sealed partial class ReportViewerService
     {
         var html = Encoding.UTF8.GetString(render.Content);
         html = RewriteResourcePlaceholders(html, resourceRoot, render.StreamIds);
-        // Rewrite ReportServer-hosted img URLs before ActionLinkRewriter strips reportserver hosts.
-        html = RewriteReportServerResourceUrls(html, resourceRoot);
+        // Rewrite ReportServer-hosted resource URLs before ActionLinkRewriter strips reportserver hosts.
+        html = ResourceUrlRewriter.Rewrite(html, resourceRoot);
         if (!string.IsNullOrEmpty(replacementRoot))
         {
             html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
@@ -607,53 +602,6 @@ public sealed partial class ReportViewerService
 
         return rewritten;
     }
-
-    /// <summary>
-    /// Maps ReportServer-shaped <c>img src</c> URLs (RenderStream / StreamId query shapes) to
-    /// Viewer Session resource endpoints so host stripping cannot empty them (ADR-0003).
-    /// </summary>
-    private static string RewriteReportServerResourceUrls(string html, string resourceRoot)
-    {
-        return ImgSrcRegex().Replace(html, match =>
-        {
-            var src = match.Groups["src"].Value;
-            var decoded = src.Replace("&amp;", "&", StringComparison.Ordinal);
-            if (!decoded.Contains("reportserver", StringComparison.OrdinalIgnoreCase))
-            {
-                return match.Value;
-            }
-
-            var streamId = ExtractStreamIdFromResourceUrl(decoded);
-            if (string.IsNullOrEmpty(streamId))
-            {
-                return match.Value;
-            }
-
-            var sessionUrl = resourceRoot + Uri.EscapeDataString(streamId);
-            return match.Value.Replace(src, sessionUrl, StringComparison.Ordinal);
-        });
-    }
-
-    private static string? ExtractStreamIdFromResourceUrl(string url)
-    {
-        var match = StreamIdQueryRegex().Match(url);
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        return Uri.UnescapeDataString(match.Groups["id"].Value);
-    }
-
-    [GeneratedRegex(
-        """<img\b[^>]*?\bsrc\s*=\s*"(?<src>[^"]*)"[^>]*>""",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex ImgSrcRegex();
-
-    [GeneratedRegex(
-        """(?:^|[?&])(?:rc:|rs:)?StreamI[dD]=(?<id>[^&]*)""",
-        RegexOptions.IgnoreCase)]
-    private static partial Regex StreamIdQueryRegex();
 
     private IReadOnlyList<ParameterValue> PrepareParametersForSsrs(
         IReadOnlyList<ReportParameterDefinition> definitions,

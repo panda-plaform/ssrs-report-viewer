@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -225,6 +225,70 @@ describe('ViewerToolbar native chrome', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
     expect(downloadExport).not.toHaveBeenCalled()
+  })
+
+  it('moves focus into the Print dialog when opened', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    const dialog = screen.getByRole('dialog', { name: 'Print' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  })
+
+  it('shows Printing… and disables Print dialog controls while PDF is in flight', async () => {
+    let resolveExport!: () => void
+    vi.mocked(downloadExport).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveExport = () => resolve()
+        }),
+    )
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    const dialog = screen.getByRole('dialog', { name: 'Print' })
+    await user.click(within(dialog).getByRole('button', { name: 'Print' }))
+
+    expect(within(dialog).getByRole('button', { name: 'Printing…' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDisabled()
+    expect(within(dialog).getByRole('combobox', { name: 'Page size' })).toBeDisabled()
+    expect(within(dialog).getByRole('combobox', { name: 'Page orientation' })).toBeDisabled()
+    expect(dialog).toHaveAttribute('aria-busy', 'true')
+
+    resolveExport()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('dismisses Print dialog with Escape while print is in flight without starting another PDF', async () => {
+    let resolveExport!: () => void
+    vi.mocked(downloadExport).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveExport = () => resolve()
+        }),
+    )
+    const user = userEvent.setup()
+    renderToolbar()
+
+    await user.click(screen.getByRole('button', { name: 'Print' }))
+    const dialog = screen.getByRole('dialog', { name: 'Print' })
+    await user.click(within(dialog).getByRole('button', { name: 'Print' }))
+    expect(within(dialog).getByRole('button', { name: 'Printing…' })).toBeDisabled()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(downloadExport).toHaveBeenCalledTimes(1)
+
+    resolveExport()
+    await waitFor(() => {
+      expect(downloadExport).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
   })
 
   it('confirms Print by downloading a PDF with chosen page size and orientation', async () => {
