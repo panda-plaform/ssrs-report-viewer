@@ -207,8 +207,8 @@ function App() {
   const mode = viewerModeFromReportPath(selectedReportPath)
   const reportMode = mode === 'report'
   const hasSession = Boolean(render?.sessionId)
-  const showParameterChrome = (!hasSession || parametersExpanded) && !maximized
-  const showParametersToggle = hasSession && !parametersExpanded && !maximized
+  const showReportViewBar = !maximized
+  const showParameterForm = (!hasSession || parametersExpanded) && !maximized
   const documentMapNodes = render?.documentMap
   const hasDocumentMap =
     !maximized && Array.isArray(documentMapNodes) && documentMapNodes.length > 0
@@ -256,16 +256,16 @@ function App() {
           )}
           {reportMode && selectedReportPath && (
             <div className="no-print report-view">
-              {showParameterChrome && (
-                <>
-                  <div className="report-view-bar">
-                    <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
-                      Return to Catalog
-                    </button>
-                    <p className="report-view-path" aria-label="Open Report path">
-                      {selectedReportPath}
-                    </p>
-                    {hasSession && (
+              {showReportViewBar && (
+                <div className="report-view-bar">
+                  <button type="button" className="return-to-catalog" onClick={handleReturnToCatalog}>
+                    Return to Catalog
+                  </button>
+                  <p className="report-view-path" aria-label="Open Report path">
+                    {selectedReportPath}
+                  </p>
+                  {hasSession &&
+                    (parametersExpanded ? (
                       <button
                         type="button"
                         className="hide-parameters"
@@ -273,29 +273,27 @@ function App() {
                       >
                         Hide parameters
                       </button>
-                    )}
-                  </div>
-                  <ParameterForm
-                    reportPath={selectedReportPath}
-                    executionSeed={executionSeed}
-                    busy={busy}
-                    onBusyChange={setBusy}
-                    onViewed={handleViewed}
-                    onClearSurface={clearSurface}
-                    onReturnToCatalog={handleReturnToCatalog}
-                  />
-                </>
-              )}
-              {showParametersToggle && (
-                <div className="show-parameters-bar">
-                  <button
-                    type="button"
-                    className="show-parameters"
-                    onClick={() => setParametersExpanded(true)}
-                  >
-                    Show parameters
-                  </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="show-parameters"
+                        onClick={() => setParametersExpanded(true)}
+                      >
+                        Show parameters
+                      </button>
+                    ))}
                 </div>
+              )}
+              {showParameterForm && (
+                <ParameterForm
+                  reportPath={selectedReportPath}
+                  executionSeed={executionSeed}
+                  busy={busy}
+                  onBusyChange={setBusy}
+                  onViewed={handleViewed}
+                  onClearSurface={clearSurface}
+                  onReturnToCatalog={handleReturnToCatalog}
+                />
               )}
             </div>
           )}

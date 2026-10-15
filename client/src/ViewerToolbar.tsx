@@ -29,7 +29,8 @@ import {
   IconRestore,
 } from './toolbarIcons'
 
-const ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200] as const
+/** Percent zooms matching the native SSRS toolbar order (Page Width / Whole Page are out of scope — see ADR 0004). */
+const ZOOM_OPTIONS = [500, 200, 150, 100, 75, 50, 25, 10] as const
 
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'PDF', label: 'PDF' },

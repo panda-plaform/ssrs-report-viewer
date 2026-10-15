@@ -108,6 +108,7 @@ describe('Report Viewer chrome composition', () => {
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
     const layout = document.querySelector('.viewer-layout')
     expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Reports/Demo')
     expect(screen.getByRole('button', { name: 'Hide parameters' })).toBeInTheDocument()
     expect(parameters.closest('.report-view')).not.toBeNull()
     expect(layout).toContainElement(toolbar)
@@ -115,10 +116,15 @@ describe('Report Viewer chrome composition', () => {
 
     await user.click(screen.getByRole('button', { name: 'Hide parameters' }))
     expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Reports/Demo')
     expect(screen.getByRole('button', { name: 'Show parameters' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hide parameters' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show parameters' }))
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide parameters' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
   })
 
   it('keeps Document Map available when the Execution provides nodes', async () => {
@@ -250,6 +256,8 @@ describe('Report Viewer chrome composition', () => {
     expect(document.fullscreenElement).toBe(document.documentElement)
     expect(screen.getByRole('main')).toHaveClass('shell-maximized')
     expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Return to Catalog' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hide parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
     expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
@@ -258,6 +266,7 @@ describe('Report Viewer chrome composition', () => {
 
     expect(document.fullscreenElement).toBeNull()
     expect(screen.getByRole('main')).not.toHaveClass('shell-maximized')
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })

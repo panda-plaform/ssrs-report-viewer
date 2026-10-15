@@ -7,6 +7,7 @@ import {
   findNextInReport,
   goBack,
   setReportPage,
+  setZoom,
 } from './reportApi'
 import { ViewerToolbar } from './ViewerToolbar'
 
@@ -66,6 +67,7 @@ function renderToolbar(
 
 describe('ViewerToolbar native chrome', () => {
   beforeEach(() => {
+    vi.mocked(setZoom).mockReset().mockResolvedValue({ ...pageResult, zoomPercent: 25 })
     vi.mocked(setReportPage).mockReset().mockResolvedValue(pageResult)
     vi.mocked(downloadExport).mockReset().mockResolvedValue(undefined)
     vi.mocked(findInReport).mockReset().mockResolvedValue({
@@ -112,6 +114,30 @@ describe('ViewerToolbar native chrome', () => {
       within(pageGroup).getByRole('button', { name: 'Next' }),
     )
     expect(screen.queryByRole('heading', { name: 'Find' })).not.toBeInTheDocument()
+  })
+
+  it('lists native SSRS percent Zoom options in order', () => {
+    renderToolbar()
+
+    const zoom = screen.getByRole('combobox', { name: 'Zoom' })
+    const labels = within(zoom)
+      .getAllByRole('option')
+      .map((option) => option.textContent)
+
+    expect(labels).toEqual(['500%', '200%', '150%', '100%', '75%', '50%', '25%', '10%'])
+    expect(labels).not.toContain('125%')
+    expect(labels).not.toContain('Page Width')
+    expect(labels).not.toContain('Whole Page')
+  })
+
+  it('calls setZoom when a Zoom percent is selected', async () => {
+    const user = userEvent.setup()
+    const { onUpdated } = renderToolbar()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Zoom' }), '25')
+
+    expect(setZoom).toHaveBeenCalledWith('session-1', 25)
+    expect(onUpdated).toHaveBeenCalled()
   })
 
   it('places Refresh before Back in the toolbar', () => {
