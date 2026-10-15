@@ -1,17 +1,26 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { HtmlReplacedOptions } from './ReportSurface'
 import {
+  DEFAULT_PRINT_SETTINGS,
+  PRINT_ORIENTATIONS,
+  PRINT_PAGE_SIZES,
+  type PrintOrientation,
+  type PrintPageSize,
+  type PrintPdfSettings,
+} from './printPdfSettings'
+import {
   downloadExport,
+  fetchExportPdf,
   findInReport,
   findNextInReport,
   goBack,
+  printPdfBlob,
   refreshReport,
   setReportPage,
   setZoom,
   type ExportFormat,
   type FindResponse,
   type PageInfo,
-  type PrintPdfSettings,
   type RenderResponse,
 } from './reportApi'
 import {
@@ -39,18 +48,11 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'CSV', label: 'CSV' },
 ]
 
-const PAGE_SIZE_OPTIONS: { value: PrintPdfSettings['pageSize']; label: string }[] = [
-  { value: 'A4', label: 'A4 (210 × 297 mm)' },
-  { value: 'A3', label: 'A3 (297 × 420 mm)' },
-  { value: 'Letter', label: 'Letter (8.5 × 11 in)' },
-  { value: 'Legal', label: 'Legal (8.5 × 14 in)' },
-]
-
-const ORIENTATION_OPTIONS: PrintPdfSettings['orientation'][] = ['Portrait', 'Landscape']
-
-const DEFAULT_PRINT_SETTINGS: PrintPdfSettings = {
-  pageSize: 'A4',
-  orientation: 'Portrait',
+const PAGE_SIZE_LABELS: Record<PrintPageSize, string> = {
+  A4: 'A4 (210 × 297 mm)',
+  A3: 'A3 (297 × 420 mm)',
+  Letter: 'Letter (8.5 × 11 in)',
+  Legal: 'Legal (8.5 × 14 in)',
 }
 
 type Props = {
@@ -97,6 +99,7 @@ export function ViewerToolbar({
   const printTitleId = useId()
   const exportRef = useRef<HTMLDivElement>(null)
   const backInFlightRef = useRef(false)
+  const printDialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setPageValue(String(pageInfo.currentPage))
@@ -132,18 +135,26 @@ export function ViewerToolbar({
       return
     }
 
+    const dialog = printDialogRef.current
+    if (dialog) {
+      const focusTarget =
+        dialog.querySelector<HTMLElement>(
+          'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? dialog
+      focusTarget.focus()
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        if (!printBusy) {
-          setPrintOpen(false)
-        }
+        // Dismiss the dialog UI even while a PDF is in flight; do not start another.
+        setPrintOpen(false)
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [printOpen, printBusy])
+  }, [printOpen])
 
   async function handleMaximizeClick() {
     try {
@@ -261,9 +272,6 @@ export function ViewerToolbar({
   }
 
   function dismissPrint() {
-    if (printBusy) {
-      return
-    }
     setPrintOpen(false)
   }
 
@@ -276,11 +284,18 @@ export function ViewerToolbar({
     onBusyChange(true)
     onError('')
     try {
-      await downloadExport(sessionId, 'PDF', printSettings)
+      const blob = await fetchExportPdf(sessionId, printSettings)
+      // Close as soon as the PDF is ready — do not wait for afterprint.
       setPrintOpen(false)
+      setPrintBusy(false)
+      onBusyChange(false)
+      try {
+        await printPdfBlob(blob)
+      } catch (err) {
+        onError(err instanceof Error ? err : 'Print failed')
+      }
     } catch (err) {
       onError(err instanceof Error ? err : 'Print failed')
-    } finally {
       setPrintBusy(false)
       onBusyChange(false)
     }
@@ -526,10 +541,13 @@ export function ViewerToolbar({
     {printOpen && (
       <div className="print-settings-backdrop no-print">
         <div
+          ref={printDialogRef}
           className="print-settings-dialog"
           role="dialog"
           aria-modal="true"
           aria-labelledby={printTitleId}
+          aria-busy={printBusy || undefined}
+          tabIndex={-1}
         >
           <div className="print-settings-dialog-header">
             <h2 id={printTitleId}>Print</h2>
@@ -544,7 +562,8 @@ export function ViewerToolbar({
             </button>
           </div>
           <p className="print-settings-copy">
-            A printer-friendly PDF of the current Execution will be created.
+            We&apos;ll create a printer-friendly PDF version of your report, then open the print
+            dialog.
           </p>
           <label className="print-settings-field">
             <span>Page size</span>
@@ -555,13 +574,13 @@ export function ViewerToolbar({
               onChange={(event) =>
                 setPrintSettings((current) => ({
                   ...current,
-                  pageSize: event.target.value as PrintPdfSettings['pageSize'],
+                  pageSize: event.target.value as PrintPageSize,
                 }))
               }
             >
-              {PAGE_SIZE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {PRINT_PAGE_SIZES.map((value) => (
+                <option key={value} value={value}>
+                  {PAGE_SIZE_LABELS[value]}
                 </option>
               ))}
             </select>
@@ -575,11 +594,11 @@ export function ViewerToolbar({
               onChange={(event) =>
                 setPrintSettings((current) => ({
                   ...current,
-                  orientation: event.target.value as PrintPdfSettings['orientation'],
+                  orientation: event.target.value as PrintOrientation,
                 }))
               }
             >
-              {ORIENTATION_OPTIONS.map((orientation) => (
+              {PRINT_ORIENTATIONS.map((orientation) => (
                 <option key={orientation} value={orientation}>
                   {orientation}
                 </option>

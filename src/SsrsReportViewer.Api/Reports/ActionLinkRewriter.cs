@@ -62,7 +62,15 @@ public static partial class ActionLinkRewriter
         {
             var href = match.Groups["href"].Value;
             var label = match.Groups["label"].Value;
-            if (IsReportServerUrl(href))
+            var decodedHref = href.Replace("&amp;", "&", StringComparison.Ordinal);
+
+            // Report Manager "open report" links (often have tabindex before href).
+            if (TryParseReportManagerItemPath(decodedHref, out var itemPath))
+            {
+                return DrillthroughAnchor(itemPath, [], label);
+            }
+
+            if (IsReportServerUrl(decodedHref))
             {
                 return $"<a href=\"#\" data-ssrs-action=\"blocked-reportserver\">{label}</a>";
             }
@@ -70,9 +78,62 @@ public static partial class ActionLinkRewriter
             return ExternalAnchor(href, label);
         });
 
-        rewritten = ReportServerHostRegex().Replace(rewritten, string.Empty);
+        // Never strip ReportServer hosts out of src=… (that yields src="" and broken icons).
+        rewritten = StripLeftoverReportServerHosts(rewritten);
 
         return rewritten;
+    }
+
+    /// <summary>
+    /// Report Manager URLs like /Reports/Pages/Report.aspx?ItemPath=%2fFolder%2fReport.
+    /// </summary>
+    internal static bool TryParseReportManagerItemPath(string href, out string reportPath)
+    {
+        reportPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return false;
+        }
+
+        if (!href.Contains("Report.aspx", StringComparison.OrdinalIgnoreCase) &&
+            !href.Contains("/Pages/Report", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var query = ExtractQuery(href.Replace("&amp;", "&", StringComparison.Ordinal));
+        var itemPath = FirstQueryValue(query, "ItemPath");
+        if (string.IsNullOrWhiteSpace(itemPath))
+        {
+            return false;
+        }
+
+        reportPath = NormalizePath(itemPath);
+        return reportPath.Length > 1;
+    }
+
+    /// <summary>
+    /// Removes residual ReportServer absolute URLs, but masks <c>src</c> attributes first so
+    /// unrewritten (or already session-proxied) image URLs are never turned into <c>src=""</c>.
+    /// </summary>
+    private static string StripLeftoverReportServerHosts(string html)
+    {
+        var masks = new List<string>();
+        var masked = SrcAttributeRegex().Replace(html, match =>
+        {
+            var token = $"\u0001SRC{masks.Count}\u0001";
+            masks.Add(match.Value);
+            return token;
+        });
+
+        masked = ReportServerHostRegex().Replace(masked, string.Empty);
+
+        for (var i = 0; i < masks.Count; i++)
+        {
+            masked = masked.Replace($"\u0001SRC{i}\u0001", masks[i], StringComparison.Ordinal);
+        }
+
+        return masked;
     }
 
     private static string RewriteSortAnchor(string href, string label)
@@ -252,40 +313,46 @@ public static partial class ActionLinkRewriter
             .Replace("\"", "&quot;", StringComparison.Ordinal)
             .Replace("<", "&lt;", StringComparison.Ordinal);
 
+    // Allow attributes before href (SSRS often emits tabindex=… before href=…).
     [GeneratedRegex(
-        """<a\s+href="(?<href>[^"]*(?:SortItem|SortId)=[^"]*)"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"(?<href>[^"]*(?:SortItem|SortId)=[^"]*)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex SortAnchorRegex();
 
     [GeneratedRegex(
-        """<a\s+href="(?<root>[^"]*?)\?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootToggleRegex();
 
     [GeneratedRegex(
-        """<a\s+href="[^"]*?/actions/bookmark/(?<id>[^"?#]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"[^"]*?/actions/bookmark/(?<id>[^"?#]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootBookmarkRegex();
 
     [GeneratedRegex(
-        """<a\s+href="(?<root>[^"]*?)\?(?<query>(?!rc:Toggle=)[^"]+)"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?(?<query>(?!rc:Toggle=)[^"]+)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootDrillthroughRegex();
 
     [GeneratedRegex(
-        """<a\s+href="[^"]*ReportServer[^"]*[?&](?:amp;)?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"[^"]*ReportServer[^"]*[?&](?:amp;)?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReportServerToggleRegex();
 
     [GeneratedRegex(
-        """<a\s+href="[^"]*ReportServer/?(?<query>\?[^"]*)"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"[^"]*ReportServer/?(?<query>\?[^"]*)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReportServerDrillthroughRegex();
 
     [GeneratedRegex(
-        """<a\s+href="(?<href>https?://[^"]+)"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"(?<href>https?://[^"]+)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex AbsoluteHttpAnchorRegex();
+
+    [GeneratedRegex(
+        """\bsrc\s*=\s*(["'])(?:.*?)\1""",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex SrcAttributeRegex();
 
     [GeneratedRegex(
         """https?://[^"'>\s]*reportserver[^"'>\s]*""",
