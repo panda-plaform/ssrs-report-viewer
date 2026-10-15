@@ -13,6 +13,12 @@ import {
   type RenderResponse,
 } from './reportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
+import {
+  SELECT_ALL_LABEL,
+  applySelectAll,
+  selectAllCheckboxState,
+  selectedLabelsSummary,
+} from './selectAllMultiValue'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
@@ -298,23 +304,14 @@ function ParameterField({
       </label>
 
       {parameter.multiValue && parameter.validValues.length > 0 ? (
-        <select
+        <MultiValueDropdown
           id={`param-${parameter.name}`}
-          className="parameter-multivalue"
-          multiple
-          value={values}
+          label={label}
+          validValues={parameter.validValues}
+          values={values}
           disabled={valueDisabled}
-          onChange={(event) => {
-            const selected = Array.from(event.target.selectedOptions, (option) => option.value)
-            onMultiChange(selected)
-          }}
-        >
-          {parameter.validValues.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          onChange={onMultiChange}
+        />
       ) : dataType === 'boolean' ? (
         <select
           id={`param-${parameter.name}`}
@@ -367,6 +364,116 @@ function ParameterField({
           />
           NULL
         </label>
+      )}
+    </div>
+  )
+}
+
+type MultiValueDropdownProps = {
+  id: string
+  label: string
+  validValues: ReportParameter['validValues']
+  values: string[]
+  disabled: boolean
+  onChange: (values: string[]) => void
+}
+
+function MultiValueDropdown({
+  id,
+  label,
+  validValues,
+  values,
+  disabled,
+  onChange,
+}: MultiValueDropdownProps) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const selectAllState = selectAllCheckboxState(validValues, values)
+  const summary = selectedLabelsSummary(validValues, values)
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectAllState.indeterminate
+    }
+  }, [selectAllState.indeterminate])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    function onPointerDown(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false)
+    }
+  }, [disabled])
+
+  function toggleValue(option: string, checked: boolean) {
+    const next = checked
+      ? [...new Set([...values, option])]
+      : values.filter((item) => item !== option)
+    onChange(next)
+  }
+
+  return (
+    <div className="parameter-multivalue-dropdown" ref={rootRef}>
+      <button
+        type="button"
+        id={id}
+        className="parameter-multivalue-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="parameter-multivalue-summary">{summary}</span>
+        <span className="parameter-multivalue-caret" aria-hidden="true" />
+      </button>
+
+      {open && !disabled && (
+        <div className="parameter-multivalue-menu" role="listbox" aria-multiselectable="true">
+          <label className="parameter-multivalue-option">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={selectAllState.checked}
+              onChange={(event) => onChange(applySelectAll(validValues, event.target.checked))}
+            />
+            {SELECT_ALL_LABEL}
+          </label>
+          {validValues.map((option) => (
+            <label key={option.value} className="parameter-multivalue-option">
+              <input
+                type="checkbox"
+                checked={values.includes(option.value)}
+                onChange={(event) => toggleValue(option.value, event.target.checked)}
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
       )}
     </div>
   )

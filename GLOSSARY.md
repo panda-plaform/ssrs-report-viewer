@@ -32,7 +32,7 @@ A named input defined by a Report, including type and valid-value metadata. The 
 A label and value pair offered for a Report Parameter, whether static in the report or from an SSRS parameter query. Includes report-authored choices such as `<ALL>` when the Report defines them.
 
 **Select All**:
-Former Report Viewer chrome for choosing every Valid Value on a multi-value Report Parameter at once. The parameter form uses a native multi-select instead; users select all options via the control. Not a Report Parameter and not a Valid Value.
+Report Viewer chrome for choosing every Valid Value on a multi-value Report Parameter at once, shown as the first checkbox in the multi-value dropdown. Not a Report Parameter and not a Valid Value.
 _Avoid_: Select-all parameter value, all_value, all_value *
 
 **Drilldown**:
