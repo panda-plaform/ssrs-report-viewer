@@ -42,6 +42,7 @@ export function ReportSurface({
   onBusyChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     const node = containerRef.current
@@ -65,10 +66,11 @@ export function ReportSurface({
       failureLabel: string,
       options?: HtmlReplacedOptions,
     ): Promise<void> {
-      if (busy) {
+      if (busy || inFlightRef.current) {
         return
       }
 
+      inFlightRef.current = true
       onBusyChange(true)
       try {
         const result = await work()
@@ -76,6 +78,7 @@ export function ReportSurface({
       } catch (err) {
         onError(err instanceof Error ? err : failureLabel)
       } finally {
+        inFlightRef.current = false
         onBusyChange(false)
       }
     }

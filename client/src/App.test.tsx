@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { fetchParameters, findInReport, viewReport } from './reportApi'
+import { fetchParameters, findInReport, goBack, viewReport } from './reportApi'
 
 vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
@@ -298,5 +298,97 @@ describe('Report Viewer chrome composition', () => {
     expect(parameters.closest('.no-print')).not.toBeNull()
     expect(toolbar.closest('.no-print')).not.toBeNull()
     expect(returnButton.closest('.no-print')).not.toBeNull()
+  })
+
+  it('syncs ?path=, selected Report path, and parameter form after Back with replaceState', async () => {
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
+    const pushStateSpy = vi.spyOn(window.history, 'pushState')
+
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      canGoBack: true,
+      reportPath: '/Sales/Child',
+      parameters: [{ name: 'Region', values: ['North'] }],
+      html: '<div class="report-body">Child HTML</div>',
+    })
+    window.history.replaceState({}, '', '/?path=%2FSales%2FChild')
+
+    vi.mocked(fetchParameters).mockImplementation(async (path: string) => {
+      if (path === '/Sales/Parent') {
+        return {
+          path: '/Sales/Parent',
+          parameters: [
+            {
+              name: 'Region',
+              dataType: 'String',
+              nullable: false,
+              multiValue: false,
+              required: true,
+              prompt: 'Region',
+              defaultValues: ['East'],
+              validValues: [
+                { label: 'East', value: 'East' },
+                { label: 'West', value: 'West' },
+              ],
+              dependencies: [],
+            },
+          ],
+        }
+      }
+
+      return {
+        path: '/Sales/Child',
+        parameters: [
+          {
+            name: 'Region',
+            dataType: 'String',
+            nullable: false,
+            multiValue: false,
+            required: true,
+            prompt: 'Region',
+            defaultValues: ['North'],
+            validValues: [
+              { label: 'North', value: 'North' },
+              { label: 'South', value: 'South' },
+            ],
+            dependencies: [],
+          },
+        ],
+      }
+    })
+
+    vi.mocked(goBack).mockResolvedValueOnce({
+      ...renderResult,
+      canGoBack: false,
+      reportPath: '/Sales/Parent',
+      parameters: [{ name: 'Region', values: ['West'] }],
+      html: '<div class="report-body">Parent HTML</div>',
+    })
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+    await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+
+    expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Sales/Child')
+
+    replaceStateSpy.mockClear()
+    pushStateSpy.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Open Report path')).toHaveTextContent('/Sales/Parent')
+    })
+    expect(window.location.search).toBe('?path=%2FSales%2FParent')
+    expect(replaceStateSpy).toHaveBeenCalled()
+    expect(pushStateSpy).not.toHaveBeenCalled()
+
+    const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
+    await waitFor(() => {
+      expect(within(parameters).getByLabelText(/Region/i)).toHaveValue('West')
+    })
   })
 })
