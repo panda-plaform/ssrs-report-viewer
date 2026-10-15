@@ -75,7 +75,10 @@ describe('ReportSurface Action Links', () => {
         { name: 'Region', values: ['North'] },
       ])
     })
-    expect(onHtmlReplaced).toHaveBeenCalledWith(childResult, { syncOpenReport: true })
+    expect(onHtmlReplaced).toHaveBeenCalledWith(childResult, {
+      syncOpenReport: true,
+      collapseParameters: true,
+    })
     expect(onBusyChange).toHaveBeenCalledWith(true)
     expect(onBusyChange).toHaveBeenCalledWith(false)
   })
@@ -137,7 +140,10 @@ describe('ReportSurface Action Links', () => {
 
     resolveDrill?.(childResult)
     await waitFor(() => {
-      expect(onHtmlReplaced).toHaveBeenCalledWith(childResult, { syncOpenReport: true })
+      expect(onHtmlReplaced).toHaveBeenCalledWith(childResult, {
+      syncOpenReport: true,
+      collapseParameters: true,
+    })
     })
   })
 })

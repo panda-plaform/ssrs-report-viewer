@@ -389,6 +389,9 @@ describe('Report Viewer chrome composition', () => {
     expect(replaceStateSpy).toHaveBeenCalled()
     expect(pushStateSpy).not.toHaveBeenCalled()
 
+    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
+
     const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
     await waitFor(() => {
       expect(within(parameters).getByLabelText(/Region/i)).toHaveValue('West')
@@ -487,6 +490,9 @@ describe('Report Viewer chrome composition', () => {
     expect(drillthroughReport).toHaveBeenCalledWith('session-1', '/Sales/Child', [
       { name: 'Region', values: ['North'] },
     ])
+
+    expect(screen.queryByRole('region', { name: 'Report Parameters' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show parameters' }))
 
     const parameters = await screen.findByRole('region', { name: 'Report Parameters' })
     await waitFor(() => {

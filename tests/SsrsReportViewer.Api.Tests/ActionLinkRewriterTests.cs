@@ -52,4 +52,131 @@ public sealed class ActionLinkRewriterTests
         Assert.True(ActionLinkRewriter.TryParseReportManagerItemPath(href, out var path));
         Assert.Equal(expectedPath, path);
     }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_decodes_amp_entities_in_drillthrough_parameter_names(string amp)
+    {
+        // Live Report List HTML uses &amp; separators; XML/SOAP can leave them double-encoded
+        // as &amp;amp; so a single HtmlDecode still yields amp;ReportName keys.
+        var html =
+            $"""
+            <a href="/api/sessions/s1/actions/?/Example%20Reports/Execution%20Log{amp}ReportName=Database%20Dictionary{amp}rc:Parameters=Collapsed">Execution Log</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-ssrs-report-path=\"/Example Reports/Execution Log\"",
+            rewritten,
+            StringComparison.Ordinal);
+        Assert.Contains("&quot;name&quot;:&quot;ReportName&quot;", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("amp;ReportName", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("rc:Parameters", rewritten, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void TryParseDrillthroughQuery_accepts_html_encoded_separators(string amp)
+    {
+        Assert.True(ActionLinkRewriter.TryParseDrillthroughQuery(
+            $"/Example%20Reports/Subscriptions{amp}ReportName=Sales%20Detail{amp}rc:Parameters=Collapsed",
+            out var path,
+            out var parameters));
+
+        Assert.Equal("/Example Reports/Subscriptions", path);
+        var reportName = Assert.Single(parameters, p => p.Name == "ReportName");
+        Assert.Equal(["Sales Detail"], reportName.Values);
+        Assert.DoesNotContain(parameters, p => p.Name.Contains("amp;", StringComparison.Ordinal));
+        Assert.DoesNotContain(parameters, p => p.Name.StartsWith("rc:", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TryParseDrillthroughQuery_maps_isnull_suffix_to_empty_parameter_values()
+    {
+        // SSRS URL access: StartDate:isnull=True means null StartDate — not a parameter named StartDate:isnull.
+        Assert.True(ActionLinkRewriter.TryParseDrillthroughQuery(
+            "/Example%20Reports/Execution%20Log&ReportName=Database%20Dictionary&StartDate:isnull=True&EndDate:isnull=True&LogStatus=%3CALL%3E&rc:Parameters=Collapsed",
+            out var path,
+            out var parameters));
+
+        Assert.Equal("/Example Reports/Execution Log", path);
+        Assert.Equal(["Database Dictionary"], Assert.Single(parameters, p => p.Name == "ReportName").Values);
+        Assert.Empty(Assert.Single(parameters, p => p.Name == "StartDate").Values);
+        Assert.Empty(Assert.Single(parameters, p => p.Name == "EndDate").Values);
+        Assert.Equal(["<ALL>"], Assert.Single(parameters, p => p.Name == "LogStatus").Values);
+        Assert.DoesNotContain(parameters, p => p.Name.Contains(":isnull", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Rewrite_maps_reportserver_render_url_label_to_report_leaf_name()
+    {
+        // Execution Log cells often use the raw ReportServer URL as both href and visible text.
+        var html =
+            """
+            <a href="http://THOR:80/ReportServer/ReportServer?/Example+Reports%2fExecution+Log&amp;rs:Command=Render">http://THOR:80/ReportServer/ReportServer?/Example+Reports%2fExecution+Log&amp;rs:Command=Render</a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html);
+
+        Assert.Contains("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-ssrs-report-path=\"/Example Reports/Execution Log\"",
+            rewritten,
+            StringComparison.Ordinal);
+        Assert.Contains(">Execution Log</a>", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-action=\"blocked-reportserver\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("THOR:80", rewritten, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rewrite_maps_replacement_root_prefixed_absolute_reportserver_urls()
+    {
+        // SSRS Report List emits {ReplacementRoot}http://host/ReportServer?/path&ReportName=…
+        // After placeholder replace that becomes /api/sessions/…/actions/http://host/ReportServer?…
+        var html =
+            """
+            <a tabindex="8" href="/api/sessions/s1/actions/http://thor/ReportServer?%2FExample%20Reports%2FExecution%20Log&amp;ReportName=Scheduled%20Jobs&amp;StartDate%3Aisnull=True&amp;LogStatus=%3CALL%3E&amp;rc%3AParameters=Collapsed" style="text-decoration:none;"><img alt="view report of the log" src="/api/sessions/s1/resources/x"></a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-ssrs-report-path=\"/Example Reports/Execution Log\"",
+            rewritten,
+            StringComparison.Ordinal);
+        Assert.Contains("&quot;name&quot;:&quot;ReportName&quot;", rewritten, StringComparison.Ordinal);
+        Assert.Contains("Scheduled Jobs", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-parameters=\"[]\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("actions/http://", rewritten, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rewrite_keeps_report_manager_query_parameters_with_itempath()
+    {
+        // Report List "go to Execution Log" icons use Report.aspx?ItemPath=…&ReportName=…
+        // ItemPath alone must not drop ReportName (that yields data-ssrs-parameters="[]").
+        var html =
+            """
+            <a tabindex="1" href="http://thor/Reports/Pages/Report.aspx?ItemPath=%2fExample%20Reports%2fExecution%20Log&amp;ReportName=Scheduled%20Jobs&amp;StartDate:isnull=True&amp;rc:Parameters=Collapsed" style="text-decoration:none;"><img border="0" alt="go to this report" title="go to this report" src="http://thor/ReportServer?rs:Command=Get&amp;rc:StreamId=GoToReport"></a>
+            """;
+
+        var resourceRoot = "/api/sessions/sess-1/resources/";
+        var withResources = ResourceUrlRewriter.Rewrite(html, resourceRoot);
+        var rewritten = ActionLinkRewriter.Rewrite(withResources, "/api/sessions/sess-1/actions/");
+
+        Assert.Contains(
+            "data-ssrs-report-path=\"/Example Reports/Execution Log\"",
+            rewritten,
+            StringComparison.Ordinal);
+        Assert.Contains("&quot;name&quot;:&quot;ReportName&quot;", rewritten, StringComparison.Ordinal);
+        Assert.Contains("Scheduled Jobs", rewritten, StringComparison.Ordinal);
+        Assert.Contains("&quot;name&quot;:&quot;StartDate&quot;", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-parameters=\"[]\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("rc:Parameters", rewritten, StringComparison.Ordinal);
+    }
 }

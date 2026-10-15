@@ -13,6 +13,11 @@ import {
 export type HtmlReplacedOptions = {
   /** Drillthrough / in-app Back: sync `?path=` (replaceState) and reseed parameters. */
   syncOpenReport?: boolean
+  /**
+   * When syncing open report: collapse the parameter form (default true).
+   * False when Drillthrough carried no Action Link parameters (catalog open needing prompts).
+   */
+  collapseParameters?: boolean
 }
 
 type Props = {
@@ -138,7 +143,11 @@ export function ReportSurface({
         await runSessionAction(
           () => drillthroughReport(activeSessionId, reportPath, parameters),
           'Drillthrough failed',
-          { syncOpenReport: true },
+          {
+            syncOpenReport: true,
+            // Empty Action Link params → show the form (e.g. ItemPath open of Execution Log).
+            collapseParameters: parameters.length > 0,
+          },
         )
         return
       }

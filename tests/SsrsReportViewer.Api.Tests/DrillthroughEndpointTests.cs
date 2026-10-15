@@ -357,8 +357,9 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Post_drillthrough_returns_problem_details_when_required_parameters_omitted()
+    public async Task Post_drillthrough_opens_child_when_required_parameters_omitted()
     {
+        // Catalog ItemPath links omit Report Parameters; still open the child so the form can prompt.
         _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>parent</div>");
         _factory.Fake.SeedReport(
             "/Sales/Child",
@@ -367,7 +368,7 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
                 new FakeReportParameter(
                     Name: "Region",
                     DataType: "Text",
-                    Nullable: false,
+                    Nullable: true,
                     MultiValue: false,
                     Prompt: "Region",
                     Required: true),
@@ -384,15 +385,15 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
             $"/api/sessions/{parent.SessionId}/drillthrough",
             new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
 
-        Assert.Equal(HttpStatusCode.BadRequest, drillthrough.StatusCode);
-        var problem = await drillthrough.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        var child = await drillthrough.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.Equal(parent.SessionId, child.SessionId);
+        Assert.True(child.CanGoBack);
+        Assert.Equal("/Sales/Child", child.ReportPath);
         Assert.True(
-            problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
-            "Expected ProblemDetails-shaped body");
-        Assert.Contains("Region", problem.GetProperty("detail").GetString() ?? "", StringComparison.Ordinal);
-        Assert.False(
             (await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null)).IsSuccessStatusCode,
-            "Failed Drillthrough must not push the back stack");
+            "Successful Drillthrough must push the back stack");
     }
 
     [Fact]

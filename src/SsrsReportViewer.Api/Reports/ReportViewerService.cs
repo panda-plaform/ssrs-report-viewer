@@ -221,28 +221,13 @@ public sealed class ReportViewerService
             async (session, ct) =>
             {
                 // Full definitions (including non-prompted) — same as View Report.
+                // Catalog "go to this report" ItemPath links often omit required Report Parameters;
+                // still open the child Execution so the parameter form can collect them (native SSRS).
                 var definitions = await GetParametersAsync(
                     reportPath,
                     forRendering: false,
                     valuesForCascading: null,
                     ct);
-                var missing = definitions
-                    .Where(d => d.ShownOnParameterForm && d.Required)
-                    .Where(d =>
-                    {
-                        var submitted = parameters.FirstOrDefault(p =>
-                            string.Equals(p.Name, d.Name, StringComparison.OrdinalIgnoreCase));
-                        return submitted is null || submitted.Values.Count == 0 ||
-                               submitted.Values.All(string.IsNullOrWhiteSpace);
-                    })
-                    .Select(d => d.Name)
-                    .ToArray();
-
-                if (missing.Length > 0)
-                {
-                    throw new RequiredParameterMissingException(missing);
-                }
-
                 var resolved = PrepareParametersForSsrs(definitions, parameters);
                 var execution = await _ssrs.LoadReportAsync(reportPath, ct);
                 await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, ct);
@@ -588,7 +573,6 @@ public sealed class ReportViewerService
 
         return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
-
     private static string RewriteResourcePlaceholders(
         string html,
         string resourceRoot,

@@ -159,6 +159,9 @@ function App() {
         reportPath: result.reportPath,
         parameters: result.parameters,
       }))
+      // Collapse when Action Link carried params (rc:Parameters=Collapsed); expand when catalog
+      // ItemPath opens need Report Parameter prompts.
+      setParametersExpanded(options.collapseParameters === false)
     },
     [],
   )
