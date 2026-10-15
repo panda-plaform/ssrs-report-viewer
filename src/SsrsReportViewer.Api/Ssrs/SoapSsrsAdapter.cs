@@ -442,12 +442,9 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         var promptUser = ParseBool(parameter.Element(Mgmt + "PromptUser")?.Value, defaultValue: true);
         var allowBlank = ParseBool(parameter.Element(Mgmt + "AllowBlank")?.Value);
         var prompt = parameter.Element(Mgmt + "Prompt")?.Value;
-        var defaults = parameter
-            .Element(Mgmt + "DefaultValues")?
-            .Elements()
-            .Where(e => e.Name.LocalName == "string")
-            .Select(e => e.Value)
-            .ToArray() ?? [];
+        // ReportService2010 ItemParameter.DefaultValues / Dependencies are string[] with
+        // [XmlArrayItem("Value")]. Some envelopes also use Serialization Arrays <string>.
+        var defaults = ParseStringArray(parameter.Element(Mgmt + "DefaultValues"));
         var validValues = parameter
             .Element(Mgmt + "ValidValues")?
             .Elements(Mgmt + "ValidValue")
@@ -455,12 +452,7 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
                 v.Element(Mgmt + "Label")?.Value ?? v.Element(Mgmt + "Value")?.Value ?? string.Empty,
                 v.Element(Mgmt + "Value")?.Value ?? string.Empty))
             .ToArray() ?? [];
-        var dependencies = parameter
-            .Element(Mgmt + "Dependencies")?
-            .Elements()
-            .Where(e => e.Name.LocalName == "string")
-            .Select(e => e.Value)
-            .ToArray() ?? [];
+        var dependencies = ParseStringArray(parameter.Element(Mgmt + "Dependencies"));
 
         // Match native parameter bar: empty Prompt is not shown, so not user-required.
         var shownOnForm = promptUser && !string.IsNullOrWhiteSpace(prompt);
@@ -477,6 +469,23 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             dependencies,
             promptUser);
     }
+
+    /// <summary>
+    /// Parses ReportService2010 ArrayOfString children (<c>Value</c> or <c>string</c>).
+    /// Blank entries are dropped — SSRS often returns <c>[""]</c> for nullable DateTime with no default.
+    /// </summary>
+    private static string[] ParseStringArray(XElement? parent) =>
+        parent?
+            .Elements()
+            .Where(e =>
+            {
+                var local = e.Name.LocalName;
+                return local is "Value" or "string";
+            })
+            .Select(e => e.Value)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .ToArray()
+        ?? [];
 
     internal static string ToDeviceInfoXml(DeviceInfo deviceInfo)
     {

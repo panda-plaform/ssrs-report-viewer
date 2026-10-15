@@ -294,29 +294,93 @@
   font-size: 0.9rem;
 }
 
-.parameter-multivalue {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: grid;
-  gap: 0.35rem;
+.parameter-multivalue-dropdown {
+  position: relative;
+  width: 100%;
+  max-width: 24rem;
+  min-width: 0;
 }
 
-.parameters-bar .parameter-multivalue {
-  max-height: 6rem;
-  overflow: auto;
-  gap: 0.2rem;
+.parameters-bar .parameter-multivalue-dropdown {
+  max-width: none;
 }
 
-.parameter-check {
+.parameter-multivalue-trigger {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
-  font-size: 0.95rem;
+  justify-content: space-between;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #bbb;
+  background: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.parameters-bar .parameter-check {
-  font-size: 0.85rem;
+.parameter-multivalue-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.parameter-multivalue-summary {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #111;
+}
+
+.parameter-multivalue-caret {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #444;
+}
+
+.parameter-multivalue-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% - 1px);
+  left: 0;
+  right: 0;
+  max-height: 12rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 1px solid #bbb;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.parameter-multivalue-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.9rem;
+  color: #111;
+  cursor: pointer;
+  user-select: none;
+}
+
+.parameter-multivalue-option:hover {
+  background: #f3f3f3;
+}
+
+.parameter-multivalue-option input {
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .parameter-null {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Options;
 using SsrsReportViewer.Api.Sessions;
@@ -44,6 +45,7 @@ public sealed class ReportViewerService
             valuesForCascading: null,
             cancellationToken);
         var enriched = MergeNonPromptedDefaultsForCascading(metadata, valuesForCascading);
+        enriched = FormatDateTimeParameterValues(metadata, enriched, _options.DefaultCulture);
         return await _ssrs.GetParametersAsync(
             reportPath,
             forRendering,
@@ -80,7 +82,7 @@ public sealed class ReportViewerService
             throw new RequiredParameterMissingException(missing);
         }
 
-        var resolved = ResolveParametersForExecution(definitions, parameters);
+        var resolved = PrepareParametersForSsrs(definitions, parameters);
         var execution = await _ssrs.LoadReportAsync(reportPath, cancellationToken);
         await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, cancellationToken);
 
@@ -151,7 +153,7 @@ public sealed class ReportViewerService
                     forRendering: false,
                     valuesForCascading: null,
                     ct);
-                var resolved = ResolveParametersForExecution(definitions, session.Parameters);
+                var resolved = PrepareParametersForSsrs(definitions, session.Parameters);
                 var execution = await _ssrs.LoadReportAsync(session.ReportPath, ct);
                 await _ssrs.SetParametersAsync(
                     execution,
@@ -238,7 +240,7 @@ public sealed class ReportViewerService
                     throw new RequiredParameterMissingException(missing);
                 }
 
-                var resolved = ResolveParametersForExecution(definitions, parameters);
+                var resolved = PrepareParametersForSsrs(definitions, parameters);
                 var execution = await _ssrs.LoadReportAsync(reportPath, ct);
                 await _ssrs.SetParametersAsync(execution, resolved, _options.DefaultCulture, ct);
                 session.DrillthroughTo(
@@ -276,7 +278,7 @@ public sealed class ReportViewerService
                         forRendering: false,
                         valuesForCascading: null,
                         ct);
-                    var resolved = ResolveParametersForExecution(definitions, entry.Parameters);
+                    var resolved = PrepareParametersForSsrs(definitions, entry.Parameters);
                     var execution = await _ssrs.LoadReportAsync(entry.ReportPath, ct);
                     await _ssrs.SetParametersAsync(
                         execution,
@@ -552,6 +554,14 @@ public sealed class ReportViewerService
         return rewritten;
     }
 
+    private IReadOnlyList<ParameterValue> PrepareParametersForSsrs(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> submitted) =>
+        FormatDateTimeParameterValues(
+            definitions,
+            ResolveParametersForExecution(definitions, submitted),
+            _options.DefaultCulture);
+
     /// <summary>
     /// Empty Values means SSRS NULL only for nullable parameters. Blank non-nullables must not
     /// clear LoadReport defaults (SetExecutionParameters with Name and no Value).
@@ -609,6 +619,86 @@ public sealed class ReportViewerService
         }
 
         return resolved;
+    }
+
+    /// <summary>
+    /// HTML date inputs submit <c>yyyy-MM-dd</c>; SSRS SetExecutionParameters parses DateTime
+    /// values with ParameterLanguage (DefaultCulture). Convert to that culture's short date.
+    /// </summary>
+    internal static IReadOnlyList<ParameterValue> FormatDateTimeParameterValues(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> values,
+        string cultureName)
+    {
+        var culture = CultureInfo.GetCultureInfo(
+            string.IsNullOrWhiteSpace(cultureName) ? "en-GB" : cultureName);
+        var byName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
+
+        return values.Select(parameter =>
+        {
+            if (!byName.TryGetValue(parameter.Name, out var definition) ||
+                !definition.DataType.Equals("DateTime", StringComparison.OrdinalIgnoreCase) ||
+                parameter.Values.Count == 0)
+            {
+                return parameter;
+            }
+
+            var formatted = parameter.Values
+                .Select(value => FormatDateTimeValue(value, culture))
+                .ToArray();
+            return new ParameterValue(parameter.Name, formatted);
+        }).ToArray();
+    }
+
+    internal static string FormatDateTimeValue(string value, CultureInfo culture)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var trimmed = value.Trim();
+
+        // Date-only picker (HTML <input type="date">).
+        if (DateTime.TryParseExact(
+                trimmed,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var isoDate))
+        {
+            return isoDate.ToString("d", culture);
+        }
+
+        string[] isoDateTimes =
+        [
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+        ];
+        if (DateTime.TryParseExact(
+                trimmed,
+                isoDateTimes,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var isoDateTime))
+        {
+            return isoDateTime.Date.ToString("d", culture);
+        }
+
+        // SSRS defaults often arrive en-US even when ParameterLanguage is en-GB.
+        if (DateTime.TryParse(trimmed, culture, DateTimeStyles.AllowWhiteSpaces, out var parsed) ||
+            DateTime.TryParse(
+                trimmed,
+                CultureInfo.GetCultureInfo("en-US"),
+                DateTimeStyles.AllowWhiteSpaces,
+                out parsed) ||
+            DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out parsed))
+        {
+            return parsed.Date.ToString("d", culture);
+        }
+
+        return value;
     }
 
     /// <summary>

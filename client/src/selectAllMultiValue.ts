@@ -5,7 +5,7 @@ export type SelectAllCheckboxState = {
   indeterminate: boolean
 }
 
-type ValidValue = { value: string }
+type ValidValue = { label: string; value: string }
 
 /** Checkbox state for Select All chrome over a multi-value Valid Value list. */
 export function selectAllCheckboxState(
@@ -35,4 +35,18 @@ export function applySelectAll(
     return []
   }
   return validValues.map((v) => v.value)
+}
+
+/** Comma-separated labels for the closed multi-value dropdown face. */
+export function selectedLabelsSummary(
+  validValues: readonly ValidValue[],
+  selected: readonly string[],
+): string {
+  if (selected.length === 0) {
+    return ''
+  }
+  const byValue = new Map(validValues.map((option) => [option.value, option.label]))
+  return selected
+    .map((value) => byValue.get(value) ?? value)
+    .join(', ')
 }

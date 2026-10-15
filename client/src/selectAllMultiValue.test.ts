@@ -5,6 +5,7 @@ import {
   SELECT_ALL_LABEL,
   applySelectAll,
   selectAllCheckboxState,
+  selectedLabelsSummary,
 } from './selectAllMultiValue'
 
 const validValues = [
@@ -79,5 +80,15 @@ describe('applySelectAll', () => {
     expect(toParameterSubmissions(parameters, values, {})[0]?.values).not.toContain(
       SELECT_ALL_LABEL,
     )
+  })
+})
+
+describe('selectedLabelsSummary', () => {
+  it('is empty when nothing is selected', () => {
+    expect(selectedLabelsSummary(validValues, [])).toBe('')
+  })
+
+  it('joins Valid Value labels for the closed dropdown face', () => {
+    expect(selectedLabelsSummary(validValues, ['East', 'North'])).toBe('East, North')
   })
 })
