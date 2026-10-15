@@ -13,7 +13,7 @@ import {
   type RenderResponse,
 } from './reportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
-import { toDatetimeLocalValue } from './datetimeLocal'
+import { toDateInputValue } from './datetimeLocal'
 import {
   SELECT_ALL_LABEL,
   applySelectAll,
@@ -327,9 +327,8 @@ function ParameterField({
       ) : dataType === 'datetime' ? (
         <input
           id={`param-${parameter.name}`}
-          type="datetime-local"
-          step={1}
-          value={toDatetimeLocalValue(values[0] ?? '')}
+          type="date"
+          value={toDateInputValue(values[0] ?? '')}
           disabled={valueDisabled}
           onChange={(event) => onSingleChange(event.target.value)}
         />
