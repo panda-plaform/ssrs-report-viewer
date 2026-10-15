@@ -74,4 +74,37 @@ public sealed class ResourceUrlRewriterTests
 
         Assert.Equal(html, rewritten);
     }
+
+    [Fact]
+    public void Rewrite_maps_url_encoded_rs_ImageID_from_reportserver_html()
+    {
+        // Live SSRS HTML4.0 often emits rs%3AImageID=… (not rc:StreamId).
+        var html =
+            """
+            <IMG onerror="this.errored=true;" BORDER="0" ALT="go to this report" TITLE="go to this report" SRC="http://thor/ReportServer?%2FExample%20Reports%2FReport%20List&amp;rs%3ASessionID=abc&amp;rs%3AFormat=HTML4.0&amp;rs%3AImageID=7bb0cffa-86f9-4cfc-bd0d-5738d998806f"/>
+            """;
+
+        var rewritten = ResourceUrlRewriter.Rewrite(html, ResourceRoot);
+
+        Assert.Contains(
+            $"{ResourceRoot}7bb0cffa-86f9-4cfc-bd0d-5738d998806f",
+            rewritten,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("reportserver", rewritten, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ImageID", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Rewrite_maps_plain_rs_ImageID()
+    {
+        var html =
+            """<img src="http://host/ReportServer?/R&rs:Format=HTML4.0&rs:ImageID=25078813-89a4-46f8-9ff6-4bf9208c3056" />""";
+
+        var rewritten = ResourceUrlRewriter.Rewrite(html, ResourceRoot);
+
+        Assert.Contains(
+            $"{ResourceRoot}25078813-89a4-46f8-9ff6-4bf9208c3056",
+            rewritten,
+            StringComparison.Ordinal);
+    }
 }

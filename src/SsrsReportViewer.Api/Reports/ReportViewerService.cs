@@ -194,10 +194,13 @@ public sealed class ReportViewerService
         ViewerSessionGuard guard,
         CancellationToken cancellationToken)
     {
+        // Wait for the per-session gate: browsers fetch many <img> resources in parallel, and
+        // failing those with 409 leaves permanently broken icons (SSRS onerror=this.errored).
         return await guard.ExecuteAsync(
             sessionId,
             (session, ct) => _ssrs.RenderStreamAsync(session.Execution, "HTML4.0", streamId, ct),
-            cancellationToken);
+            cancellationToken,
+            waitForGate: true);
     }
 
 

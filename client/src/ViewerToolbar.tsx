@@ -10,9 +10,11 @@ import {
 } from './printPdfSettings'
 import {
   downloadExport,
+  fetchExportPdf,
   findInReport,
   findNextInReport,
   goBack,
+  printPdfBlob,
   refreshReport,
   setReportPage,
   setZoom,
@@ -144,7 +146,7 @@ export function ViewerToolbar({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault()
-        // Dismiss the dialog UI even while a PDF download is in flight; do not start another.
+        // Dismiss the dialog UI even while a PDF is in flight; do not start another.
         setPrintOpen(false)
       }
     }
@@ -279,11 +281,18 @@ export function ViewerToolbar({
     onBusyChange(true)
     onError('')
     try {
-      await downloadExport(sessionId, 'PDF', printSettings)
+      const blob = await fetchExportPdf(sessionId, printSettings)
+      // Close as soon as the PDF is ready — do not wait for afterprint.
       setPrintOpen(false)
+      setPrintBusy(false)
+      onBusyChange(false)
+      try {
+        await printPdfBlob(blob)
+      } catch (err) {
+        onError(err instanceof Error ? err : 'Print failed')
+      }
     } catch (err) {
       onError(err instanceof Error ? err : 'Print failed')
-    } finally {
       setPrintBusy(false)
       onBusyChange(false)
     }
@@ -550,7 +559,8 @@ export function ViewerToolbar({
             </button>
           </div>
           <p className="print-settings-copy">
-            A printer-friendly PDF of the current Execution will be created.
+            We&apos;ll create a printer-friendly PDF version of your report, then open the print
+            dialog.
           </p>
           <label className="print-settings-field">
             <span>Page size</span>

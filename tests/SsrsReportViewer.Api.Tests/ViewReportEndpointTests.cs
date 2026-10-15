@@ -832,7 +832,7 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Concurrent_session_ops_serialize_extras_are_conflict()
+    public async Task Concurrent_resource_fetches_wait_on_gate_instead_of_conflict()
     {
         _factory.Fake.SeedReport(
             "/Sales/Revenue",
@@ -847,19 +847,17 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
         var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
         Assert.NotNull(body);
 
+        // Browsers load many report images in parallel; resources must queue, not 409.
         var first = _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
         await Task.Delay(50);
-        var second = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
-
-        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var second = _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
 
         var firstResponse = await first;
+        var secondResponse = await second;
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
-
-        // Second concurrent mutating op must not corrupt the Execution after the first completes.
-        var after = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
-        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
-        Assert.Equal(new byte[] { 1 }, await after.Content.ReadAsByteArrayAsync());
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        Assert.Equal(new byte[] { 1 }, await firstResponse.Content.ReadAsByteArrayAsync());
+        Assert.Equal(new byte[] { 1 }, await secondResponse.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]

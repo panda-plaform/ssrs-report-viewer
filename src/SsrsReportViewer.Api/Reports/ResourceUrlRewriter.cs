@@ -9,9 +9,9 @@ namespace SsrsReportViewer.Api.Reports;
 public static partial class ResourceUrlRewriter
 {
     /// <summary>
-    /// Maps <c>img</c> / <c>input type=image</c> <c>src</c> URLs that carry a StreamId (RenderStream /
-    /// ReportServer / ReportViewerWebControl shapes) to <paramref name="resourceRoot"/> + stream id.
-    /// Supports single- and double-quoted attributes.
+    /// Maps <c>img</c> / <c>input type=image</c> <c>src</c> URLs that carry a StreamId / ImageID
+    /// (RenderStream, ReportServer URL-access, ReportViewerWebControl shapes) to
+    /// <paramref name="resourceRoot"/> + id. Supports single- and double-quoted attributes.
     /// </summary>
     public static string Rewrite(string html, string resourceRoot)
     {
@@ -25,7 +25,7 @@ public static partial class ResourceUrlRewriter
             }
 
             var src = match.Groups["src"].Value;
-            var decoded = src.Replace("&amp;", "&", StringComparison.Ordinal);
+            var decoded = NormalizeResourceUrl(src);
             if (!LooksLikeReportServerResourceUrl(decoded))
             {
                 return match.Value;
@@ -46,17 +46,26 @@ public static partial class ResourceUrlRewriter
         ImageInputTypeRegex().IsMatch(tagHtml);
 
     /// <summary>
+    /// HTML entity decode + unescape common query encoding so <c>rs%3AImageID=</c> matches.
+    /// </summary>
+    private static string NormalizeResourceUrl(string src) =>
+        Uri.UnescapeDataString(src.Replace("&amp;", "&", StringComparison.Ordinal));
+
+    /// <summary>
     /// Accept ReportServer-shaped resource URLs even when the host token casing or path segment
-    /// varies (e.g. reportSERVER, Reserved.ReportViewerWebControl.axd without a ReportServer segment).
+    /// varies (e.g. reportSERVER, Reserved.ReportViewerWebControl.axd, rs:ImageID GUIDs).
     /// </summary>
     private static bool LooksLikeReportServerResourceUrl(string url) =>
         url.Contains("reportserver", StringComparison.OrdinalIgnoreCase) ||
         url.Contains("ReportViewerWebControl", StringComparison.OrdinalIgnoreCase) ||
-        url.Contains("RenderStream", StringComparison.OrdinalIgnoreCase);
+        url.Contains("RenderStream", StringComparison.OrdinalIgnoreCase) ||
+        url.Contains("ImageID", StringComparison.OrdinalIgnoreCase) ||
+        url.Contains("StreamId", StringComparison.OrdinalIgnoreCase) ||
+        url.Contains("StreamID", StringComparison.OrdinalIgnoreCase);
 
     private static string? ExtractStreamIdFromResourceUrl(string url)
     {
-        var match = StreamIdQueryRegex().Match(url);
+        var match = StreamOrImageIdQueryRegex().Match(url);
         if (!match.Success)
         {
             return null;
@@ -75,8 +84,12 @@ public static partial class ResourceUrlRewriter
         RegexOptions.IgnoreCase)]
     private static partial Regex ImageInputTypeRegex();
 
+    /// <summary>
+    /// SOAP RenderStream ids (<c>rc:StreamId</c> / <c>StreamID</c>) and HTML URL-access
+    /// image ids (<c>rs:ImageID</c>). Input should already be percent-decoded.
+    /// </summary>
     [GeneratedRegex(
-        """(?:^|[?&])(?:rc:|rs:)?StreamI[dD]=(?<id>[^&]*)""",
+        """(?:^|[?&])(?:(?:rc|rs):)?(?:StreamI[dD]|ImageID)=(?<id>[^&]*)""",
         RegexOptions.IgnoreCase)]
-    private static partial Regex StreamIdQueryRegex();
+    private static partial Regex StreamOrImageIdQueryRegex();
 }

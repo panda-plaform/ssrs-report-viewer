@@ -3,9 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   downloadExport,
+  fetchExportPdf,
   findInReport,
   findNextInReport,
   goBack,
+  printPdfBlob,
   setReportPage,
   setZoom,
 } from './reportApi'
@@ -16,10 +18,14 @@ vi.mock('./reportApi', () => ({
   setReportPage: vi.fn(),
   refreshReport: vi.fn(),
   downloadExport: vi.fn(),
+  fetchExportPdf: vi.fn(),
+  printPdfBlob: vi.fn(),
   findInReport: vi.fn(),
   findNextInReport: vi.fn(),
   goBack: vi.fn(),
 }))
+
+const pdfBlob = new Blob(['%PDF'], { type: 'application/pdf' })
 
 const pageResult = {
   sessionId: 'session-1',
@@ -70,6 +76,8 @@ describe('ViewerToolbar native chrome', () => {
     vi.mocked(setZoom).mockReset().mockResolvedValue({ ...pageResult, zoomPercent: 25 })
     vi.mocked(setReportPage).mockReset().mockResolvedValue(pageResult)
     vi.mocked(downloadExport).mockReset().mockResolvedValue(undefined)
+    vi.mocked(fetchExportPdf).mockReset().mockResolvedValue(pdfBlob)
+    vi.mocked(printPdfBlob).mockReset().mockResolvedValue(undefined)
     vi.mocked(findInReport).mockReset().mockResolvedValue({
       html: '<div>found</div>',
       found: true,
@@ -180,7 +188,7 @@ describe('ViewerToolbar native chrome', () => {
     expect(downloadExport).toHaveBeenCalledWith('session-1', 'CSV')
   })
 
-  it('opens a Print settings dialog instead of calling window.print', async () => {
+  it('opens a Print settings dialog without fetching or downloading a PDF', async () => {
     const user = userEvent.setup()
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
     renderToolbar()
@@ -190,32 +198,40 @@ describe('ViewerToolbar native chrome', () => {
     const dialog = screen.getByRole('dialog', { name: 'Print' })
     expect(dialog).toBeInTheDocument()
     expect(within(dialog).getByText(/printer-friendly PDF/i)).toBeInTheDocument()
-    expect(within(dialog).getByRole('combobox', { name: 'Page size' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('combobox', { name: 'Page orientation' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Page size' })).toHaveValue('A3')
+    expect(within(dialog).getByRole('combobox', { name: 'Page orientation' })).toHaveValue(
+      'Landscape',
+    )
     expect(within(dialog).getByRole('button', { name: 'Print' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(printSpy).not.toHaveBeenCalled()
     expect(downloadExport).not.toHaveBeenCalled()
+    expect(fetchExportPdf).not.toHaveBeenCalled()
+    expect(printPdfBlob).not.toHaveBeenCalled()
     printSpy.mockRestore()
   })
 
-  it('does not download a PDF when Print Cancel or Close is used', async () => {
+  it('does not print a PDF when Print Cancel or Close is used', async () => {
     const user = userEvent.setup()
     renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Print' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(fetchExportPdf).not.toHaveBeenCalled()
+    expect(printPdfBlob).not.toHaveBeenCalled()
     expect(downloadExport).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Print' }))
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(fetchExportPdf).not.toHaveBeenCalled()
+    expect(printPdfBlob).not.toHaveBeenCalled()
     expect(downloadExport).not.toHaveBeenCalled()
   })
 
-  it('dismisses Print settings with Escape without downloading', async () => {
+  it('dismisses Print settings with Escape without printing', async () => {
     const user = userEvent.setup()
     renderToolbar()
 
@@ -224,6 +240,8 @@ describe('ViewerToolbar native chrome', () => {
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    expect(fetchExportPdf).not.toHaveBeenCalled()
+    expect(printPdfBlob).not.toHaveBeenCalled()
     expect(downloadExport).not.toHaveBeenCalled()
   })
 
@@ -236,12 +254,12 @@ describe('ViewerToolbar native chrome', () => {
     expect(dialog.contains(document.activeElement)).toBe(true)
   })
 
-  it('shows Printing… and disables Print dialog controls while PDF is in flight', async () => {
-    let resolveExport!: () => void
-    vi.mocked(downloadExport).mockImplementationOnce(
+  it('shows Printing… and disables Print dialog controls while PDF fetch is in flight', async () => {
+    let resolveFetch!: (blob: Blob) => void
+    vi.mocked(fetchExportPdf).mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveExport = () => resolve()
+        new Promise<Blob>((resolve) => {
+          resolveFetch = resolve
         }),
     )
     const user = userEvent.setup()
@@ -258,18 +276,19 @@ describe('ViewerToolbar native chrome', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Page orientation' })).toBeDisabled()
     expect(dialog).toHaveAttribute('aria-busy', 'true')
 
-    resolveExport()
+    resolveFetch(pdfBlob)
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
     })
+    expect(printPdfBlob).toHaveBeenCalledWith(pdfBlob)
   })
 
-  it('dismisses Print dialog with Escape while print is in flight without starting another PDF', async () => {
-    let resolveExport!: () => void
-    vi.mocked(downloadExport).mockImplementationOnce(
+  it('dismisses Print dialog with Escape while fetch is in flight without starting another PDF', async () => {
+    let resolveFetch!: (blob: Blob) => void
+    vi.mocked(fetchExportPdf).mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveExport = () => resolve()
+        new Promise<Blob>((resolve) => {
+          resolveFetch = resolve
         }),
     )
     const user = userEvent.setup()
@@ -282,38 +301,46 @@ describe('ViewerToolbar native chrome', () => {
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
-    expect(downloadExport).toHaveBeenCalledTimes(1)
+    expect(fetchExportPdf).toHaveBeenCalledTimes(1)
 
-    resolveExport()
+    resolveFetch(pdfBlob)
     await waitFor(() => {
-      expect(downloadExport).toHaveBeenCalledTimes(1)
+      expect(printPdfBlob).toHaveBeenCalledTimes(1)
     })
+    expect(fetchExportPdf).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
   })
 
-  it('confirms Print by downloading a PDF with chosen page size and orientation', async () => {
+  it('confirms Print by fetching a PDF with settings and opening the print dialog (no download)', async () => {
     const user = userEvent.setup()
+    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})
     renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Print' }))
     const dialog = screen.getByRole('dialog', { name: 'Print' })
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Page size' }), 'A3')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Page size' }), 'A4')
     await user.selectOptions(
       within(dialog).getByRole('combobox', { name: 'Page orientation' }),
-      'Landscape',
+      'Portrait',
     )
     await user.click(within(dialog).getByRole('button', { name: 'Print' }))
 
-    expect(downloadExport).toHaveBeenCalledWith('session-1', 'PDF', {
-      pageSize: 'A3',
-      orientation: 'Landscape',
+    await waitFor(() => {
+      expect(fetchExportPdf).toHaveBeenCalledWith('session-1', {
+        pageSize: 'A4',
+        orientation: 'Portrait',
+      })
     })
+    expect(printPdfBlob).toHaveBeenCalledWith(pdfBlob)
+    expect(downloadExport).not.toHaveBeenCalled()
+    expect(printSpy).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'Print' })).not.toBeInTheDocument()
+    printSpy.mockRestore()
   })
 
-  it('surfaces Print errors and keeps Export free of the Print dialog', async () => {
+  it('surfaces Print fetch errors and keeps Export free of the Print dialog', async () => {
     const user = userEvent.setup()
-    vi.mocked(downloadExport).mockRejectedValueOnce(new Error('Print PDF failed'))
+    vi.mocked(fetchExportPdf).mockRejectedValueOnce(new Error('Print PDF failed'))
     const { onError } = renderToolbar()
 
     await user.click(screen.getByRole('button', { name: 'Print' }))
@@ -321,8 +348,11 @@ describe('ViewerToolbar native chrome', () => {
       within(screen.getByRole('dialog', { name: 'Print' })).getByRole('button', { name: 'Print' }),
     )
 
-    expect(onError).toHaveBeenCalled()
-    expect(downloadExport).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalled()
+    })
+    expect(fetchExportPdf).toHaveBeenCalledTimes(1)
+    expect(printPdfBlob).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog', { name: 'Print' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

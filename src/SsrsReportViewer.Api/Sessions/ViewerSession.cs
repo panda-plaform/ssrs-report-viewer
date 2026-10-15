@@ -135,6 +135,12 @@ public sealed class ViewerSession : IAsyncDisposable
         return await _gate.WaitAsync(0, cancellationToken);
     }
 
+    /// <summary>
+    /// Waits to enter the per-session busy gate (used for parallel image/resource fetches).
+    /// </summary>
+    public Task EnterAsync(CancellationToken cancellationToken) =>
+        _gate.WaitAsync(cancellationToken);
+
     public void Exit() => _gate.Release();
 
     public ValueTask DisposeAsync()

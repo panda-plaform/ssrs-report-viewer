@@ -127,7 +127,8 @@ public sealed class ViewerSessionGuard
     public async Task<T> ExecuteAsync<T>(
         string sessionId,
         Func<ViewerSession, CancellationToken, Task<T>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool waitForGate = false)
     {
         if (!_store.TryGet(sessionId, out var session) || session is null)
         {
@@ -141,7 +142,11 @@ public sealed class ViewerSessionGuard
             throw new ViewerSessionExpiredException(sessionId);
         }
 
-        if (!await session.TryEnterAsync(cancellationToken))
+        if (waitForGate)
+        {
+            await session.EnterAsync(cancellationToken);
+        }
+        else if (!await session.TryEnterAsync(cancellationToken))
         {
             throw new ViewerSessionBusyException(sessionId);
         }
