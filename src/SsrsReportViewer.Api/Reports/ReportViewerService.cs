@@ -615,6 +615,7 @@ public sealed partial class ReportViewerService
             html = html.Replace("{ReplacementRoot}", replacementRoot, StringComparison.Ordinal);
         }
 
+        html = FindHighlightNormalizer.Normalize(html);
         return ActionLinkRewriter.Rewrite(html, replacementRoot);
     }
 

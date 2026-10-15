@@ -53,9 +53,11 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>DeviceInfo from the most recent HTML RenderAsync call.</summary>
     public DeviceInfo? LastHtmlDeviceInfo { get; private set; }
 
-    /// <summary>Fake equivalent of SSRS Find highlight chrome (stable for endpoint assertions).</summary>
+    /// <summary>
+    /// Fake Find hit chrome matching ReportViewer <c>searchHighlighting</c> (stable for assertions).
+    /// </summary>
     public const string FindHighlightOpenTag =
-        "<span class=\"rs-find-highlight\" style=\"background-color:#FFFF00\">";
+        "<span id=\"oHit0\" class=\"searchHighlighting\">";
 
     public const string FindHighlightCloseTag = "</span>";
 
