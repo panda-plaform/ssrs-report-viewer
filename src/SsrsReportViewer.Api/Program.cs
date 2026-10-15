@@ -314,6 +314,8 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
 app.MapGet("/api/sessions/{sessionId}/export", async (
     string sessionId,
     string? format,
+    string? pageSize,
+    string? orientation,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
     CancellationToken cancellationToken) =>
@@ -321,7 +323,13 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
     {
         try
         {
-            var export = await viewer.ExportAsync(sessionId, format ?? string.Empty, guard, cancellationToken);
+            var export = await viewer.ExportAsync(
+                sessionId,
+                format ?? string.Empty,
+                guard,
+                cancellationToken,
+                pageSize,
+                orientation);
             return Results.File(export.Content, export.MimeType, export.FileName);
         }
         catch (UnsupportedExportFormatException ex)
@@ -330,6 +338,13 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
                 detail: ex.Message,
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Unsupported Export format");
+        }
+        catch (InvalidViewerInteractionException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid Export request");
         }
     }));
 

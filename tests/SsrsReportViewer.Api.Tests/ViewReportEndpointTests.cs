@@ -610,6 +610,45 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_rewrites_reportserver_image_urls_to_session_resources()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: """
+                  <img src="http://ssrs-host/ReportServer?rs:Command=Get&amp;rc:StreamId=img1" alt="folder" />
+                  <img src="https://ssrs-host/ReportServer/Reserved.ReportViewerWebControl.axd?StreamID=status2" />
+                  """,
+            streams:
+            [
+                new FakeStream("img1", "image/png", [0x89, 0x50, 0x4E, 0x47]),
+                new FakeStream("status2", "image/gif", [0x47, 0x49, 0x46]),
+            ]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var body = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(body);
+
+        var img1Url = $"/api/sessions/{body.SessionId}/resources/img1";
+        var status2Url = $"/api/sessions/{body.SessionId}/resources/status2";
+        Assert.Contains(img1Url, body.Html, StringComparison.Ordinal);
+        Assert.Contains(status2Url, body.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportserver", body.Html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ssrs-host", body.Html, StringComparison.OrdinalIgnoreCase);
+
+        var img1 = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/img1");
+        Assert.Equal(HttpStatusCode.OK, img1.StatusCode);
+        Assert.Equal([0x89, 0x50, 0x4E, 0x47], await img1.Content.ReadAsByteArrayAsync());
+
+        var status2 = await _client.GetAsync($"/api/sessions/{body.SessionId}/resources/status2");
+        Assert.Equal(HttpStatusCode.OK, status2.StatusCode);
+        Assert.Equal([0x47, 0x49, 0x46], await status2.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
     public async Task Expired_viewer_session_hard_fails_resource_fetch()
     {
         _factory.ConfigureSessionIdleTimeout(TimeSpan.FromMinutes(20));

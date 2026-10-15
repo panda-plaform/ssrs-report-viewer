@@ -11,7 +11,9 @@ public sealed record DeviceInfo(
     int ZoomPercent = 100,
     int? Section = null,
     string? ReplacementRoot = null,
-    string? ResourceStreamRoot = null);
+    string? ResourceStreamRoot = null,
+    string? PageWidth = null,
+    string? PageHeight = null);
 
 public sealed record RenderResult(
     byte[] Content,

@@ -54,9 +54,9 @@ Viewer Session interactions (serialized per session; Zoom via SSRS DeviceInfo re
 - `POST /api/sessions/{sessionId}/drillthrough` `{ reportPath, parameters[{ name, values }] }` → pushes the current Execution onto the Viewer Session back stack, loads the child report, returns session HTML with `canGoBack: true`
 - `POST /api/sessions/{sessionId}/back` → pops the back stack; restores the prior Execution when SSRS still holds it, otherwise reloads path + parameters (reload-fallback)
 
-Export (current Execution for a Viewer Session — the child after Drillthrough): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment.
+Export (current Execution for a Viewer Session — the child after Drillthrough): `GET /api/sessions/{sessionId}/export?format=PDF|EXCELOPENXML|CSV` → downloadable attachment. Optional `pageSize` and `orientation` query parameters apply PDF DeviceInfo for printer-friendly layout (used by Print).
 
-Print: Report Viewer toolbar calls `window.print()` with print CSS focused on the HTML report surface (use PDF Export for high fidelity).
+Print: Report Viewer toolbar opens a settings prompt (page size and orientation), then downloads a printer-friendly PDF of the current Execution via Export. Export menu PDF/Excel/CSV stays a direct download without that prompt.
 
 ## Tests
 

@@ -11,6 +11,7 @@ import {
   type ExportFormat,
   type FindResponse,
   type PageInfo,
+  type PrintPdfSettings,
   type RenderResponse,
 } from './reportApi'
 import {
@@ -37,6 +38,20 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'EXCELOPENXML', label: 'Excel' },
   { format: 'CSV', label: 'CSV' },
 ]
+
+const PAGE_SIZE_OPTIONS: { value: PrintPdfSettings['pageSize']; label: string }[] = [
+  { value: 'A4', label: 'A4 (210 × 297 mm)' },
+  { value: 'A3', label: 'A3 (297 × 420 mm)' },
+  { value: 'Letter', label: 'Letter (8.5 × 11 in)' },
+  { value: 'Legal', label: 'Legal (8.5 × 14 in)' },
+]
+
+const ORIENTATION_OPTIONS: PrintPdfSettings['orientation'][] = ['Portrait', 'Landscape']
+
+const DEFAULT_PRINT_SETTINGS: PrintPdfSettings = {
+  pageSize: 'A4',
+  orientation: 'Portrait',
+}
 
 type Props = {
   sessionId: string
@@ -75,7 +90,11 @@ export function ViewerToolbar({
   const [findStatus, setFindStatus] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [busyFormat, setBusyFormat] = useState<ExportFormat | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
+  const [printBusy, setPrintBusy] = useState(false)
+  const [printSettings, setPrintSettings] = useState<PrintPdfSettings>(DEFAULT_PRINT_SETTINGS)
   const exportMenuId = useId()
+  const printTitleId = useId()
   const exportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -106,6 +125,24 @@ export function ViewerToolbar({
     document.addEventListener('fullscreenchange', syncFullscreen)
     return () => document.removeEventListener('fullscreenchange', syncFullscreen)
   }, [onMaximizedChange])
+
+  useEffect(() => {
+    if (!printOpen) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (!printBusy) {
+          setPrintOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [printOpen, printBusy])
 
   async function handleMaximizeClick() {
     try {
@@ -214,7 +251,36 @@ export function ViewerToolbar({
   }
 
   function handlePrint() {
-    window.print()
+    if (busy || printBusy) {
+      return
+    }
+    setPrintOpen(true)
+  }
+
+  function dismissPrint() {
+    if (printBusy) {
+      return
+    }
+    setPrintOpen(false)
+  }
+
+  async function confirmPrint() {
+    if (busy || printBusy) {
+      return
+    }
+
+    setPrintBusy(true)
+    onBusyChange(true)
+    onError('')
+    try {
+      await downloadExport(sessionId, 'PDF', printSettings)
+      setPrintOpen(false)
+    } catch (err) {
+      onError(err instanceof Error ? err : 'Print failed')
+    } finally {
+      setPrintBusy(false)
+      onBusyChange(false)
+    }
   }
 
   const atFirst = pageInfo.currentPage <= 1
@@ -224,6 +290,7 @@ export function ViewerToolbar({
   const canFindNext = canFind && completedFindText === trimmedFind
 
   return (
+    <>
     <div className="viewer-toolbar no-print" role="toolbar" aria-label="Report Viewer toolbar">
       <div className="viewer-toolbar-group viewer-toolbar-page" role="group" aria-label="Report Page">
         <button
@@ -378,7 +445,7 @@ export function ViewerToolbar({
         className="viewer-toolbar-icon"
         aria-label="Print"
         title="Print"
-        disabled={busy}
+        disabled={busy || printBusy}
         onClick={handlePrint}
       >
         <IconPrint />
@@ -452,5 +519,81 @@ export function ViewerToolbar({
         </button>
       </div>
     </div>
+
+    {printOpen && (
+      <div className="print-settings-backdrop no-print">
+        <div
+          className="print-settings-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={printTitleId}
+        >
+          <div className="print-settings-dialog-header">
+            <h2 id={printTitleId}>Print</h2>
+            <button
+              type="button"
+              className="print-settings-close"
+              aria-label="Close"
+              disabled={printBusy}
+              onClick={dismissPrint}
+            >
+              ×
+            </button>
+          </div>
+          <p className="print-settings-copy">
+            A printer-friendly PDF of the current Execution will be created.
+          </p>
+          <label className="print-settings-field">
+            <span>Page size</span>
+            <select
+              aria-label="Page size"
+              value={printSettings.pageSize}
+              disabled={printBusy}
+              onChange={(event) =>
+                setPrintSettings((current) => ({
+                  ...current,
+                  pageSize: event.target.value as PrintPdfSettings['pageSize'],
+                }))
+              }
+            >
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="print-settings-field">
+            <span>Page orientation</span>
+            <select
+              aria-label="Page orientation"
+              value={printSettings.orientation}
+              disabled={printBusy}
+              onChange={(event) =>
+                setPrintSettings((current) => ({
+                  ...current,
+                  orientation: event.target.value as PrintPdfSettings['orientation'],
+                }))
+              }
+            >
+              {ORIENTATION_OPTIONS.map((orientation) => (
+                <option key={orientation} value={orientation}>
+                  {orientation}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="print-settings-actions">
+            <button type="button" disabled={printBusy} onClick={() => void confirmPrint()}>
+              {printBusy ? 'Printing…' : 'Print'}
+            </button>
+            <button type="button" disabled={printBusy} onClick={dismissPrint}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
