@@ -13,6 +13,11 @@ import {
 export type HtmlReplacedOptions = {
   /** Drillthrough / in-app Back: sync `?path=` (replaceState) and reseed parameters. */
   syncOpenReport?: boolean
+  /**
+   * When syncing open report: collapse the parameter form (default true).
+   * False when Drillthrough carried no Action Link parameters (catalog open needing prompts).
+   */
+  collapseParameters?: boolean
 }
 
 type Props = {
@@ -42,6 +47,7 @@ export function ReportSurface({
   onBusyChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     const node = containerRef.current
@@ -65,10 +71,11 @@ export function ReportSurface({
       failureLabel: string,
       options?: HtmlReplacedOptions,
     ): Promise<void> {
-      if (busy) {
+      if (busy || inFlightRef.current) {
         return
       }
 
+      inFlightRef.current = true
       onBusyChange(true)
       try {
         const result = await work()
@@ -76,6 +83,7 @@ export function ReportSurface({
       } catch (err) {
         onError(err instanceof Error ? err : failureLabel)
       } finally {
+        inFlightRef.current = false
         onBusyChange(false)
       }
     }
@@ -135,7 +143,11 @@ export function ReportSurface({
         await runSessionAction(
           () => drillthroughReport(activeSessionId, reportPath, parameters),
           'Drillthrough failed',
-          { syncOpenReport: true },
+          {
+            syncOpenReport: true,
+            // Empty Action Link params → show the form (e.g. ItemPath open of Execution Log).
+            collapseParameters: parameters.length > 0,
+          },
         )
         return
       }

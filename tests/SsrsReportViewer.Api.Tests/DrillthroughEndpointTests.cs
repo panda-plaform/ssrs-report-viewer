@@ -174,8 +174,114 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
         Assert.NotNull(restored);
         Assert.Equal(parent.SessionId, restored.SessionId);
         Assert.False(restored.CanGoBack);
+        Assert.Equal("/Sales/Parent", restored.ReportPath);
         Assert.Contains("Parent home", restored.Html, StringComparison.Ordinal);
         Assert.Equal(parentExecutionId, _factory.Fake.LastRenderedExecutionId);
+    }
+
+    [Fact]
+    public async Task Post_back_restores_parent_page_and_zoom_when_execution_alive()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Parent",
+            parameters: [],
+            html: "<div>Parent home</div>",
+            pageCount: 3);
+        _factory.Fake.SeedReport("/Sales/Child", parameters: [], html: "<div>Child page</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Parent", parameters = Array.Empty<object>() });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+        Assert.Equal(1, parent.PageInfo!.CurrentPage);
+        Assert.Equal(100, parent.ZoomPercent);
+
+        var zoom = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/zoom",
+            new { zoomPercent = 150 });
+        Assert.Equal(HttpStatusCode.OK, zoom.StatusCode);
+        var afterZoom = await zoom.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(afterZoom);
+        Assert.Equal(150, afterZoom.ZoomPercent);
+
+        var page = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/page",
+            new { action = "goto", page = 2 });
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        var afterPage = await page.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(afterPage);
+        Assert.Equal(2, afterPage.PageInfo!.CurrentPage);
+        Assert.Equal(3, afterPage.PageInfo.PageCount);
+        Assert.Equal(150, afterPage.ZoomPercent);
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        var child = await drillthrough.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.Equal(1, child.PageInfo!.CurrentPage);
+
+        var back = await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null);
+        Assert.Equal(HttpStatusCode.OK, back.StatusCode);
+        var restored = await back.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(restored);
+        Assert.Equal("/Sales/Parent", restored.ReportPath);
+        Assert.Equal(2, restored.PageInfo!.CurrentPage);
+        Assert.Equal(3, restored.PageInfo.PageCount);
+        Assert.Equal(150, restored.ZoomPercent);
+    }
+
+    [Fact]
+    public async Task Post_nested_drillthrough_pops_one_level_per_back()
+    {
+        _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>Parent home</div>");
+        _factory.Fake.SeedReport("/Sales/Child", parameters: [], html: "<div>Child page</div>");
+        _factory.Fake.SeedReport("/Sales/Grandchild", parameters: [], html: "<div>Grandchild page</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Parent", parameters = Array.Empty<object>() });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+
+        var childResponse = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, childResponse.StatusCode);
+        var child = await childResponse.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.True(child.CanGoBack);
+        Assert.Equal("/Sales/Child", child.ReportPath);
+        Assert.Contains("Child page", child.Html, StringComparison.Ordinal);
+
+        var grandchildResponse = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Grandchild", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, grandchildResponse.StatusCode);
+        var grandchild = await grandchildResponse.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(grandchild);
+        Assert.True(grandchild.CanGoBack);
+        Assert.Equal("/Sales/Grandchild", grandchild.ReportPath);
+        Assert.Contains("Grandchild page", grandchild.Html, StringComparison.Ordinal);
+
+        var backToChild = await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null);
+        Assert.Equal(HttpStatusCode.OK, backToChild.StatusCode);
+        var restoredChild = await backToChild.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(restoredChild);
+        Assert.True(restoredChild.CanGoBack);
+        Assert.Equal("/Sales/Child", restoredChild.ReportPath);
+        Assert.Contains("Child page", restoredChild.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Grandchild", restoredChild.Html, StringComparison.Ordinal);
+
+        var backToParent = await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null);
+        Assert.Equal(HttpStatusCode.OK, backToParent.StatusCode);
+        var restoredParent = await backToParent.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(restoredParent);
+        Assert.False(restoredParent.CanGoBack);
+        Assert.Equal("/Sales/Parent", restoredParent.ReportPath);
+        Assert.Contains("Parent home", restoredParent.Html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -219,9 +325,75 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
         var restored = await back.Content.ReadFromJsonAsync<SessionHtmlResponse>();
         Assert.NotNull(restored);
         Assert.False(restored.CanGoBack);
+        Assert.Equal("/Sales/Parent", restored.ReportPath);
+        Assert.Equal(["West"], Assert.Single(restored.Parameters!, p => p.Name == "Region").Values);
         Assert.Contains("Parent West", restored.Html, StringComparison.Ordinal);
         Assert.NotEqual(parentExecutionId, _factory.Fake.LastLoadedExecutionId);
         Assert.NotEqual(parentExecutionId, _factory.Fake.LastRenderedExecutionId);
+    }
+
+    [Fact]
+    public async Task Post_drillthrough_returns_problem_details_when_report_missing()
+    {
+        _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>parent</div>");
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Parent", parameters = Array.Empty<object>() });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Missing", parameters = Array.Empty<object>() });
+
+        Assert.Equal(HttpStatusCode.NotFound, drillthrough.StatusCode);
+        var problem = await drillthrough.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(
+            problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
+            "Expected ProblemDetails-shaped body");
+        Assert.False(
+            (await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null)).IsSuccessStatusCode,
+            "Failed Drillthrough must not push the back stack");
+    }
+
+    [Fact]
+    public async Task Post_drillthrough_opens_child_when_required_parameters_omitted()
+    {
+        // Catalog ItemPath links omit Report Parameters; still open the child so the form can prompt.
+        _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>parent</div>");
+        _factory.Fake.SeedReport(
+            "/Sales/Child",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: true,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div>Child {{Region}}</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Parent", parameters = Array.Empty<object>() });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
+
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        var child = await drillthrough.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(child);
+        Assert.Equal(parent.SessionId, child.SessionId);
+        Assert.True(child.CanGoBack);
+        Assert.Equal("/Sales/Child", child.ReportPath);
+        Assert.True(
+            (await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null)).IsSuccessStatusCode,
+            "Successful Drillthrough must push the back stack");
     }
 
     [Fact]
@@ -274,7 +446,11 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
         string Html,
         bool CanGoBack,
         string? ReportPath = null,
-        AppliedParameter[]? Parameters = null);
+        AppliedParameter[]? Parameters = null,
+        PageInfoResponse? PageInfo = null,
+        int ZoomPercent = 0);
+
+    private sealed record PageInfoResponse(int CurrentPage, int PageCount);
 
     private sealed record AppliedParameter(string Name, string[] Values);
 }

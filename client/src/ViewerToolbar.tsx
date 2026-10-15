@@ -98,6 +98,7 @@ export function ViewerToolbar({
   const exportMenuId = useId()
   const printTitleId = useId()
   const exportRef = useRef<HTMLDivElement>(null)
+  const backInFlightRef = useRef(false)
   const printDialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -212,10 +213,11 @@ export function ViewerToolbar({
   }
 
   async function handleBack() {
-    if (busy || !canGoBack) {
+    if (busy || !canGoBack || backInFlightRef.current) {
       return
     }
 
+    backInFlightRef.current = true
     onBusyChange(true)
     onError('')
     try {
@@ -224,6 +226,7 @@ export function ViewerToolbar({
     } catch (err) {
       onError(err instanceof Error ? err : 'Back failed')
     } finally {
+      backInFlightRef.current = false
       onBusyChange(false)
     }
   }

@@ -62,17 +62,39 @@ public static partial class ActionLinkRewriter
         {
             var href = match.Groups["href"].Value;
             var label = match.Groups["label"].Value;
-            var decodedHref = href.Replace("&amp;", "&", StringComparison.Ordinal);
+            var decodedHref = NormalizeQuerySeparators(href.Replace("&amp;", "&", StringComparison.Ordinal));
 
-            // Report Manager "open report" links (often have tabindex before href).
-            if (TryParseReportManagerItemPath(decodedHref, out var itemPath))
+            // Report Manager links (often tabindex before href): ItemPath + optional Report Parameters.
+            if (IsReportManagerUrl(decodedHref))
             {
-                return DrillthroughAnchor(itemPath, [], label);
+                var managerQuery = ExtractQuery(decodedHref);
+                // ViewMode=List is folder browsing, not a Report Drillthrough.
+                if (FirstQueryValue(managerQuery, "ViewMode") is not null)
+                {
+                    return ExternalAnchor(href, label);
+                }
+
+                if (TryParseDrillthroughQuery(managerQuery, out var managerPath, out var managerParams))
+                {
+                    return DrillthroughAnchor(
+                        managerPath,
+                        managerParams,
+                        FriendlyDrillthroughLabel(label, managerPath));
+                }
             }
 
             if (IsReportServerUrl(decodedHref))
             {
-                return $"<a href=\"#\" data-ssrs-action=\"blocked-reportserver\">{label}</a>";
+                var query = ExtractQuery(decodedHref);
+                if (TryParseDrillthroughQuery(query, out var reportPath, out var parameters))
+                {
+                    return DrillthroughAnchor(
+                        reportPath,
+                        parameters,
+                        FriendlyDrillthroughLabel(label, reportPath));
+                }
+
+                return $"<a href=\"#\" data-ssrs-action=\"blocked-reportserver\">{FriendlyDrillthroughLabel(label, reportPath: string.Empty)}</a>";
             }
 
             return ExternalAnchor(href, label);
@@ -84,31 +106,27 @@ public static partial class ActionLinkRewriter
         return rewritten;
     }
 
+    private static bool IsReportManagerUrl(string href) =>
+        href.Contains("Report.aspx", StringComparison.OrdinalIgnoreCase) ||
+        href.Contains("/Pages/Report", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Report Manager URLs like /Reports/Pages/Report.aspx?ItemPath=%2fFolder%2fReport.
     /// </summary>
     internal static bool TryParseReportManagerItemPath(string href, out string reportPath)
     {
         reportPath = string.Empty;
-        if (string.IsNullOrWhiteSpace(href))
+        if (string.IsNullOrWhiteSpace(href) || !IsReportManagerUrl(href))
         {
             return false;
         }
 
-        if (!href.Contains("Report.aspx", StringComparison.OrdinalIgnoreCase) &&
-            !href.Contains("/Pages/Report", StringComparison.OrdinalIgnoreCase))
+        var query = ExtractQuery(NormalizeQuerySeparators(href));
+        if (!TryParseDrillthroughQuery(query, out reportPath, out _))
         {
             return false;
         }
 
-        var query = ExtractQuery(href.Replace("&amp;", "&", StringComparison.Ordinal));
-        var itemPath = FirstQueryValue(query, "ItemPath");
-        if (string.IsNullOrWhiteSpace(itemPath))
-        {
-            return false;
-        }
-
-        reportPath = NormalizePath(itemPath);
         return reportPath.Length > 1;
     }
 
@@ -184,13 +202,60 @@ public static partial class ActionLinkRewriter
 
     private static string? TryDrillthroughAnchor(string rawQuery, string label)
     {
-        var decoded = WebUtility.HtmlDecode(rawQuery);
-        if (!TryParseDrillthroughQuery(decoded, out var reportPath, out var parameters))
+        if (!TryParseDrillthroughQuery(rawQuery, out var reportPath, out var parameters))
         {
             return null;
         }
 
-        return DrillthroughAnchor(reportPath, parameters, label);
+        return DrillthroughAnchor(
+            reportPath,
+            parameters,
+            FriendlyDrillthroughLabel(label, reportPath));
+    }
+
+    /// <summary>
+    /// When SSRS uses the raw ReportServer URL as link text, show the Report leaf name instead.
+    /// Labels that already contain markup (e.g. icons) are left unchanged.
+    /// </summary>
+    internal static string FriendlyDrillthroughLabel(string label, string reportPath)
+    {
+        var text = WebUtility.HtmlDecode(label).Trim();
+        if (text.Contains('<', StringComparison.Ordinal))
+        {
+            return label;
+        }
+
+        if (string.IsNullOrWhiteSpace(text) ||
+            text.Contains("ReportServer", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            var leaf = reportPath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+            return string.IsNullOrWhiteSpace(leaf) ? "Report" : leaf;
+        }
+
+        return label;
+    }
+
+    /// <summary>
+    /// SSRS HTML often uses <c>&amp;</c> separators; SOAP/XML can leave them double-encoded
+    /// (<c>&amp;amp;</c>). Decode until stable so keys are <c>ReportName</c>, not <c>amp;ReportName</c>.
+    /// </summary>
+    private static string NormalizeQuerySeparators(string query)
+    {
+        var current = query;
+        for (var i = 0; i < 5; i++)
+        {
+            var next = WebUtility.HtmlDecode(current);
+            if (string.Equals(next, current, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            current = next;
+        }
+
+        return current.Replace("&amp;", "&", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool TryParseDrillthroughQuery(
@@ -206,7 +271,7 @@ public static partial class ActionLinkRewriter
             return false;
         }
 
-        var q = query.TrimStart('?');
+        var q = NormalizeQuerySeparators(query).TrimStart('?');
         var parts = q.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         string? path = null;
         var multi = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -216,7 +281,8 @@ public static partial class ActionLinkRewriter
             var eq = part.IndexOf('=');
             if (eq < 0)
             {
-                var candidate = Uri.UnescapeDataString(part);
+                // UrlDecode maps + to space (common in ReportServer path segments).
+                var candidate = WebUtility.UrlDecode(part) ?? part;
                 if (candidate.StartsWith('/') && path is null)
                 {
                     path = NormalizePath(candidate);
@@ -225,9 +291,8 @@ public static partial class ActionLinkRewriter
                 continue;
             }
 
-            var key = Uri.UnescapeDataString(part[..eq]);
-            var value = Uri.UnescapeDataString(part[(eq + 1)..]);
-
+            var key = WebUtility.UrlDecode(part[..eq]) ?? part[..eq];
+            var value = WebUtility.UrlDecode(part[(eq + 1)..]) ?? part[(eq + 1)..];
             if (key.StartsWith("rs:", StringComparison.OrdinalIgnoreCase) ||
                 key.StartsWith("rc:", StringComparison.OrdinalIgnoreCase))
             {
@@ -235,9 +300,28 @@ public static partial class ActionLinkRewriter
             }
 
             if (string.Equals(key, "ReportPath", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(key, "Report", StringComparison.OrdinalIgnoreCase))
+                string.Equals(key, "Report", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "ItemPath", StringComparison.OrdinalIgnoreCase))
             {
                 path = NormalizePath(value);
+                continue;
+            }
+            // URL access null syntax: StartDate:isnull=True → StartDate with empty values (SSRS NULL).
+            const string isnullSuffix = ":isnull";
+            if (key.EndsWith(isnullSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!IsTruthy(value))
+                {
+                    continue;
+                }
+
+                var nullName = key[..^isnullSuffix.Length];
+                if (string.IsNullOrWhiteSpace(nullName))
+                {
+                    continue;
+                }
+
+                multi[nullName] = [];
                 continue;
             }
 

@@ -161,14 +161,55 @@ describe('ViewerToolbar native chrome', () => {
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
   })
 
-  it('calls goBack when Back is enabled', async () => {
+  it('calls goBack when Back is enabled and requests open-report sync', async () => {
     const user = userEvent.setup()
+    const parentResult = {
+      ...pageResult,
+      canGoBack: false,
+      reportPath: '/Sales/Parent',
+      parameters: [{ name: 'Region', values: ['West'] }],
+      html: '<div>Parent</div>',
+    }
+    vi.mocked(goBack).mockResolvedValueOnce(parentResult)
     const { onUpdated } = renderToolbar({ canGoBack: true })
 
     await user.click(screen.getByRole('button', { name: 'Back' }))
 
     expect(goBack).toHaveBeenCalledWith('session-1')
-    expect(onUpdated).toHaveBeenCalled()
+    expect(onUpdated).toHaveBeenCalledWith(parentResult, { syncOpenReport: true })
+  })
+
+  it('does not call goBack while busy even when canGoBack is true', async () => {
+    const user = userEvent.setup()
+    renderToolbar({ canGoBack: true, busy: true })
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(goBack).not.toHaveBeenCalled()
+  })
+
+  it('does not double-submit Back while a request is in flight', async () => {
+    let resolveBack: ((value: typeof pageResult) => void) | undefined
+    vi.mocked(goBack).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveBack = resolve
+        }),
+    )
+
+    const user = userEvent.setup()
+    const { onUpdated } = renderToolbar({ canGoBack: true })
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(goBack).toHaveBeenCalledTimes(1)
+
+    const parentResult = { ...pageResult, canGoBack: false, html: '<div>Parent</div>' }
+    resolveBack?.(parentResult)
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalledWith(parentResult, { syncOpenReport: true })
+    })
   })
 
   it('calls downloadExport from the Export menu for PDF, Excel, and CSV', async () => {
