@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { seedFormFromExecution } from './executionParameterSeed'
+import {
+  mergeCascadedNullChecked,
+  seedFormDefaults,
+  seedFormFromExecution,
+} from './executionParameterSeed'
 import type { ReportParameter } from './reportApi'
 
 function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name'>): ReportParameter {
@@ -15,6 +19,38 @@ function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name
     ...overrides,
   }
 }
+
+describe('seedFormDefaults', () => {
+  it('checks NULL for every nullable Report Parameter on a fresh load', () => {
+    const parameters = [
+      param({ name: 'Region', nullable: true, defaultValues: ['East'] }),
+      param({ name: 'Year', nullable: false, defaultValues: ['2023'] }),
+      param({ name: 'Optional', nullable: true }),
+    ]
+
+    const seeded = seedFormDefaults(parameters)
+
+    expect(seeded.nullChecked).toEqual({ Region: true, Optional: true })
+  })
+
+  it('does not invent Boolean false when SSRS provides no defaultValues', () => {
+    const parameters = [
+      param({ name: 'Enabled', dataType: 'Boolean' }),
+      param({ name: 'Flag', dataType: 'Boolean', defaultValues: ['true'] }),
+      param({ name: 'Tags', multiValue: true }),
+      param({ name: 'Region' }),
+    ]
+
+    const seeded = seedFormDefaults(parameters)
+
+    expect(seeded.values).toEqual({
+      Enabled: [''],
+      Flag: ['true'],
+      Tags: [],
+      Region: [''],
+    })
+  })
+})
 
 describe('seedFormFromExecution', () => {
   it('applies Execution parameter values over Report Parameter defaults', () => {
@@ -61,9 +97,19 @@ describe('seedFormFromExecution', () => {
 
     expect(seeded.values).toEqual({
       Region: ['West'],
-      Year: ['false'],
+      Year: [''],
     })
   })
+
+  it('unchecks NULL when Execution applied concrete values to a nullable parameter', () => {
+    const parameters = [param({ name: 'Region', nullable: true, defaultValues: ['East'] })]
+
+    const seeded = seedFormFromExecution(parameters, [{ name: 'Region', values: ['West'] }])
+
+    expect(seeded.values.Region).toEqual(['West'])
+    expect(seeded.nullChecked).toEqual({ Region: false })
+  })
+
 
   it('seeds multi-value Execution parameters', () => {
     const parameters = [param({ name: 'Tags', multiValue: true, defaultValues: [] })]
@@ -73,5 +119,20 @@ describe('seedFormFromExecution', () => {
     ])
 
     expect(seeded.values).toEqual({ Tags: ['a', 'b'] })
+  })
+})
+
+describe('mergeCascadedNullChecked', () => {
+  it('defaults newly seen nullable parameters to NULL checked', () => {
+    const parameters = [
+      param({ name: 'Region', nullable: true }),
+      param({ name: 'NewOptional', nullable: true }),
+      param({ name: 'Year' }),
+    ]
+
+    expect(mergeCascadedNullChecked(parameters, { Region: false })).toEqual({
+      Region: false,
+      NewOptional: true,
+    })
   })
 })

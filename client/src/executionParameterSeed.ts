@@ -12,40 +12,41 @@ export type SeededParameterForm = {
   nullChecked: Record<string, boolean>
 }
 
-function defaultValues(parameters: ReportParameter[]): Record<string, string[]> {
+/**
+ * Fresh-load form seeding from Report Parameter metadata.
+ * Values come only from SSRS defaultValues when present; never invent Boolean false/true.
+ * Nullable parameters start with NULL checked.
+ */
+export function seedFormDefaults(parameters: ReportParameter[]): SeededParameterForm {
   const values: Record<string, string[]> = {}
+  const nullChecked: Record<string, boolean> = {}
+
   for (const parameter of parameters) {
     if (parameter.defaultValues?.length) {
       values[parameter.name] = [...parameter.defaultValues]
-    } else if (parameter.dataType.toLowerCase() === 'boolean') {
-      values[parameter.name] = ['false']
     } else {
+      // Boolean with no defaults stays empty/unselected; never invent false/true.
       values[parameter.name] = parameter.multiValue ? [] : ['']
     }
-  }
-  return values
-}
 
-function defaultNullChecked(parameters: ReportParameter[]): Record<string, boolean> {
-  const flags: Record<string, boolean> = {}
-  for (const parameter of parameters) {
     if (parameter.nullable) {
-      flags[parameter.name] = false
+      nullChecked[parameter.name] = true
     }
   }
-  return flags
+
+  return { values, nullChecked }
 }
 
 /**
  * Reseeds the parameter bar from current Execution parameters (RenderResponse.parameters).
  * Empty values on a nullable parameter mean NULL was applied to the Execution.
+ * Execution seed wins over the fresh-load NULL default.
  */
 export function seedFormFromExecution(
   parameters: ReportParameter[],
   execution: ParameterSubmission[],
 ): SeededParameterForm {
-  const values = defaultValues(parameters)
-  const nullChecked = defaultNullChecked(parameters)
+  const { values, nullChecked } = seedFormDefaults(parameters)
   const byName = new Map(execution.map((entry) => [entry.name, entry.values]))
 
   for (const parameter of parameters) {
@@ -66,4 +67,18 @@ export function seedFormFromExecution(
   }
 
   return { values, nullChecked }
+}
+
+/** After cascading refresh: keep tracked flags; newly seen nullable → NULL checked. */
+export function mergeCascadedNullChecked(
+  parameters: ReportParameter[],
+  previous: Record<string, boolean>,
+): Record<string, boolean> {
+  const next: Record<string, boolean> = {}
+  for (const parameter of parameters) {
+    if (parameter.nullable) {
+      next[parameter.name] = previous[parameter.name] ?? true
+    }
+  }
+  return next
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  mergeCascadedNullChecked,
+  seedFormDefaults,
   seedFormFromExecution,
   type ExecutionParameterSeed,
 } from './executionParameterSeed'
@@ -10,11 +12,6 @@ import {
   type RenderResponse,
 } from './reportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
-import {
-  SELECT_ALL_LABEL,
-  applySelectAll,
-  selectAllCheckboxState,
-} from './selectAllMultiValue'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
@@ -24,30 +21,6 @@ type Props = {
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onReturnToCatalog?: () => void
-}
-
-function initialValues(parameters: ReportParameter[]): Record<string, string[]> {
-  const values: Record<string, string[]> = {}
-  for (const parameter of parameters) {
-    if (parameter.defaultValues?.length) {
-      values[parameter.name] = [...parameter.defaultValues]
-    } else if (parameter.dataType.toLowerCase() === 'boolean') {
-      values[parameter.name] = ['false']
-    } else {
-      values[parameter.name] = parameter.multiValue ? [] : ['']
-    }
-  }
-  return values
-}
-
-function initialNullChecked(parameters: ReportParameter[]): Record<string, boolean> {
-  const flags: Record<string, boolean> = {}
-  for (const parameter of parameters) {
-    if (parameter.nullable) {
-      flags[parameter.name] = false
-    }
-  }
-  return flags
 }
 
 function dependencyFingerprint(
@@ -135,10 +108,7 @@ export function ParameterForm({
           const useSeed = seed !== null && seed.reportPath === reportPath
           const seeded = useSeed
             ? seedFormFromExecution(response.parameters, seed.parameters)
-            : {
-                values: initialValues(response.parameters),
-                nullChecked: initialNullChecked(response.parameters),
-              }
+            : seedFormDefaults(response.parameters)
           setParameters(response.parameters)
           setValues(seeded.values)
           setNullChecked(seeded.nullChecked)
@@ -209,17 +179,7 @@ export function ParameterForm({
 
         setParameters(response.parameters)
         setValues((current) => mergeCascadedValues(response.parameters, current))
-        setNullChecked((current) => {
-          const next = { ...current }
-          for (const parameter of response.parameters) {
-            if (parameter.nullable) {
-              next[parameter.name] ??= false
-            } else {
-              delete next[parameter.name]
-            }
-          }
-          return next
-        })
+        setNullChecked((current) => mergeCascadedNullChecked(response.parameters, current))
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to refresh cascading parameters')
@@ -235,16 +195,6 @@ export function ParameterForm({
 
   function setSingleValue(name: string, value: string) {
     setValues((current) => ({ ...current, [name]: [value] }))
-  }
-
-  function toggleMultiValue(name: string, option: string, checked: boolean) {
-    setValues((current) => {
-      const existing = current[name] ?? []
-      const next = checked
-        ? [...new Set([...existing, option])]
-        : existing.filter((item) => item !== option)
-      return { ...current, [name]: next }
-    })
   }
 
   function setMultiValues(name: string, next: string[]) {
@@ -315,15 +265,7 @@ export function ParameterForm({
                   isNull={Boolean(nullChecked[parameter.name])}
                   onNullChange={(checked) => setParameterNull(parameter.name, checked)}
                   onSingleChange={(value) => setSingleValue(parameter.name, value)}
-                  onMultiToggle={(option, checked) =>
-                    toggleMultiValue(parameter.name, option, checked)
-                  }
-                  onSelectAllChange={(checked) =>
-                    setMultiValues(
-                      parameter.name,
-                      applySelectAll(parameter.validValues, checked),
-                    )
-                  }
+                  onMultiChange={(next) => setMultiValues(parameter.name, next)}
                 />
               ))}
             </form>
@@ -352,8 +294,7 @@ type FieldProps = {
   isNull: boolean
   onNullChange: (checked: boolean) => void
   onSingleChange: (value: string) => void
-  onMultiToggle: (option: string, checked: boolean) => void
-  onSelectAllChange: (checked: boolean) => void
+  onMultiChange: (values: string[]) => void
 }
 
 function ParameterField({
@@ -362,20 +303,11 @@ function ParameterField({
   isNull,
   onNullChange,
   onSingleChange,
-  onMultiToggle,
-  onSelectAllChange,
+  onMultiChange,
 }: FieldProps) {
   const label = parameter.prompt || parameter.name
   const dataType = parameter.dataType.toLowerCase()
   const valueDisabled = isNull
-  const selectAllRef = useRef<HTMLInputElement>(null)
-  const selectAllState = selectAllCheckboxState(parameter.validValues, values)
-
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = selectAllState.indeterminate
-    }
-  }, [selectAllState.indeterminate])
 
   return (
     <div className="parameter-field">
@@ -385,37 +317,31 @@ function ParameterField({
       </label>
 
       {parameter.multiValue && parameter.validValues.length > 0 ? (
-        <fieldset className="parameter-multivalue" disabled={valueDisabled}>
-          <legend className="visually-hidden">{label}</legend>
-          <label className="parameter-check">
-            <input
-              ref={selectAllRef}
-              type="checkbox"
-              checked={selectAllState.checked}
-              disabled={valueDisabled}
-              onChange={(event) => onSelectAllChange(event.target.checked)}
-            />
-            {SELECT_ALL_LABEL}
-          </label>
+        <select
+          id={`param-${parameter.name}`}
+          className="parameter-multivalue"
+          multiple
+          value={values}
+          disabled={valueDisabled}
+          onChange={(event) => {
+            const selected = Array.from(event.target.selectedOptions, (option) => option.value)
+            onMultiChange(selected)
+          }}
+        >
           {parameter.validValues.map((option) => (
-            <label key={option.value} className="parameter-check">
-              <input
-                type="checkbox"
-                checked={values.includes(option.value)}
-                disabled={valueDisabled}
-                onChange={(event) => onMultiToggle(option.value, event.target.checked)}
-              />
+            <option key={option.value} value={option.value}>
               {option.label}
-            </label>
+            </option>
           ))}
-        </fieldset>
+        </select>
       ) : dataType === 'boolean' ? (
         <select
           id={`param-${parameter.name}`}
-          value={values[0] ?? 'false'}
+          value={values[0] ?? ''}
           disabled={valueDisabled}
           onChange={(event) => onSingleChange(event.target.value)}
         >
+          <option value="">Select…</option>
           <option value="true">True</option>
           <option value="false">False</option>
         </select>
