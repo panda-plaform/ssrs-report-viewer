@@ -15,21 +15,23 @@ export type SeededParameterForm = {
 /**
  * Fresh-load form seeding from Report Parameter metadata.
  * Values come only from SSRS defaultValues when present; never invent Boolean false/true.
- * Nullable parameters start with NULL checked.
+ * Nullable NULL matches native SSRS: checked when there are no defaultValues; unchecked when
+ * SSRS supplied defaults (e.g. Start Date with a default, End Date without).
  */
 export function seedFormDefaults(parameters: ReportParameter[]): SeededParameterForm {
   const values: Record<string, string[]> = {}
   const nullChecked: Record<string, boolean> = {}
 
   for (const parameter of parameters) {
-    if (parameter.defaultValues?.length) {
+    const hasDefaults = Boolean(parameter.defaultValues?.length)
+    if (hasDefaults) {
       values[parameter.name] = [...parameter.defaultValues]
     } else {
       values[parameter.name] = parameter.multiValue ? [] : ['']
     }
 
     if (parameter.nullable) {
-      nullChecked[parameter.name] = true
+      nullChecked[parameter.name] = !hasDefaults
     }
   }
 
@@ -95,7 +97,7 @@ export function mergeCascadedValues(
   return next
 }
 
-/** After cascading refresh: keep tracked flags; newly seen nullable → NULL checked. */
+/** After cascading refresh: keep tracked flags; newly seen nullable follows SSRS defaults. */
 export function mergeCascadedNullChecked(
   parameters: ReportParameter[],
   previous: Record<string, boolean>,
@@ -103,7 +105,8 @@ export function mergeCascadedNullChecked(
   const next: Record<string, boolean> = {}
   for (const parameter of parameters) {
     if (parameter.nullable) {
-      next[parameter.name] = previous[parameter.name] ?? true
+      const defaultNull = !parameter.defaultValues?.length
+      next[parameter.name] = previous[parameter.name] ?? defaultNull
     }
   }
   return next

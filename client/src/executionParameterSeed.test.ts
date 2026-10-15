@@ -21,16 +21,18 @@ function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name
 }
 
 describe('seedFormDefaults', () => {
-  it('checks NULL for every nullable Report Parameter on a fresh load', () => {
+  it('checks NULL for nullable parameters only when SSRS provides no defaultValues', () => {
     const parameters = [
-      param({ name: 'Region', nullable: true, defaultValues: ['East'] }),
+      param({ name: 'StartDate', nullable: true, defaultValues: ['2026-10-14T22:25:13'] }),
+      param({ name: 'EndDate', nullable: true }),
       param({ name: 'Year', nullable: false, defaultValues: ['2023'] }),
-      param({ name: 'Optional', nullable: true }),
     ]
 
     const seeded = seedFormDefaults(parameters)
 
-    expect(seeded.nullChecked).toEqual({ Region: true, Optional: true })
+    expect(seeded.nullChecked).toEqual({ StartDate: false, EndDate: true })
+    expect(seeded.values.StartDate).toEqual(['2026-10-14T22:25:13'])
+    expect(seeded.values.EndDate).toEqual([''])
   })
 
   it('does not invent Boolean false when SSRS provides no defaultValues', () => {
@@ -146,16 +148,18 @@ describe('seedFormFromExecution', () => {
 })
 
 describe('mergeCascadedNullChecked', () => {
-  it('defaults newly seen nullable parameters to NULL checked', () => {
+  it('defaults newly seen nullable parameters from SSRS defaultValues', () => {
     const parameters = [
       param({ name: 'Region', nullable: true }),
       param({ name: 'NewOptional', nullable: true }),
+      param({ name: 'WithDefault', nullable: true, defaultValues: ['x'] }),
       param({ name: 'Year' }),
     ]
 
     expect(mergeCascadedNullChecked(parameters, { Region: false })).toEqual({
       Region: false,
       NewOptional: true,
+      WithDefault: false,
     })
   })
 })
