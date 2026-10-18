@@ -20,6 +20,7 @@ import {
   selectAllCheckboxState,
   selectedLabelsSummary,
 } from './selectAllMultiValue'
+import { cascadeFingerprint } from './cascadeFingerprint'
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 
@@ -31,27 +32,6 @@ type Props = {
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onReturnToCatalog?: () => void
-}
-
-function dependencyFingerprint(
-  parameters: ReportParameter[],
-  values: Record<string, string[]>,
-  nullChecked: Record<string, boolean>,
-): string {
-  const dependencyNames = new Set(parameters.flatMap((p) => p.dependencies ?? []))
-  if (dependencyNames.size === 0) {
-    return ''
-  }
-
-  return parameters
-    .filter((p) => dependencyNames.has(p.name))
-    .map((p) => {
-      if (nullChecked[p.name]) {
-        return `${p.name}=__NULL__`
-      }
-      return `${p.name}=${(values[p.name] ?? []).join('\u001f')}`
-    })
-    .join('|')
 }
 
 export function ParameterForm({
@@ -142,7 +122,7 @@ export function ParameterForm({
   }, [executionSeed, loadState, parameters, reportPath])
 
   const cascadeKey = useMemo(
-    () => dependencyFingerprint(parameters, values, nullChecked),
+    () => cascadeFingerprint(parameters, values, nullChecked),
     [parameters, values, nullChecked],
   )
 

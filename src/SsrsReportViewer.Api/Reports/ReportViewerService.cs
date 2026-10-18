@@ -49,7 +49,9 @@ public sealed partial class ReportViewerService
             valuesForCascading: null,
             cancellationToken);
         var enriched = MergeNonPromptedDefaultsForCascading(metadata, valuesForCascading);
-        enriched = FormatDateTimeParameterValues(metadata, enriched, _options.DefaultCulture);
+        // GetItemParameters has no ParameterLanguage; culture short dates (en-GB) fault as
+        // type mismatches. Keep ISO / invariant forms SSRS accepts without ParameterLanguage.
+        enriched = FormatDateTimeParameterValuesForCascading(metadata, enriched);
         return await _ssrs.GetParametersAsync(
             reportPath,
             forRendering,
@@ -795,6 +797,32 @@ public sealed partial class ReportViewerService
         }).ToArray();
     }
 
+    /// <summary>
+    /// DateTimes for GetItemParameters cascading Values. No ParameterLanguage on that API,
+    /// so emit invariant <c>yyyy-MM-dd</c> instead of culture short dates.
+    /// </summary>
+    internal static IReadOnlyList<ParameterValue> FormatDateTimeParameterValuesForCascading(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> values)
+    {
+        var byName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
+
+        return values.Select(parameter =>
+        {
+            if (!byName.TryGetValue(parameter.Name, out var definition) ||
+                !definition.DataType.Equals("DateTime", StringComparison.OrdinalIgnoreCase) ||
+                parameter.Values.Count == 0)
+            {
+                return parameter;
+            }
+
+            var formatted = parameter.Values
+                .Select(FormatDateTimeValueForCascading)
+                .ToArray();
+            return new ParameterValue(parameter.Name, formatted);
+        }).ToArray();
+    }
+
     internal static string FormatDateTimeValue(string value, CultureInfo culture)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -841,6 +869,60 @@ public sealed partial class ReportViewerService
             DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out parsed))
         {
             return parsed.Date.ToString("d", culture);
+        }
+
+        return value;
+    }
+
+    internal static string FormatDateTimeValueForCascading(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var trimmed = value.Trim();
+        if (DateTime.TryParseExact(
+                trimmed,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var isoDate))
+        {
+            return isoDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        string[] isoDateTimes =
+        [
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+        ];
+        if (DateTime.TryParseExact(
+                trimmed,
+                isoDateTimes,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var isoDateTime))
+        {
+            return isoDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        if (DateTime.TryParse(
+                trimmed,
+                CultureInfo.GetCultureInfo("en-US"),
+                DateTimeStyles.AllowWhiteSpaces,
+                out var parsed) ||
+            DateTime.TryParse(
+                trimmed,
+                CultureInfo.GetCultureInfo("en-GB"),
+                DateTimeStyles.AllowWhiteSpaces,
+                out parsed) ||
+            DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out parsed))
+        {
+            return parsed.TimeOfDay == TimeSpan.Zero
+                ? parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : parsed.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
         }
 
         return value;
