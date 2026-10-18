@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using SsrsReportViewer.Api.Features.Find;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
@@ -444,7 +445,8 @@ public sealed partial class ReportViewerService
         return new FindResult(
             render.Html,
             found,
-            new PageInfo(session.CurrentPage, session.PageCount));
+            new PageInfo(session.CurrentPage, session.PageCount),
+            session.ReportPath);
     }
 
     /// <param name="findString">
@@ -981,7 +983,7 @@ public sealed record ViewReportResult(
     string ReportPath,
     IReadOnlyList<ParameterValue> Parameters);
 
-public sealed record FindResult(string Html, bool Found, PageInfo PageInfo);
+public sealed record FindResult(string Html, bool Found, PageInfo PageInfo, string ReportPath);
 
 public sealed record PageInfo(int CurrentPage, int PageCount);
 

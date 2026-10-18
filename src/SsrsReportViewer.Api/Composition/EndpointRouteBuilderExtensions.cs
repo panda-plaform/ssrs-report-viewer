@@ -1,4 +1,5 @@
 using SsrsReportViewer.Api.Features.Catalog;
+using SsrsReportViewer.Api.Features.Find;
 using SsrsReportViewer.Api.Features.ViewReport;
 using SsrsReportViewer.Api.Features.ZoomPage;
 
@@ -25,6 +26,7 @@ public static class EndpointRouteBuilderExtensions
         app.MapCatalogEndpoints();
         app.MapViewReportEndpoints();
         app.MapViewerSessionGroup().MapZoomPageEndpoints();
+        app.MapViewerSessionGroup().MapFindEndpoints();
         return app;
     }
 }

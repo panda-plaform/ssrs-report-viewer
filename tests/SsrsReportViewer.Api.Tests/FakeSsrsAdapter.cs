@@ -54,7 +54,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     public DeviceInfo? LastHtmlDeviceInfo { get; private set; }
 
     /// <summary>
-    /// Expected Find hit chrome after <see cref="SsrsReportViewer.Api.Reports.FindHighlightNormalizer"/>
+    /// Expected Find hit chrome after <see cref="SsrsReportViewer.Api.Features.Find.FindHighlightNormalizer"/>
     /// (ReportViewer <c>searchHighlighting</c>).
     /// </summary>
     public const string FindHighlightOpenTag =
