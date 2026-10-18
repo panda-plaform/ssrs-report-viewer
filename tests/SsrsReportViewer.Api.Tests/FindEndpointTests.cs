@@ -50,6 +50,11 @@ public sealed class FindEndpointTests : IClassFixture<ApiFactory>
             FakeSsrsAdapter.FindHighlightOpenTag + "needle" + FakeSsrsAdapter.FindHighlightCloseTag,
             body.Html,
             StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "BACKGROUND-COLOR:highlight",
+            body.Html,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("oHit0", body.Html, StringComparison.Ordinal);
     }
 
     [Fact]

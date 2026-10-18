@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { wireFixedHeaders } from './createFixedHeaders'
 import {
   drillthroughReport,
   navigateBookmark,
@@ -56,6 +57,7 @@ export function ReportSurface({
     }
 
     node.innerHTML = html ?? ''
+    void wireFixedHeaders(node)
   }, [html])
 
   useEffect(() => {

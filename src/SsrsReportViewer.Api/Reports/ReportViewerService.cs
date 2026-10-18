@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,6 +13,8 @@ public sealed partial class ReportViewerService
     private readonly ISsrsAdapter _ssrs;
     private readonly IViewerSessionStore _sessions;
     private readonly SsrsOptions _options;
+    private readonly ConcurrentDictionary<string, FixedDataInfo> _fixedDataByPath = new(
+        StringComparer.OrdinalIgnoreCase);
 
     public ReportViewerService(
         ISsrsAdapter ssrs,
@@ -460,6 +463,8 @@ public sealed partial class ReportViewerService
         session.PageCount = render.PageCount;
 
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
+        var fixedData = await GetFixedDataAsync(session.ReportPath, cancellationToken);
+        html = FixedHeaderAnnotator.Annotate(html, fixedData);
         return new ViewReportResult(
             session.Id,
             html,
@@ -469,6 +474,30 @@ public sealed partial class ReportViewerService
             render.DocumentMap,
             session.ReportPath,
             session.Parameters);
+    }
+
+    private async Task<FixedDataInfo> GetFixedDataAsync(
+        string reportPath,
+        CancellationToken cancellationToken)
+    {
+        if (_fixedDataByPath.TryGetValue(reportPath, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            var definition = await _ssrs.GetItemDefinitionAsync(reportPath, cancellationToken);
+            var info = FixedDataParser.Parse(definition);
+            _fixedDataByPath[reportPath] = info;
+            return info;
+        }
+        catch
+        {
+            // Freeze is best-effort; missing definition must not block View Report.
+            _fixedDataByPath[reportPath] = FixedDataInfo.None;
+            return FixedDataInfo.None;
+        }
     }
 
     private static DeviceInfo CreateDeviceInfo(

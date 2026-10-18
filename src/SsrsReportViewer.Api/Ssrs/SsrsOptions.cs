@@ -26,4 +26,10 @@ public sealed class SsrsOptions
 
     /// <summary>CORS origins for non-Development environments.</summary>
     public string[] AllowedOrigins { get; set; } = [];
+
+    /// <summary>
+    /// ReportViewerWebControl.axd Version query value (e.g. 16.0.1119.11).
+    /// Used when proxying Html5Renderer / ViewerScript assets for CreateFixedHeaders.
+    /// </summary>
+    public string ReportViewerResourceVersion { get; set; } = "16.0.1119.11";
 }

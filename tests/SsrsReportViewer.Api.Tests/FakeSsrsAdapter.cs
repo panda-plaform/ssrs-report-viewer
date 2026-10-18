@@ -54,12 +54,19 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     public DeviceInfo? LastHtmlDeviceInfo { get; private set; }
 
     /// <summary>
-    /// Fake Find hit chrome matching ReportViewer <c>searchHighlighting</c> (stable for assertions).
+    /// Expected Find hit chrome after <see cref="SsrsReportViewer.Api.Reports.FindHighlightNormalizer"/>
+    /// (ReportViewer <c>searchHighlighting</c>).
     /// </summary>
     public const string FindHighlightOpenTag =
         "<span id=\"oHit0\" class=\"searchHighlighting\">";
 
     public const string FindHighlightCloseTag = "</span>";
+
+    /// <summary>
+    /// SOAP HTML4.0 Find hit chrome (system highlight colors) before normalization.
+    /// </summary>
+    public const string SoapFindHighlightOpenTag =
+        """<span ID="oHit0" style="COLOR:highlighttext;BACKGROUND-COLOR:highlight;">""";
 
     /// <summary>forRendering flag from the most recent GetParametersAsync call.</summary>
     public bool? LastGetParametersForRendering { get; private set; }
@@ -594,6 +601,21 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         return Task.CompletedTask;
     }
 
+    /// <summary>Optional RDL bytes for FixedData annotation tests (keyed by report path).</summary>
+    public Dictionary<string, byte[]> ItemDefinitions { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<byte[]> GetItemDefinitionAsync(string reportPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = NormalizePath(reportPath);
+        if (ItemDefinitions.TryGetValue(path, out var bytes))
+        {
+            return Task.FromResult(bytes);
+        }
+
+        return Task.FromResult(Array.Empty<byte>());
+    }
+
     private static IReadOnlyList<DocumentMapNode>? ToDocumentMap(IReadOnlyList<FakeDocumentMapNode>? nodes)
     {
         if (nodes is null || nodes.Count == 0)
@@ -641,7 +663,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
 
         var matched = html.Substring(index, findString.Length);
         return html[..index]
-            + FindHighlightOpenTag
+            + SoapFindHighlightOpenTag
             + matched
             + FindHighlightCloseTag
             + html[(index + findString.Length)..];

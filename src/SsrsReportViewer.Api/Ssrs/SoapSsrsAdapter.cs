@@ -577,6 +577,38 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         return "/" + path.Trim().Trim('/');
     }
 
+    public async Task<byte[]> GetItemDefinitionAsync(
+        string reportPath,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new XElement(
+            Mgmt + "GetItemDefinition",
+            new XElement(Mgmt + "ItemPath", NormalizePath(reportPath)));
+
+        try
+        {
+            var document = await _soap.Value.InvokeManagementAsync(
+                "GetItemDefinition",
+                body,
+                cancellationToken);
+            var definition = document
+                .Descendants(Mgmt + "Definition")
+                .Select(e => e.Value)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(definition))
+            {
+                throw new InvalidOperationException(
+                    $"GetItemDefinition returned no Definition for '{NormalizePath(reportPath)}'.");
+            }
+
+            return Convert.FromBase64String(definition);
+        }
+        catch (CatalogPathNotFoundException)
+        {
+            throw new ReportNotFoundException(NormalizePath(reportPath));
+        }
+    }
+
     private static bool ParseBool(string? value, bool defaultValue = false) =>
         bool.TryParse(value, out var parsed) ? parsed : defaultValue;
 
