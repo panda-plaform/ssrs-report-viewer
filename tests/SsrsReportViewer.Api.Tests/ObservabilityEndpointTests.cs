@@ -139,5 +139,109 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
         Assert.DoesNotContain(secretPassword, body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Find_outcome_emits_structured_information_with_session_report_and_operation()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            pageHtml:
+            [
+                "<div class=\"report\">Page one needle here</div>",
+                "<div class=\"report\">Page two</div>",
+            ]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(rendered);
+        _factory.Logs.Clear();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/find",
+            new { findValue = "needle" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var entry = Assert.Single(
+            _factory.Logs.Entries,
+            e => e.Message.Contains("Find outcome", StringComparison.Ordinal));
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Contains(rendered.SessionId, entry.Message, StringComparison.Ordinal);
+        Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("find", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("find/next", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("True", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Find_next_outcome_emits_structured_information_with_operation()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            pageHtml:
+            [
+                "<div class=\"report\">first hit: needle</div>",
+                "<div class=\"report\">second hit: needle</div>",
+            ]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(rendered);
+
+        await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/find",
+            new { findValue = "needle" });
+        _factory.Logs.Clear();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/find/next",
+            new { findValue = "needle" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var entry = Assert.Single(
+            _factory.Logs.Entries,
+            e => e.Message.Contains("Find outcome", StringComparison.Ordinal));
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Contains(rendered.SessionId, entry.Message, StringComparison.Ordinal);
+        Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("find/next", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Find_not_found_outcome_is_logged_with_found_false()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            pageHtml: ["<div class=\"report\">alpha</div>"]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<RenderResponse>();
+        Assert.NotNull(rendered);
+        _factory.Logs.Clear();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/find",
+            new { findValue = "missing-term" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var entry = Assert.Single(
+            _factory.Logs.Entries,
+            e => e.Message.Contains("Find outcome", StringComparison.Ordinal));
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Contains(rendered.SessionId, entry.Message, StringComparison.Ordinal);
+        Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("False", entry.Message, StringComparison.Ordinal);
+    }
+
     private sealed record RenderResponse(string SessionId);
 }

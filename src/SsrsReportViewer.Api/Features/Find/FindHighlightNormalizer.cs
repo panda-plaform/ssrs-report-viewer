@@ -1,10 +1,11 @@
 using System.Text.RegularExpressions;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Features.Find;
 
 /// <summary>
 /// Maps SSRS HTML Find hit chrome to ReportViewer <c>searchHighlighting</c> (orange #FFC20D).
 /// SOAP HTML4.0 emits system colors (<c>BACKGROUND-COLOR:highlight</c>); the native control uses the class.
+/// Owned by the Find vertical slice (ADR-0005).
 /// </summary>
 internal static partial class FindHighlightNormalizer
 {

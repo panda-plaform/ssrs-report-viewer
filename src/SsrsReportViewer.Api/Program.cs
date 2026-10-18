@@ -30,7 +30,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping seam (#61+). Routes below remain in Program until migrated.
+// Feature-slice endpoint mapping (Find and later slices). Remaining routes stay in Program until migrated.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -476,52 +476,6 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
         }
     }));
 
-app.MapPost("/api/sessions/{sessionId}/find", async (
-    string sessionId,
-    FindRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.FindValue))
-    {
-        return Results.Problem(
-            detail: "findValue is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Find request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
-        return Results.Ok(ToFindPayload(result));
-    });
-});
-
-app.MapPost("/api/sessions/{sessionId}/find/next", async (
-    string sessionId,
-    FindRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.FindValue))
-    {
-        return Results.Problem(
-            detail: "findValue is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Find request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
-        return Results.Ok(ToFindPayload(result));
-    });
-});
-
 static bool TryParseSortDirection(string? value, out SortDirection direction)
 {
     if (string.IsNullOrWhiteSpace(value))
@@ -590,18 +544,6 @@ static object ToSessionPayload(ViewReportResult result) =>
             .ToArray(),
     };
 
-static object ToFindPayload(FindResult result) =>
-    new
-    {
-        html = result.Html,
-        found = result.Found,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-    };
-
 static object MapDocumentMapNode(DocumentMapNode node) =>
     new
     {
@@ -631,5 +573,3 @@ public sealed record ToggleRequest(string? ToggleId);
 public sealed record SortRequest(string? SortItem, string? Direction, bool? Clear);
 
 public sealed record DrillthroughRequest(string? ReportPath, ViewReportParameter[]? Parameters);
-
-public sealed record FindRequest(string? FindValue);

@@ -1,10 +1,22 @@
 import type { PrintPdfSettings } from './printPdfSettings'
+import { throwIfNotOk } from './http'
 
 export type {
   PrintOrientation,
   PrintPageSize,
   PrintPdfSettings,
 } from './printPdfSettings'
+
+export {
+  isViewerSessionExpiredError,
+  ViewerSessionExpiredError,
+} from './http'
+
+export {
+  findInReport,
+  findNextInReport,
+  type FindResponse,
+} from './features/find/findApi'
 
 export type ParameterValidValue = {
   label: string
@@ -54,44 +66,6 @@ export type RenderResponse = {
   canGoBack: boolean
   reportPath: string
   parameters: ParameterSubmission[]
-}
-
-/** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
-export class ViewerSessionExpiredError extends Error {
-  readonly statusCode = 410 as const
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'ViewerSessionExpiredError'
-  }
-}
-
-export function isViewerSessionExpiredError(error: unknown): error is ViewerSessionExpiredError {
-  return error instanceof ViewerSessionExpiredError
-}
-
-async function readProblemDetail(response: Response): Promise<string> {
-  let detail = `HTTP ${response.status}`
-  try {
-    const problem = (await response.json()) as { detail?: string; title?: string }
-    detail = problem.detail ?? problem.title ?? detail
-  } catch {
-    // keep status-based detail
-  }
-  return detail
-}
-
-async function throwIfNotOk(response: Response): Promise<void> {
-  if (response.ok) {
-    return
-  }
-
-  const detail = await readProblemDetail(response)
-  if (response.status === 410) {
-    throw new ViewerSessionExpiredError(detail)
-  }
-
-  throw new Error(detail)
 }
 
 export async function fetchParameters(
@@ -373,30 +347,3 @@ export async function printExportPdf(
   await printPdfBlob(blob)
 }
 
-export type FindResponse = {
-  html: string
-  found: boolean
-  pageInfo: PageInfo
-}
-
-async function postFind(
-  sessionId: string,
-  path: 'find' | 'find/next',
-  findValue: string,
-): Promise<FindResponse> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ findValue }),
-  })
-  await throwIfNotOk(response)
-  return (await response.json()) as FindResponse
-}
-
-export function findInReport(sessionId: string, findValue: string): Promise<FindResponse> {
-  return postFind(sessionId, 'find', findValue)
-}
-
-export function findNextInReport(sessionId: string, findValue: string): Promise<FindResponse> {
-  return postFind(sessionId, 'find/next', findValue)
-}

@@ -29,9 +29,14 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
         string categoryName,
         ConcurrentQueue<CapturedLogEntry> entries) : ILogger
     {
+        private static bool IsAppCategory(string category) =>
+            category.StartsWith("SsrsReportViewer", StringComparison.Ordinal);
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+        // Information+ for app categories so Find / Export outcome logs are assertable (ADR-0006).
+        public bool IsEnabled(LogLevel logLevel) =>
+            IsAppCategory(categoryName) && logLevel >= LogLevel.Information;
 
         public void Log<TState>(
             LogLevel logLevel,

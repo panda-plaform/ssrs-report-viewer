@@ -5,10 +5,10 @@ import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
 import type { ExecutionParameterSeed } from './executionParameterSeed'
+import type { FindResponse } from './features/find/findApi'
 import {
   isViewerSessionExpiredError,
   navigateDocumentMap,
-  type FindResponse,
   type RenderResponse,
 } from './reportApi'
 import type { HtmlReplacedOptions } from './ReportSurface'
