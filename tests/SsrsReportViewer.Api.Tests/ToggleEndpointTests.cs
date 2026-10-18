@@ -25,7 +25,7 @@ public sealed class ToggleEndpointTests : IClassFixture<ApiFactory>
             parameters: [],
             html: """
                   <div class="report">
-                    <a href="{ReplacementRoot}?rc:Toggle=Details1">Toggle Details</a>
+                    <a href="{ReplacementRoot}?rc:Toggle=Details1"><IMG SRC="{ResourceStreamRoot}2022.1.0.0TogglePlus.gif" ALT="+"/></a>
                     <div class="detail" data-toggle="Details1" data-state="{toggle:Details1}">detail-body</div>
                     <a href="http://reportserver.example/ReportServer?/Sales/Revenue&amp;rc:Toggle=LegacyToggle">Legacy toggle</a>
                     <a href="https://contoso.example/help">Help docs</a>
@@ -43,6 +43,8 @@ public sealed class ToggleEndpointTests : IClassFixture<ApiFactory>
         Assert.DoesNotContain("ReportServer", rendered.Html, StringComparison.Ordinal);
         Assert.Contains("data-ssrs-action=\"drilldown\"", rendered.Html, StringComparison.Ordinal);
         Assert.Contains("data-ssrs-toggle-id=\"Details1\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("ssrs-toggle-icon", rendered.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("TogglePlus.gif", rendered.Html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-ssrs-action=\"external\"", rendered.Html, StringComparison.Ordinal);
         Assert.Contains("https://contoso.example/help", rendered.Html, StringComparison.Ordinal);
         Assert.Contains("data-state=\"collapsed\"", rendered.Html, StringComparison.Ordinal);
