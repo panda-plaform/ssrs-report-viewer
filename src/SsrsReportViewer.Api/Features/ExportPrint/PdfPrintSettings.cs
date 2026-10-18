@@ -1,8 +1,9 @@
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Features.ExportPrint;
 
 /// <summary>
 /// Allowed PDF Print page sizes and default orientation names for Export DeviceInfo.
 /// Keep keys aligned with the client <c>PRINT_PAGE_SIZES</c> / <c>PRINT_ORIENTATIONS</c> lists.
+/// Owned by the Export / Print vertical slice (ADR-0005).
 /// </summary>
 public static class PdfPrintSettings
 {

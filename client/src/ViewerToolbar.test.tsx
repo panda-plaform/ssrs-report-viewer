@@ -4,22 +4,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   downloadExport,
   fetchExportPdf,
+  printPdfBlob,
+} from './features/export-print/exportApi'
+import {
   findInReport,
   findNextInReport,
   goBack,
-  printPdfBlob,
   setReportPage,
   setZoom,
 } from './reportApi'
 import { ViewerToolbar } from './ViewerToolbar'
 
+vi.mock('./features/export-print/exportApi', async () => {
+  const actual = await vi.importActual<typeof import('./features/export-print/exportApi')>(
+    './features/export-print/exportApi',
+  )
+  return {
+    ...actual,
+    downloadExport: vi.fn(),
+    fetchExportPdf: vi.fn(),
+    printPdfBlob: vi.fn(),
+  }
+})
+
 vi.mock('./reportApi', () => ({
   setZoom: vi.fn(),
   setReportPage: vi.fn(),
   refreshReport: vi.fn(),
-  downloadExport: vi.fn(),
-  fetchExportPdf: vi.fn(),
-  printPdfBlob: vi.fn(),
   findInReport: vi.fn(),
   findNextInReport: vi.fn(),
   goBack: vi.fn(),

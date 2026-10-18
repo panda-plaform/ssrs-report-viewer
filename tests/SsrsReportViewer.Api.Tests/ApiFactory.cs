@@ -74,6 +74,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             logging.ClearProviders();
             logging.AddProvider(_logs);
             logging.SetMinimumLevel(LogLevel.Warning);
+            // App categories emit Information for high-signal slice outcomes (Find / Export / Print).
+            logging.AddFilter("SsrsReportViewer", LogLevel.Information);
         });
 
         builder.ConfigureServices(services =>

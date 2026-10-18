@@ -2,23 +2,23 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   DEFAULT_PRINT_SETTINGS,
+  downloadExport,
+  fetchExportPdf,
+  printPdfBlob,
   PRINT_ORIENTATIONS,
   PRINT_PAGE_SIZES,
+  type ExportFormat,
   type PrintOrientation,
   type PrintPageSize,
   type PrintPdfSettings,
-} from './printPdfSettings'
+} from './features/export-print/exportApi'
 import {
-  downloadExport,
-  fetchExportPdf,
   findInReport,
   findNextInReport,
   goBack,
-  printPdfBlob,
   refreshReport,
   setReportPage,
   setZoom,
-  type ExportFormat,
   type FindResponse,
   type PageInfo,
   type RenderResponse,
