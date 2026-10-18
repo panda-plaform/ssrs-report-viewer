@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace SsrsReportViewer.Api.Tests;
 
@@ -14,6 +15,7 @@ public sealed class CatalogEndpointTests : IClassFixture<ApiFactory>
         _factory = factory;
         _client = factory.CreateClient();
         _factory.Fake.ResetCatalog();
+        _factory.Logs.Clear();
     }
 
     [Fact]
@@ -71,6 +73,22 @@ public sealed class CatalogEndpointTests : IClassFixture<ApiFactory>
         Assert.True(
             problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
             "Expected ProblemDetails-shaped body");
+    }
+
+    [Fact]
+    public async Task Get_catalog_missing_path_emits_structured_warning_with_catalog_path()
+    {
+        const string missingPath = "/Does/Not/Exist";
+
+        var response = await _client.GetAsync($"/api/catalog?path={missingPath}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var entry = Assert.Single(
+            _factory.Logs.Entries,
+            e => e.Message.Contains("Catalog path not found", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains(missingPath, entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]

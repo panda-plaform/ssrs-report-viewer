@@ -22,7 +22,7 @@ vi.mock('./reportApi', async () => {
   }
 })
 
-vi.mock('./CatalogBrowser', () => ({
+vi.mock('./features/catalog/CatalogBrowser', () => ({
   CatalogBrowser: () => <div>Catalog browser</div>,
 }))
 

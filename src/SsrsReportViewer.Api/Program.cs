@@ -30,7 +30,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping seam (#61+). Routes below remain in Program until migrated.
+// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #62+.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -87,33 +87,6 @@ app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
             detail: ex.Message,
             statusCode: StatusCodes.Status502BadGateway,
             title: "ReportViewer asset unavailable");
-    }
-});
-
-app.MapGet("/api/catalog", async (string? path, ISsrsAdapter ssrs, CancellationToken cancellationToken) =>
-{
-    var catalogPath = NormalizeCatalogPath(path);
-
-    try
-    {
-        var items = await ssrs.ListChildrenAsync(catalogPath, cancellationToken);
-        var folders = items
-            .Where(i => i.Type == CatalogItemType.Folder)
-            .Select(i => new { name = i.Name, path = i.Path })
-            .ToArray();
-        var reports = items
-            .Where(i => i.Type == CatalogItemType.Report)
-            .Select(i => new { name = i.Name, path = i.Path })
-            .ToArray();
-
-        return Results.Ok(new { path = catalogPath, folders, reports });
-    }
-    catch (CatalogPathNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Catalog path not found");
     }
 });
 

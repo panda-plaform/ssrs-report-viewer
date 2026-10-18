@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CatalogBrowser } from './CatalogBrowser'
+import { CatalogBrowser } from './features/catalog/CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
