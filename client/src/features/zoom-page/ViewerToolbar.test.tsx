@@ -5,9 +5,9 @@ import { findInReport, findNextInReport } from '../find/findApi'
 import {
   downloadExport,
   fetchExportPdf,
-  goBack,
   printPdfBlob,
-} from '../../reportApi'
+} from '../export-print/exportApi'
+import { goBack } from '../../reportApi'
 import { ViewerToolbar } from './ViewerToolbar'
 import { refreshReport, setReportPage, setZoom } from './zoomPageApi'
 
@@ -16,10 +16,19 @@ vi.mock('../find/findApi', () => ({
   findNextInReport: vi.fn(),
 }))
 
+vi.mock('../export-print/exportApi', async () => {
+  const actual = await vi.importActual<typeof import('../export-print/exportApi')>(
+    '../export-print/exportApi',
+  )
+  return {
+    ...actual,
+    downloadExport: vi.fn(),
+    fetchExportPdf: vi.fn(),
+    printPdfBlob: vi.fn(),
+  }
+})
+
 vi.mock('../../reportApi', () => ({
-  downloadExport: vi.fn(),
-  fetchExportPdf: vi.fn(),
-  printPdfBlob: vi.fn(),
   goBack: vi.fn(),
 }))
 

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using SsrsReportViewer.Api.Features.ExportPrint;
 using SsrsReportViewer.Api.Features.Find;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
@@ -376,7 +377,11 @@ public sealed partial class ReportViewerService
                     resolved.AccessiblePdf);
                 var render = await _ssrs.RenderAsync(session.Execution, resolved.SsrsFormat, deviceInfo, ct);
                 var fileName = BuildExportFileName(session.ReportPath, resolved.FileExtension);
-                return new ExportResult(render.Content, render.MimeType, fileName);
+                return new ExportResult(
+                    render.Content,
+                    render.MimeType,
+                    fileName,
+                    session.ReportPath);
             },
             cancellationToken);
     }
@@ -987,7 +992,7 @@ public sealed record FindResult(string Html, bool Found, PageInfo PageInfo, stri
 
 public sealed record PageInfo(int CurrentPage, int PageCount);
 
-public sealed record ExportResult(byte[] Content, string MimeType, string FileName);
+public sealed record ExportResult(byte[] Content, string MimeType, string FileName, string ReportPath);
 
 public sealed class UnsupportedExportFormatException : Exception
 {

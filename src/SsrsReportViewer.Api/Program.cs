@@ -214,44 +214,6 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
     });
 });
 
-app.MapGet("/api/sessions/{sessionId}/export", async (
-    string sessionId,
-    string? format,
-    string? pageSize,
-    string? orientation,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        try
-        {
-            var export = await viewer.ExportAsync(
-                sessionId,
-                format ?? string.Empty,
-                guard,
-                cancellationToken,
-                pageSize,
-                orientation);
-            return Results.File(export.Content, export.MimeType, export.FileName);
-        }
-        catch (UnsupportedExportFormatException ex)
-        {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Unsupported Export format");
-        }
-        catch (InvalidViewerInteractionException ex)
-        {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Invalid Export request");
-        }
-    }));
-
 app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
     string sessionId,
     DrillthroughRequest request,

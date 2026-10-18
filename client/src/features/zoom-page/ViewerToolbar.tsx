@@ -4,18 +4,18 @@ import type { FindResponse } from '../find/findApi'
 import type { HtmlReplacedOptions } from '../../ReportSurface'
 import {
   DEFAULT_PRINT_SETTINGS,
+  downloadExport,
+  fetchExportPdf,
+  printPdfBlob,
   PRINT_ORIENTATIONS,
   PRINT_PAGE_SIZES,
+  type ExportFormat,
   type PrintOrientation,
   type PrintPageSize,
   type PrintPdfSettings,
-} from '../../printPdfSettings'
+} from '../export-print/exportApi'
 import {
-  downloadExport,
-  fetchExportPdf,
   goBack,
-  printPdfBlob,
-  type ExportFormat,
   type PageInfo,
   type RenderResponse,
 } from '../../reportApi'
