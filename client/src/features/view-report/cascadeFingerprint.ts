@@ -1,4 +1,4 @@
-import type { ReportParameter } from './reportApi'
+import type { ReportParameter } from './viewReportApi'
 
 /**
  * Key for refreshing query-driven Valid Values when parameter values change.

@@ -5,7 +5,7 @@ import {
   seedFormDefaults,
   seedFormFromExecution,
 } from './executionParameterSeed'
-import type { ReportParameter } from './reportApi'
+import type { ReportParameter } from './viewReportApi'
 
 function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name'>): ReportParameter {
   return {

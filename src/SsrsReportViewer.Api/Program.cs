@@ -1,5 +1,6 @@
-using System.Text.Json;
 using SsrsReportViewer.Api.Composition;
+using SsrsReportViewer.Api.Features.ViewReport;
+using SsrsReportViewer.Api.Hosting;
 using SsrsReportViewer.Api.Reports;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
@@ -30,7 +31,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #62+.
+// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #63+.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -90,89 +91,6 @@ app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
     }
 });
 
-app.MapGet("/api/reports/parameters", async (
-    string? path,
-    string? values,
-    ReportViewerService viewer,
-    CancellationToken cancellationToken) =>
-{
-    var reportPath = NormalizeCatalogPath(path);
-    try
-    {
-        var valuesForCascading = ParseParameterValuesJson(values);
-        var parameters = await viewer.GetParametersAsync(
-            reportPath,
-            forRendering: true,
-            valuesForCascading,
-            cancellationToken);
-        // Parameter-form list only: omit params native SSRS does not show (PromptUser false
-        // or empty Prompt). View Report / drillthrough keep the full definition list.
-        var prompted = parameters.Where(p => p.ShownOnParameterForm);
-        return Results.Ok(new
-        {
-            path = reportPath,
-            parameters = prompted.Select(p => new
-            {
-                name = p.Name,
-                dataType = p.DataType,
-                nullable = p.Nullable,
-                multiValue = p.MultiValue,
-                required = p.Required,
-                prompt = p.Prompt,
-                defaultValues = p.DefaultValues,
-                validValues = p.ValidValues.Select(v => new { label = v.Label, value = v.Value }),
-                dependencies = p.Dependencies,
-            }),
-        });
-    }
-    catch (ReportNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Report not found");
-    }
-});
-
-app.MapPost("/api/reports/render", async (
-    ViewReportRequest request,
-    ReportViewerService viewer,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.ReportPath))
-    {
-        return Results.Problem(
-            detail: "reportPath is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid View Report request");
-    }
-
-    var reportPath = NormalizeCatalogPath(request.ReportPath);
-    var parameters = (request.Parameters ?? [])
-        .Select(p => new ParameterValue(p.Name, p.Values ?? []))
-        .ToArray();
-
-    try
-    {
-        var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    }
-    catch (RequiredParameterMissingException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Required Report Parameters missing");
-    }
-    catch (ReportNotFoundException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Report not found");
-    }
-});
-
 app.MapPost("/api/sessions/{sessionId}/zoom", async (
     string sessionId,
     ZoomRequest request,
@@ -183,7 +101,7 @@ app.MapPost("/api/sessions/{sessionId}/zoom", async (
     await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     }));
 
 app.MapPost("/api/sessions/{sessionId}/page", async (
@@ -205,7 +123,7 @@ app.MapPost("/api/sessions/{sessionId}/page", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     });
 });
 
@@ -218,7 +136,7 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
     await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     }));
 
 app.MapPost("/api/sessions/{sessionId}/document-map", async (
@@ -240,7 +158,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     });
 });
 
@@ -263,7 +181,7 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     });
 });
 
@@ -300,7 +218,7 @@ async Task<IResult> DrilldownToggleAsync(
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     });
 }
 
@@ -340,7 +258,7 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             request.Clear ?? false,
             guard,
             cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(SessionResponse.From(result));
     });
 });
 
@@ -398,7 +316,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
             title: "Invalid Drillthrough request");
     }
 
-    var reportPath = NormalizeCatalogPath(request.ReportPath);
+    var reportPath = ReportPath.Normalize(request.ReportPath);
     var parameters = (request.Parameters ?? [])
         .Select(p => new ParameterValue(p.Name, p.Values ?? []))
         .ToArray();
@@ -408,7 +326,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
         try
         {
             var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(SessionResponse.From(result));
         }
         catch (RequiredParameterMissingException ex)
         {
@@ -438,7 +356,7 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
         try
         {
             var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(SessionResponse.From(result));
         }
         catch (BackStackEmptyException ex)
         {
@@ -506,63 +424,6 @@ static bool TryParseSortDirection(string? value, out SortDirection direction)
     return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
 }
 
-static string NormalizeCatalogPath(string? path)
-{
-    if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
-    {
-        return "/";
-    }
-
-    return "/" + path.Trim().Trim('/');
-}
-
-static IReadOnlyList<ParameterValue>? ParseParameterValuesJson(string? values)
-{
-    if (string.IsNullOrWhiteSpace(values))
-    {
-        return null;
-    }
-
-    try
-    {
-        var parsed = JsonSerializer.Deserialize<ViewReportParameter[]>(
-            values,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        if (parsed is null || parsed.Length == 0)
-        {
-            return null;
-        }
-
-        return parsed
-            .Where(p => !string.IsNullOrWhiteSpace(p.Name))
-            .Select(p => new ParameterValue(p.Name, p.Values ?? []))
-            .ToArray();
-    }
-    catch (JsonException)
-    {
-        return null;
-    }
-}
-
-static object ToSessionPayload(ViewReportResult result) =>
-    new
-    {
-        sessionId = result.SessionId,
-        html = result.Html,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-        zoomPercent = result.ZoomPercent,
-        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
-        canGoBack = result.CanGoBack,
-        reportPath = result.ReportPath,
-        parameters = result.Parameters
-            .Select(p => new { name = p.Name, values = p.Values.ToArray() })
-            .ToArray(),
-    };
-
 static object ToFindPayload(FindResult result) =>
     new
     {
@@ -575,21 +436,9 @@ static object ToFindPayload(FindResult result) =>
         },
     };
 
-static object MapDocumentMapNode(DocumentMapNode node) =>
-    new
-    {
-        id = node.Id,
-        label = node.Label,
-        children = node.Children.Select(MapDocumentMapNode).ToArray(),
-    };
-
 app.Run();
 
 public partial class Program;
-
-public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]? Parameters);
-
-public sealed record ViewReportParameter(string Name, string[]? Values);
 
 public sealed record ZoomRequest(int ZoomPercent);
 

@@ -1,4 +1,5 @@
 using SsrsReportViewer.Api.Features.Catalog;
+using SsrsReportViewer.Api.Features.ViewReport;
 
 namespace SsrsReportViewer.Api.Composition;
 
@@ -21,7 +22,8 @@ public static class EndpointRouteBuilderExtensions
     public static WebApplication MapSsrsReportViewerFeatureEndpoints(this WebApplication app)
     {
         app.MapCatalogEndpoints();
-        // Remaining slices (#62+):
+        app.MapViewReportEndpoints();
+        // Remaining slices (#63+):
         //   app.MapViewerSessionGroup().MapZoomEndpoints();
         return app;
     }

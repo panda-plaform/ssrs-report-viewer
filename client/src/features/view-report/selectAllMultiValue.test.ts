@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReportParameter } from './reportApi'
+import type { ReportParameter } from './viewReportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
 import {
   SELECT_ALL_LABEL,

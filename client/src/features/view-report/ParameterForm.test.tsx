@@ -2,10 +2,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ParameterForm } from './ParameterForm'
-import { fetchParameters, viewReport } from './reportApi'
+import { fetchParameters, viewReport } from './viewReportApi'
 
-vi.mock('./reportApi', async () => {
-  const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
+vi.mock('./viewReportApi', async () => {
+  const actual = await vi.importActual<typeof import('./viewReportApi')>('./viewReportApi')
   return {
     ...actual,
     fetchParameters: vi.fn(),

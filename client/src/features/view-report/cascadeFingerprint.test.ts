@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReportParameter } from './reportApi'
+import type { ReportParameter } from './viewReportApi'
 import { cascadeFingerprint } from './cascadeFingerprint'
 
 function param(overrides: Partial<ReportParameter> & Pick<ReportParameter, 'name'>): ReportParameter {
