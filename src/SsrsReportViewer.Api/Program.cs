@@ -30,7 +30,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping seam (#61+). Routes below remain in Program until migrated.
+// Feature-slice endpoint mapping seam. Remaining routes stay in Program until migrated.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -247,29 +247,6 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
         var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
     }));
-
-app.MapPost("/api/sessions/{sessionId}/document-map", async (
-    string sessionId,
-    DocumentMapNavigateRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Id))
-    {
-        return Results.Problem(
-            detail: "id is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Document Map request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    });
-});
 
 app.MapPost("/api/sessions/{sessionId}/bookmark", async (
     string sessionId,
@@ -572,23 +549,7 @@ static IReadOnlyList<ParameterValue>? ParseParameterValuesJson(string? values)
 }
 
 static object ToSessionPayload(ViewReportResult result) =>
-    new
-    {
-        sessionId = result.SessionId,
-        html = result.Html,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-        zoomPercent = result.ZoomPercent,
-        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
-        canGoBack = result.CanGoBack,
-        reportPath = result.ReportPath,
-        parameters = result.Parameters
-            .Select(p => new { name = p.Name, values = p.Values.ToArray() })
-            .ToArray(),
-    };
+    ViewerSessionPayloadMapper.ToSessionPayload(result);
 
 static object ToFindPayload(FindResult result) =>
     new
@@ -602,14 +563,6 @@ static object ToFindPayload(FindResult result) =>
         },
     };
 
-static object MapDocumentMapNode(DocumentMapNode node) =>
-    new
-    {
-        id = node.Id,
-        label = node.Label,
-        children = node.Children.Select(MapDocumentMapNode).ToArray(),
-    };
-
 app.Run();
 
 public partial class Program;
@@ -621,8 +574,6 @@ public sealed record ViewReportParameter(string Name, string[]? Values);
 public sealed record ZoomRequest(int ZoomPercent);
 
 public sealed record PageRequest(string? Action, int? Page);
-
-public sealed record DocumentMapNavigateRequest(string? Id);
 
 public sealed record BookmarkNavigateRequest(string? Id);
 

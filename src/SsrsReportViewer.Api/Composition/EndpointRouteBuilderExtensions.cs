@@ -1,9 +1,11 @@
+using SsrsReportViewer.Api.Features.DocumentMap;
+
 namespace SsrsReportViewer.Api.Composition;
 
 /// <summary>
 /// Composition-root endpoint mapping seam (ADR-0005).
-/// Feature slices will register via <c>MapXxxEndpoints</c> / <see cref="MapGroup"/> here (#61+);
-/// routes may still be declared from <c>Program</c> until those migrations land.
+/// Feature slices register via <c>MapXxxEndpoints</c> / <see cref="MapGroup"/> here;
+/// remaining routes may still be declared from <c>Program</c> until those migrations land.
 /// </summary>
 public static class EndpointRouteBuilderExtensions
 {
@@ -14,15 +16,11 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapGroup("/api/sessions/{sessionId}");
 
     /// <summary>
-    /// Placeholder composition entry for feature-slice endpoint mapping.
-    /// Call from <c>Program</c> once slices own their <c>Map…Endpoints</c> extensions.
+    /// Maps migrated feature-slice endpoints. Call from <c>Program</c>.
     /// </summary>
     public static WebApplication MapSsrsReportViewerFeatureEndpoints(this WebApplication app)
     {
-        // Intentionally empty for #60: Catalog / View Report / session feature folders migrate in #61+.
-        // Example for a future slice:
-        //   app.MapCatalogEndpoints();
-        //   app.MapViewerSessionGroup().MapZoomEndpoints();
+        app.MapViewerSessionGroup().MapDocumentMapEndpoints();
         return app;
     }
 }

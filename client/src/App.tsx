@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
-import { DocumentMapSidebar } from './DocumentMapSidebar'
+import { DocumentMapSidebar } from './features/document-map/DocumentMapSidebar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'

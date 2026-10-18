@@ -1,4 +1,4 @@
-import type { DocumentMapNode } from './reportApi'
+import type { DocumentMapNode } from '../../reportApi'
 
 type Props = {
   nodes: DocumentMapNode[] | null | undefined

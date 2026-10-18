@@ -1,10 +1,17 @@
 import type { PrintPdfSettings } from './printPdfSettings'
+import { throwIfNotOk } from './viewerSessionHttp'
 
 export type {
   PrintOrientation,
   PrintPageSize,
   PrintPdfSettings,
 } from './printPdfSettings'
+
+export {
+  ViewerSessionExpiredError,
+  isViewerSessionExpiredError,
+  throwIfNotOk,
+} from './viewerSessionHttp'
 
 export type ParameterValidValue = {
   label: string
@@ -54,44 +61,6 @@ export type RenderResponse = {
   canGoBack: boolean
   reportPath: string
   parameters: ParameterSubmission[]
-}
-
-/** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
-export class ViewerSessionExpiredError extends Error {
-  readonly statusCode = 410 as const
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'ViewerSessionExpiredError'
-  }
-}
-
-export function isViewerSessionExpiredError(error: unknown): error is ViewerSessionExpiredError {
-  return error instanceof ViewerSessionExpiredError
-}
-
-async function readProblemDetail(response: Response): Promise<string> {
-  let detail = `HTTP ${response.status}`
-  try {
-    const problem = (await response.json()) as { detail?: string; title?: string }
-    detail = problem.detail ?? problem.title ?? detail
-  } catch {
-    // keep status-based detail
-  }
-  return detail
-}
-
-async function throwIfNotOk(response: Response): Promise<void> {
-  if (response.ok) {
-    return
-  }
-
-  const detail = await readProblemDetail(response)
-  if (response.status === 410) {
-    throw new ViewerSessionExpiredError(detail)
-  }
-
-  throw new Error(detail)
 }
 
 export async function fetchParameters(
@@ -168,9 +137,7 @@ export function goBack(sessionId: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'back')
 }
 
-export function navigateDocumentMap(sessionId: string, id: string): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'document-map', { id })
-}
+export { navigateDocumentMap } from './features/document-map/documentMapApi'
 
 export function navigateBookmark(sessionId: string, id: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'bookmark', { id })

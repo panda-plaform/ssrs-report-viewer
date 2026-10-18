@@ -110,43 +110,6 @@ public sealed class DocumentMapEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Post_bookmark_navigates_within_execution_and_rerenders()
-    {
-        _factory.Fake.SeedReport(
-            "/Sales/Revenue",
-            parameters: [],
-            html: """
-                  <div class="report">
-                    Intro
-                    <a href="{ReplacementRoot}bookmark/details" data-action="bookmark" data-bookmark-id="details">Details</a>
-                  </div>
-                  """,
-            bookmarkHtml: new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["details"] = "<div class=\"report\" data-bookmark=\"details\">Details section</div>",
-            });
-
-        var render = await _client.PostAsJsonAsync(
-            "/api/reports/render",
-            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
-        var rendered = await render.Content.ReadFromJsonAsync<RenderWithMapResponse>();
-        Assert.NotNull(rendered);
-        Assert.Contains("data-ssrs-action=\"bookmark\"", rendered.Html, StringComparison.Ordinal);
-        Assert.Contains("data-ssrs-bookmark-id=\"details\"", rendered.Html, StringComparison.Ordinal);
-
-        var response = await _client.PostAsJsonAsync(
-            $"/api/sessions/{rendered.SessionId}/bookmark",
-            new { id = "details" });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        var body = await response.Content.ReadFromJsonAsync<SessionRenderResponse>();
-        Assert.NotNull(body);
-        Assert.Contains("Details section", body.Html, StringComparison.Ordinal);
-        Assert.Contains("data-bookmark=\"details\"", body.Html, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Document_map_navigation_on_expired_session_hard_fails()
     {
         _factory.ConfigureSessionIdleTimeout(TimeSpan.FromMinutes(20));
