@@ -1,17 +1,22 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { goBack } from './features/drillthrough/drillthroughApi'
 import {
   downloadExport,
   fetchExportPdf,
   findInReport,
   findNextInReport,
-  goBack,
   printPdfBlob,
   setReportPage,
   setZoom,
 } from './reportApi'
 import { ViewerToolbar } from './ViewerToolbar'
+
+vi.mock('./features/drillthrough/drillthroughApi', () => ({
+  goBack: vi.fn(),
+  drillthroughReport: vi.fn(),
+}))
 
 vi.mock('./reportApi', () => ({
   setZoom: vi.fn(),
@@ -22,7 +27,6 @@ vi.mock('./reportApi', () => ({
   printPdfBlob: vi.fn(),
   findInReport: vi.fn(),
   findNextInReport: vi.fn(),
-  goBack: vi.fn(),
 }))
 
 const pdfBlob = new Blob(['%PDF'], { type: 'application/pdf' })

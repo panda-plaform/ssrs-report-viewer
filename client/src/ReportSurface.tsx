@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { wireFixedHeaders } from './createFixedHeaders'
+import { drillthroughReport } from './features/drillthrough/drillthroughApi'
 import {
-  drillthroughReport,
   navigateBookmark,
   sortReport,
   toggleDrilldown,

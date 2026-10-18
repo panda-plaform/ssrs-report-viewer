@@ -8,12 +8,12 @@ import {
   type PrintPageSize,
   type PrintPdfSettings,
 } from './printPdfSettings'
+import { goBack } from './features/drillthrough/drillthroughApi'
 import {
   downloadExport,
   fetchExportPdf,
   findInReport,
   findNextInReport,
-  goBack,
   printPdfBlob,
   refreshReport,
   setReportPage,

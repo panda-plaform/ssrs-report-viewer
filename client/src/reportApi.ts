@@ -120,7 +120,8 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
-async function postSessionAction(
+/** Shared Viewer Session POST helper (used by feature API modules). */
+export async function postSessionAction(
   sessionId: string,
   action: string,
   body?: unknown,
@@ -156,17 +157,8 @@ export function toggleDrilldown(sessionId: string, toggleId: string): Promise<Re
   return postSessionAction(sessionId, 'drilldown', { toggleId })
 }
 
-export function drillthroughReport(
-  sessionId: string,
-  reportPath: string,
-  parameters: ParameterSubmission[],
-): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'drillthrough', { reportPath, parameters })
-}
-
-export function goBack(sessionId: string): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'back')
-}
+// Temporary barrel: Drillthrough + Back live in the feature slice (#68).
+export { drillthroughReport, goBack } from './features/drillthrough/drillthroughApi'
 
 export function navigateDocumentMap(sessionId: string, id: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'document-map', { id })
