@@ -293,4 +293,39 @@ public sealed class ActionLinkRewriterTests
             Assert.DoesNotContain(Uri.EscapeDataString("<circle"), icon, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public void Rewrite_replaces_versioned_toggle_plus_gif_with_svg()
+    {
+        // ResourceStreamRoot + live SSRS emit renderer GIFs under /resources/; RenderStream cannot fetch them.
+        var html =
+            """
+            <a href="/api/sessions/s1/actions/?rc:Toggle=21iT0">
+              <IMG onerror="this.errored=true;" BORDER="0" SRC="/api/sessions/s1/resources/2022.1.0.0TogglePlus.gif" ALT="+"/>
+            </a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drilldown\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"21iT0\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("ssrs-toggle-icon", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data:image/svg+xml,", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("TogglePlus.gif", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Rewrite_replaces_toggle_minus_gif_with_svg()
+    {
+        var html =
+            """
+            <IMG BORDER="0" SRC="/api/sessions/s1/resources/ToggleMinus.gif" ALT="-"/>
+            """;
+
+        var rewritten = ActionLinkRewriter.RewriteRendererToggleGifs(html);
+
+        Assert.Contains("ssrs-toggle-icon", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data:image/svg+xml,", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToggleMinus.gif", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
 }

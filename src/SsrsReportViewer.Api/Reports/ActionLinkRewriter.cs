@@ -103,6 +103,10 @@ public static partial class ActionLinkRewriter
         // Never strip ReportServer hosts out of src=… (that yields src="" and broken icons).
         rewritten = StripLeftoverReportServerHosts(rewritten);
 
+        // ResourceStreamRoot maps TogglePlus/ToggleMinus GIFs under /resources/…; those are
+        // renderer assets, not RenderStream ids (same class of bug as unsorted.gif).
+        rewritten = RewriteRendererToggleGifs(rewritten);
+
         return rewritten;
     }
 
@@ -428,7 +432,38 @@ public static partial class ActionLinkRewriter
     }
 
     private static string DrilldownAnchor(string toggleId, string label) =>
-        $"<a href=\"#\" data-ssrs-action=\"drilldown\" data-ssrs-toggle-id=\"{EscapeAttr(toggleId)}\">{label}</a>";
+        $"<a href=\"#\" data-ssrs-action=\"drilldown\" data-ssrs-toggle-id=\"{EscapeAttr(toggleId)}\">{RewriteRendererToggleGifs(label)}</a>";
+
+    /// <summary>
+    /// Replaces SSRS Drilldown chrome GIFs (<c>TogglePlus.gif</c> / <c>ToggleMinus.gif</c>,
+    /// often version-prefixed) with SVG. Those names are not execution StreamIds.
+    /// </summary>
+    internal static string RewriteRendererToggleGifs(string html) =>
+        RendererToggleGifRegex().Replace(html, match =>
+        {
+            var expanded = match.Groups["name"].Value
+                .Contains("Minus", StringComparison.OrdinalIgnoreCase);
+            var alt = expanded ? "-" : "+";
+            var altMatch = SortIconAltRegex().Match(match.Value);
+            if (altMatch.Success && !string.IsNullOrWhiteSpace(altMatch.Groups[1].Value))
+            {
+                alt = altMatch.Groups[1].Value.Trim();
+            }
+
+            return ToggleIconImg(alt, expanded);
+        });
+
+    private static string ToggleIconImg(string alt, bool expanded)
+    {
+        // Native TogglePlus/ToggleMinus are small box chrome (~9×9); keep layout tight.
+        var glyph = expanded
+            ? """<rect x="1" y="1" width="7" height="7" fill="#fff" stroke="#333" stroke-width="1"/><path stroke="#333" stroke-width="1.25" d="M2.5 4.5h4"/>"""
+            : """<rect x="1" y="1" width="7" height="7" fill="#fff" stroke="#333" stroke-width="1"/><path stroke="#333" stroke-width="1.25" d="M2.5 4.5h4M4.5 2.5v4"/>""";
+        var svg =
+            $"""<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 9 9">{glyph}</svg>""";
+        var src = "data:image/svg+xml," + Uri.EscapeDataString(svg);
+        return $"""<img class="ssrs-toggle-icon" alt="{EscapeAttr(alt)}" title="{EscapeAttr(alt)}" width="9" height="9" border="0" src="{src}" />""";
+    }
 
     private static string SortAnchor(string sortItem, string direction, bool clear, string label)
     {
@@ -517,4 +552,9 @@ public static partial class ActionLinkRewriter
         """https?://[^"'>\s]*reportserver[^"'>\s]*""",
         RegexOptions.IgnoreCase)]
     private static partial Regex ReportServerHostRegex();
+
+    [GeneratedRegex(
+        """<img\b[^>]*?\bsrc\s*=\s*(["'])[^"']*Toggle(?<name>Plus|Minus)\.gif\1[^>]*>""",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex RendererToggleGifRegex();
 }
