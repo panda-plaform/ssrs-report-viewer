@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Features.Infrastructure;
@@ -8,6 +9,9 @@ namespace SsrsReportViewer.Api.Features.Infrastructure;
 /// </summary>
 public static class InfrastructureEndpoints
 {
+    /// <summary>Logger category type for ReportViewer asset proxy (ADR-0006).</summary>
+    public sealed class ViewerAssetsLog;
+
     public static IEndpointRouteBuilder MapInfrastructureEndpoints(this IEndpointRouteBuilder app)
     {
         // Anonymous API (ADR-0002): no authentication middleware.
@@ -16,10 +20,9 @@ public static class InfrastructureEndpoints
         // Proxied ReportViewer WebControl assets (CreateFixedHeaders / Html5Renderer CSS).
         app.MapGet("/api/ssrs-viewer-assets/fixed-header-runtime.js", async (
             SsrsViewerAssetClient assets,
-            ILoggerFactory loggerFactory,
+            ILogger<ViewerAssetsLog> logger,
             CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("SsrsReportViewer.Api.Features.Infrastructure.ViewerAssets");
             try
             {
                 var viewer = await assets.GetResourceAsync("ViewerScript", cancellationToken);
@@ -44,10 +47,9 @@ public static class InfrastructureEndpoints
         app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
             string name,
             SsrsViewerAssetClient assets,
-            ILoggerFactory loggerFactory,
+            ILogger<ViewerAssetsLog> logger,
             CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("SsrsReportViewer.Api.Features.Infrastructure.ViewerAssets");
             if (string.IsNullOrWhiteSpace(name) ||
                 name.Contains("..", StringComparison.Ordinal) ||
                 name.Contains('\\', StringComparison.Ordinal))

@@ -86,39 +86,46 @@ public static class ViewReportEndpoints
             .Select(p => new ParameterValue(p.Name, p.Values ?? []))
             .ToArray();
 
-        logger.LogInformation(
-            "View Report starting {ReportPath} {Operation}",
-            reportPath,
-            ViewReportOperation);
+        using (logger.BeginScope(new Dictionary<string, object>
+        {
+            ["ReportPath"] = reportPath,
+            ["Operation"] = ViewReportOperation,
+        }))
+        {
+            logger.LogInformation(
+                "View Report starting {ReportPath} {Operation}",
+                reportPath,
+                ViewReportOperation);
 
-        try
-        {
-            var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-            return Results.Ok(SessionResponse.From(result));
-        }
-        catch (RequiredParameterMissingException ex)
-        {
-            logger.LogWarning(
-                ex,
-                "View Report failed {ReportPath} {Operation}",
-                reportPath,
-                ViewReportOperation);
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Required Report Parameters missing");
-        }
-        catch (ReportNotFoundException ex)
-        {
-            logger.LogWarning(
-                ex,
-                "View Report failed {ReportPath} {Operation}",
-                reportPath,
-                ViewReportOperation);
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Report not found");
+            try
+            {
+                var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
+                return Results.Ok(SessionResponse.From(result));
+            }
+            catch (RequiredParameterMissingException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "View Report failed {ReportPath} {Operation}",
+                    reportPath,
+                    ViewReportOperation);
+                return Results.Problem(
+                    detail: ex.Message,
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Required Report Parameters missing");
+            }
+            catch (ReportNotFoundException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "View Report failed {ReportPath} {Operation}",
+                    reportPath,
+                    ViewReportOperation);
+                return Results.Problem(
+                    detail: ex.Message,
+                    statusCode: StatusCodes.Status404NotFound,
+                    title: "Report not found");
+            }
         }
     }
 

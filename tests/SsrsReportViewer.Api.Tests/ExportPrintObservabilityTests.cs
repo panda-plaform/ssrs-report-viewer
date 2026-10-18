@@ -52,6 +52,10 @@ public sealed class ExportPrintObservabilityTests : IClassFixture<ApiFactory>, I
         Assert.Contains("PDF", entry.Message, StringComparison.Ordinal);
         Assert.Contains("export", entry.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("print", entry.Message, StringComparison.OrdinalIgnoreCase);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", rendered.SessionId);
+        LogScopeAssertions.AssertScopeValue(entry, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(entry, "Operation", "export");
+        LogScopeAssertions.AssertScopeValue(entry, "Format", "PDF");
     }
 
     [Fact]
@@ -82,6 +86,10 @@ public sealed class ExportPrintObservabilityTests : IClassFixture<ApiFactory>, I
         Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
         Assert.Contains("PDF", entry.Message, StringComparison.Ordinal);
         Assert.Contains("print", entry.Message, StringComparison.OrdinalIgnoreCase);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", rendered.SessionId);
+        LogScopeAssertions.AssertScopeValue(entry, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(entry, "Operation", "print");
+        LogScopeAssertions.AssertScopeValue(entry, "Format", "PDF");
     }
 
     [Fact]

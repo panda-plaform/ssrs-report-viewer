@@ -44,6 +44,8 @@ public sealed class ViewReportObservabilityTests : IClassFixture<ApiFactory>, ID
                  && e.Message.Contains("start", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
         Assert.Contains("ViewReport", entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(entry, "Operation", "ViewReport");
     }
 
     [Fact]
@@ -83,6 +85,8 @@ public sealed class ViewReportObservabilityTests : IClassFixture<ApiFactory>, ID
                  && e.Message.Contains("fail", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/Sales/Revenue", failure.Message, StringComparison.Ordinal);
         Assert.Contains("ViewReport", failure.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(failure, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(failure, "Operation", "ViewReport");
     }
 
     [Fact]
@@ -101,5 +105,7 @@ public sealed class ViewReportObservabilityTests : IClassFixture<ApiFactory>, ID
                  && e.Message.Contains("fail", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("/Missing/Report", failure.Message, StringComparison.Ordinal);
         Assert.Contains("ViewReport", failure.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(failure, "ReportPath", "/Missing/Report");
+        LogScopeAssertions.AssertScopeValue(failure, "Operation", "ViewReport");
     }
 }

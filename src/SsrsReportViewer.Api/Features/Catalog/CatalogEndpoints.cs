@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SsrsReportViewer.Api.Hosting;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Features.Catalog;
@@ -20,7 +21,7 @@ public static class CatalogEndpoints
         ILogger<CatalogEndpoint> logger,
         CancellationToken cancellationToken)
     {
-        var catalogPath = NormalizeCatalogPath(path);
+        var catalogPath = ReportPath.Normalize(path);
 
         try
         {
@@ -33,6 +34,12 @@ public static class CatalogEndpoints
                 .Where(i => i.Type == CatalogItemType.Report)
                 .Select(i => new { name = i.Name, path = i.Path })
                 .ToArray();
+
+            logger.LogInformation(
+                "Catalog list {CatalogPath} folders {FolderCount} reports {ReportCount}",
+                catalogPath,
+                folders.Length,
+                reports.Length);
 
             return Results.Ok(new { path = catalogPath, folders, reports });
         }
@@ -47,16 +54,6 @@ public static class CatalogEndpoints
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Catalog path not found");
         }
-    }
-
-    internal static string NormalizeCatalogPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || path.Trim() == "/")
-        {
-            return "/";
-        }
-
-        return "/" + path.Trim().Trim('/');
     }
 }
 

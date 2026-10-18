@@ -39,6 +39,7 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
             e => e.Message.Contains("not found", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains(sessionId, entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", sessionId);
     }
 
     [Fact]
@@ -70,6 +71,7 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
             e => e.Message.Contains("expired", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains(rendered.SessionId, entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", rendered.SessionId);
     }
 
     [Fact]
@@ -102,6 +104,7 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
             e => e.Message.Contains("busy", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains(body.SessionId, entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", body.SessionId);
 
         var firstResponse = await first;
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
@@ -173,6 +176,9 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
         Assert.Contains("find", entry.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("find/next", entry.Message, StringComparison.Ordinal);
         Assert.Contains("True", entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", rendered.SessionId);
+        LogScopeAssertions.AssertScopeValue(entry, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(entry, "Operation", "find");
     }
 
     [Fact]
@@ -211,6 +217,9 @@ public sealed class ObservabilityEndpointTests : IClassFixture<ApiFactory>, IDis
         Assert.Contains(rendered.SessionId, entry.Message, StringComparison.Ordinal);
         Assert.Contains("/Sales/Revenue", entry.Message, StringComparison.Ordinal);
         Assert.Contains("find/next", entry.Message, StringComparison.Ordinal);
+        LogScopeAssertions.AssertScopeValue(entry, "SessionId", rendered.SessionId);
+        LogScopeAssertions.AssertScopeValue(entry, "ReportPath", "/Sales/Revenue");
+        LogScopeAssertions.AssertScopeValue(entry, "Operation", "find/next");
     }
 
     [Fact]

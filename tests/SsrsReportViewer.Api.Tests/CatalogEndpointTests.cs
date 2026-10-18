@@ -46,6 +46,27 @@ public sealed class CatalogEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Get_catalog_success_emits_structured_information_with_path_and_counts()
+    {
+        _factory.Fake.SeedCatalog(
+            folder: "/Sales",
+            folders: [("/Sales/Q1", "Q1")],
+            reports: [("/Sales/Revenue", "Revenue"), ("/Sales/Costs", "Costs")]);
+
+        var response = await _client.GetAsync("/api/catalog?path=/Sales");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var entry = Assert.Single(
+            _factory.Logs.Entries,
+            e => e.Level == LogLevel.Information
+                 && e.Message.Contains("Catalog list", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("/Sales", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("1", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("2", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Get_catalog_returns_empty_lists_for_empty_folder()
     {
         _factory.Fake.SeedCatalog(folder: "/Empty", folders: [], reports: []);

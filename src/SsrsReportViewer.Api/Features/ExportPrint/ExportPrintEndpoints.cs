@@ -10,6 +10,9 @@ namespace SsrsReportViewer.Api.Features.ExportPrint;
 /// </summary>
 public static class ExportPrintEndpoints
 {
+    /// <summary>Logger category type for Export/Print observability (ADR-0006).</summary>
+    public sealed class Log;
+
     public static RouteGroupBuilder MapExportPrintEndpoints(this RouteGroupBuilder group)
     {
         group.MapGet("/export", ExportAsync);
@@ -24,10 +27,9 @@ public static class ExportPrintEndpoints
         ReportViewerService viewer,
         ViewerSessionGuard guard,
         ViewerSessionProblemMapper sessionProblems,
-        ILoggerFactory loggerFactory,
+        ILogger<Log> logger,
         CancellationToken cancellationToken)
     {
-        var logger = loggerFactory.CreateLogger("SsrsReportViewer.Api.Features.ExportPrint");
         var isPrint = !string.IsNullOrWhiteSpace(pageSize) || !string.IsNullOrWhiteSpace(orientation);
         var operation = isPrint ? "print" : "export";
         var formatToken = format ?? string.Empty;
@@ -55,12 +57,21 @@ public static class ExportPrintEndpoints
             }
             catch (UnsupportedExportFormatException ex)
             {
-                logger.LogWarning(
-                    ex,
-                    "Unsupported Export format {Format} session {SessionId} operation {Operation}",
-                    formatToken,
-                    sessionId,
-                    operation);
+                using (logger.BeginScope(new Dictionary<string, object>
+                {
+                    ["SessionId"] = sessionId,
+                    ["Operation"] = operation,
+                    ["Format"] = formatToken,
+                }))
+                {
+                    logger.LogWarning(
+                        ex,
+                        "Unsupported Export format {Format} session {SessionId} operation {Operation}",
+                        formatToken,
+                        sessionId,
+                        operation);
+                }
+
                 return Results.Problem(
                     detail: ex.Message,
                     statusCode: StatusCodes.Status400BadRequest,

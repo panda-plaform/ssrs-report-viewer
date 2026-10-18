@@ -31,10 +31,17 @@ public sealed class ViewerSessionProblemMapper
         }
         catch (ViewerSessionNotFoundException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Viewer Session not found {SessionId}",
-                ex.SessionId);
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["SessionId"] = ex.SessionId,
+            }))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Viewer Session not found {SessionId}",
+                    ex.SessionId);
+            }
+
             return Results.Problem(
                 detail: ex.Message,
                 statusCode: StatusCodes.Status404NotFound,
@@ -42,10 +49,17 @@ public sealed class ViewerSessionProblemMapper
         }
         catch (ViewerSessionExpiredException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Viewer Session expired {SessionId}",
-                ex.SessionId);
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["SessionId"] = ex.SessionId,
+            }))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Viewer Session expired {SessionId}",
+                    ex.SessionId);
+            }
+
             return Results.Problem(
                 detail: ex.Message,
                 statusCode: StatusCodes.Status410Gone,
@@ -53,10 +67,17 @@ public sealed class ViewerSessionProblemMapper
         }
         catch (ViewerSessionBusyException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Viewer Session busy {SessionId}",
-                ex.SessionId);
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["SessionId"] = ex.SessionId,
+            }))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Viewer Session busy {SessionId}",
+                    ex.SessionId);
+            }
+
             return Results.Problem(
                 detail: ex.Message,
                 statusCode: StatusCodes.Status409Conflict,

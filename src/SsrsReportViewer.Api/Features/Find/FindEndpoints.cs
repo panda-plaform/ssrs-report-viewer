@@ -9,6 +9,9 @@ namespace SsrsReportViewer.Api.Features.Find;
 /// </summary>
 public static class FindEndpoints
 {
+    /// <summary>Logger category type for Find observability (ADR-0006).</summary>
+    public sealed class Log;
+
     public static RouteGroupBuilder MapFindEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/find", FindAsync);
@@ -22,7 +25,7 @@ public static class FindEndpoints
         ReportViewerService viewer,
         ViewerSessionGuard guard,
         ViewerSessionProblemMapper sessionProblems,
-        ILoggerFactory loggerFactory,
+        ILogger<Log> logger,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.FindValue))
@@ -33,7 +36,6 @@ public static class FindEndpoints
                 title: "Invalid Find request");
         }
 
-        var logger = loggerFactory.CreateLogger("SsrsReportViewer.Api.Features.Find");
         return await sessionProblems.ExecuteAsync(async () =>
         {
             var result = await viewer.FindAsync(
@@ -52,7 +54,7 @@ public static class FindEndpoints
         ReportViewerService viewer,
         ViewerSessionGuard guard,
         ViewerSessionProblemMapper sessionProblems,
-        ILoggerFactory loggerFactory,
+        ILogger<Log> logger,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.FindValue))
@@ -63,7 +65,6 @@ public static class FindEndpoints
                 title: "Invalid Find request");
         }
 
-        var logger = loggerFactory.CreateLogger("SsrsReportViewer.Api.Features.Find");
         return await sessionProblems.ExecuteAsync(async () =>
         {
             var result = await viewer.FindNextAsync(
