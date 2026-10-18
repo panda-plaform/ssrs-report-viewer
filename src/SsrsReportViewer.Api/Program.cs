@@ -1,8 +1,5 @@
 using SsrsReportViewer.Api.Composition;
-using SsrsReportViewer.Api.Features.ViewReport;
 using SsrsReportViewer.Api.Hosting;
-using SsrsReportViewer.Api.Reports;
-using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,7 +28,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #68+.
+// Feature-slice endpoint mapping (ADR-0005). Remaining host routes migrate in #69.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -91,75 +88,6 @@ app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
     }
 });
 
-app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
-    string sessionId,
-    DrillthroughRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.ReportPath))
-    {
-        return Results.Problem(
-            detail: "reportPath is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Drillthrough request");
-    }
-
-    var reportPath = ReportPath.Normalize(request.ReportPath);
-    var parameters = (request.Parameters ?? [])
-        .Select(p => new ParameterValue(p.Name, p.Values ?? []))
-        .ToArray();
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        try
-        {
-            var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
-            return Results.Ok(SessionResponse.From(result));
-        }
-        catch (RequiredParameterMissingException ex)
-        {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Required Report Parameters missing");
-        }
-        catch (ReportNotFoundException ex)
-        {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Report not found");
-        }
-    });
-});
-
-app.MapPost("/api/sessions/{sessionId}/back", async (
-    string sessionId,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        try
-        {
-            var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
-            return Results.Ok(SessionResponse.From(result));
-        }
-        catch (BackStackEmptyException ex)
-        {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Drillthrough back stack empty");
-        }
-    }));
-
 app.Run();
 
 public partial class Program;
-
-public sealed record DrillthroughRequest(string? ReportPath, ViewReportParameter[]? Parameters);

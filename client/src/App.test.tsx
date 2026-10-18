@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { findInReport } from './features/find/findApi'
-import { drillthroughReport, goBack } from './reportApi'
+import { drillthroughReport, goBack } from './features/drillthrough/drillthroughApi'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
@@ -23,13 +23,16 @@ vi.mock('./features/find/findApi', () => ({
   findNextInReport: vi.fn(),
 }))
 
+vi.mock('./features/drillthrough/drillthroughApi', () => ({
+  goBack: vi.fn(),
+  drillthroughReport: vi.fn(),
+}))
+
 vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
   return {
     ...actual,
     downloadExport: vi.fn(),
-    goBack: vi.fn(),
-    drillthroughReport: vi.fn(),
     navigateDocumentMap: vi.fn(),
   }
 })

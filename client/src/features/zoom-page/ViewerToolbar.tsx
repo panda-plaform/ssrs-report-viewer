@@ -14,8 +14,8 @@ import {
   type PrintPageSize,
   type PrintPdfSettings,
 } from '../export-print/exportApi'
+import { goBack } from '../drillthrough/drillthroughApi'
 import {
-  goBack,
   type PageInfo,
   type RenderResponse,
 } from '../../reportApi'

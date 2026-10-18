@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { drillthroughReport } from '../../reportApi'
+import { drillthroughReport } from '../drillthrough/drillthroughApi'
 import { sortReport, toggleDrilldown } from './actionLinksApi'
 import { ReportSurface } from './ReportSurface'
 
-vi.mock('../../reportApi', () => ({
+vi.mock('../drillthrough/drillthroughApi', () => ({
   drillthroughReport: vi.fn(),
 }))
 

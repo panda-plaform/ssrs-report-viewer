@@ -7,7 +7,7 @@ import {
   fetchExportPdf,
   printPdfBlob,
 } from '../export-print/exportApi'
-import { goBack } from '../../reportApi'
+import { goBack } from '../drillthrough/drillthroughApi'
 import { ViewerToolbar } from './ViewerToolbar'
 import { refreshReport, setReportPage, setZoom } from './zoomPageApi'
 
@@ -28,7 +28,7 @@ vi.mock('../export-print/exportApi', async () => {
   }
 })
 
-vi.mock('../../reportApi', () => ({
+vi.mock('../drillthrough/drillthroughApi', () => ({
   goBack: vi.fn(),
 }))
 

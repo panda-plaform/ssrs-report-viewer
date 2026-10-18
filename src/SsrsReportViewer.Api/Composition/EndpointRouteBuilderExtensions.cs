@@ -1,6 +1,7 @@
 using SsrsReportViewer.Api.Features.ActionLinks;
 using SsrsReportViewer.Api.Features.Catalog;
 using SsrsReportViewer.Api.Features.DocumentMap;
+using SsrsReportViewer.Api.Features.Drillthrough;
 using SsrsReportViewer.Api.Features.ExportPrint;
 using SsrsReportViewer.Api.Features.Find;
 using SsrsReportViewer.Api.Features.ViewReport;
@@ -33,6 +34,7 @@ public static class EndpointRouteBuilderExtensions
         app.MapViewerSessionGroup().MapExportPrintEndpoints();
         app.MapActionLinksEndpoints();
         app.MapViewerSessionGroup().MapDocumentMapEndpoints();
+        app.MapDrillthroughEndpoints();
         return app;
     }
 }

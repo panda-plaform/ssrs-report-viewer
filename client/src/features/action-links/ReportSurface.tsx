@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { wireFixedHeaders } from '../../createFixedHeaders'
-import { drillthroughReport } from '../../reportApi'
+import { drillthroughReport } from '../drillthrough/drillthroughApi'
 import type { PageInfo, ParameterSubmission, RenderResponse } from '../../shared/api/sessionTypes'
 import { navigateBookmark, sortReport, toggleDrilldown, type SortDirection } from './actionLinksApi'
 
