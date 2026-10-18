@@ -1,18 +1,12 @@
 using System.Text.Json;
+using SsrsReportViewer.Api.Composition;
 using SsrsReportViewer.Api.Reports;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<SsrsOptions>(builder.Configuration.GetSection(SsrsOptions.SectionName));
-builder.Services.AddSingleton<ISsrsAdapter, SoapSsrsAdapter>();
-builder.Services.AddSingleton<SsrsViewerAssetClient>();
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IViewerSessionStore, ViewerSessionStore>();
-builder.Services.AddSingleton<ViewerSessionGuard>();
-builder.Services.AddSingleton<ReportViewerService>();
-builder.Services.AddProblemDetails();
+builder.Services.AddSsrsReportViewerServices(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
@@ -35,6 +29,9 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+
+// Feature-slice endpoint mapping seam (#61+). Routes below remain in Program until migrated.
+app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
 app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy" }));
@@ -208,8 +205,9 @@ app.MapPost("/api/sessions/{sessionId}/zoom", async (
     ZoomRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
-    await ExecuteViewerSessionAsync(async () =>
+    await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -220,6 +218,7 @@ app.MapPost("/api/sessions/{sessionId}/page", async (
     PageRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Action))
@@ -230,7 +229,7 @@ app.MapPost("/api/sessions/{sessionId}/page", async (
             title: "Invalid Report Page request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -241,8 +240,9 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
     string sessionId,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
-    await ExecuteViewerSessionAsync(async () =>
+    await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -253,6 +253,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
     DocumentMapNavigateRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Id))
@@ -263,7 +264,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
             title: "Invalid Document Map request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -275,6 +276,7 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
     BookmarkNavigateRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Id))
@@ -285,7 +287,7 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
             title: "Invalid Bookmark request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -297,8 +299,9 @@ app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
     string streamId,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
-    await ExecuteViewerSessionAsync(async () =>
+    await sessionProblems.ExecuteAsync(async () =>
     {
         var stream = await viewer.GetResourceAsync(sessionId, streamId, guard, cancellationToken);
         return Results.File(stream.Content, stream.MimeType);
@@ -310,6 +313,7 @@ async Task<IResult> DrilldownToggleAsync(
     ToggleRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken)
 {
     if (string.IsNullOrWhiteSpace(request.ToggleId))
@@ -320,7 +324,7 @@ async Task<IResult> DrilldownToggleAsync(
             title: "Invalid Drilldown toggle request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
         return Results.Ok(ToSessionPayload(result));
@@ -335,6 +339,7 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
     SortRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.SortItem))
@@ -353,7 +358,7 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             title: "Invalid Sort request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SortAsync(
             sessionId,
@@ -373,8 +378,9 @@ app.MapGet("/api/sessions/{sessionId}/export", async (
     string? orientation,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
-    await ExecuteViewerSessionAsync(async () =>
+    await sessionProblems.ExecuteAsync(async () =>
     {
         try
         {
@@ -408,6 +414,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
     DrillthroughRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.ReportPath))
@@ -423,7 +430,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
         .Select(p => new ParameterValue(p.Name, p.Values ?? []))
         .ToArray();
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         try
         {
@@ -451,8 +458,9 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
     string sessionId,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
-    await ExecuteViewerSessionAsync(async () =>
+    await sessionProblems.ExecuteAsync(async () =>
     {
         try
         {
@@ -473,6 +481,7 @@ app.MapPost("/api/sessions/{sessionId}/find", async (
     FindRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.FindValue))
@@ -483,7 +492,7 @@ app.MapPost("/api/sessions/{sessionId}/find", async (
             title: "Invalid Find request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
         return Results.Ok(ToFindPayload(result));
@@ -495,6 +504,7 @@ app.MapPost("/api/sessions/{sessionId}/find/next", async (
     FindRequest request,
     ReportViewerService viewer,
     ViewerSessionGuard guard,
+    ViewerSessionProblemMapper sessionProblems,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.FindValue))
@@ -505,52 +515,12 @@ app.MapPost("/api/sessions/{sessionId}/find/next", async (
             title: "Invalid Find request");
     }
 
-    return await ExecuteViewerSessionAsync(async () =>
+    return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
         return Results.Ok(ToFindPayload(result));
     });
 });
-
-/// <summary>
-/// Maps Viewer Session lifecycle faults to ProblemDetails (404 / 410 / 409).
-/// </summary>
-static async Task<IResult> ExecuteViewerSessionAsync(Func<Task<IResult>> action)
-{
-    try
-    {
-        return await action();
-    }
-    catch (InvalidViewerInteractionException ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Viewer Session interaction");
-    }
-    catch (Exception ex) when (TryViewerSessionProblem(ex) is { } problem)
-    {
-        return problem;
-    }
-}
-
-static IResult? TryViewerSessionProblem(Exception ex) =>
-    ex switch
-    {
-        ViewerSessionNotFoundException e => Results.Problem(
-            detail: e.Message,
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Viewer Session not found"),
-        ViewerSessionExpiredException e => Results.Problem(
-            detail: e.Message,
-            statusCode: StatusCodes.Status410Gone,
-            title: "Viewer Session expired"),
-        ViewerSessionBusyException e => Results.Problem(
-            detail: e.Message,
-            statusCode: StatusCodes.Status409Conflict,
-            title: "Viewer Session busy"),
-        _ => null,
-    };
 
 static bool TryParseSortDirection(string? value, out SortDirection direction)
 {
