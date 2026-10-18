@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Features.Infrastructure;
 
 /// <summary>
 /// Builds a browser-ready CreateFixedHeaders runtime from proxied ReportViewer ViewerScript
