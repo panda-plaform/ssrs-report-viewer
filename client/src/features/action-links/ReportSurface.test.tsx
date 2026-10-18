@@ -1,11 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { drillthroughReport, sortReport, toggleDrilldown } from './reportApi'
+import { drillthroughReport } from '../../reportApi'
+import { sortReport, toggleDrilldown } from './actionLinksApi'
 import { ReportSurface } from './ReportSurface'
 
-vi.mock('./reportApi', () => ({
+vi.mock('../../reportApi', () => ({
   drillthroughReport: vi.fn(),
+}))
+
+vi.mock('./actionLinksApi', () => ({
   toggleDrilldown: vi.fn(),
   sortReport: vi.fn(),
   navigateBookmark: vi.fn(),
@@ -216,5 +220,27 @@ describe('ReportSurface Action Links', () => {
     await user.click(screen.getByRole('link', { name: 'Sort Region' }))
 
     expect(sortReport).not.toHaveBeenCalled()
+  })
+
+  it('opens External Links outside the Viewer Session', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    renderSurface({
+      html: `<a href="https://example.com/docs" data-ssrs-action="external">External docs</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'External docs' }))
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://example.com/docs',
+      '_blank',
+      'noopener,noreferrer',
+    )
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(sortReport).not.toHaveBeenCalled()
+    expect(drillthroughReport).not.toHaveBeenCalled()
+
+    openSpy.mockRestore()
   })
 })

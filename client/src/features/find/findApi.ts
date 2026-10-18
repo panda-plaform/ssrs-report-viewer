@@ -1,11 +1,7 @@
-import { throwIfNotOk } from '../../shared/api/http'
-import type { PageInfo } from '../view-report/viewReportApi'
+import { throwIfNotOk } from '../../shared/api/sessionHttp'
+import type { FindResponse, PageInfo } from '../../shared/api/sessionTypes'
 
-export type FindResponse = {
-  html: string
-  found: boolean
-  pageInfo: PageInfo
-}
+export type { FindResponse } from '../../shared/api/sessionTypes'
 
 async function postFind(
   sessionId: string,
@@ -28,3 +24,6 @@ export function findInReport(sessionId: string, findValue: string): Promise<Find
 export function findNextInReport(sessionId: string, findValue: string): Promise<FindResponse> {
   return postFind(sessionId, 'find/next', findValue)
 }
+
+// Keep PageInfo visible to find module consumers that previously imported it via find types.
+export type { PageInfo }

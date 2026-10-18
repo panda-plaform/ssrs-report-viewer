@@ -1,53 +1,19 @@
-import { throwIfNotOk } from '../../shared/api/http'
+import { throwIfNotOk } from '../../shared/api/sessionHttp'
+import type {
+  ParameterSubmission,
+  ParametersResponse,
+  RenderResponse,
+} from '../../shared/api/sessionTypes'
 
-export type ParameterValidValue = {
-  label: string
-  value: string
-}
-
-export type ReportParameter = {
-  name: string
-  dataType: string
-  nullable: boolean
-  multiValue: boolean
-  required: boolean
-  prompt: string | null
-  defaultValues: string[]
-  validValues: ParameterValidValue[]
-  dependencies: string[]
-}
-
-export type ParametersResponse = {
-  path: string
-  parameters: ReportParameter[]
-}
-
-export type ParameterSubmission = {
-  name: string
-  values: string[]
-}
-
-export type PageInfo = {
-  currentPage: number
-  pageCount: number
-}
-
-export type DocumentMapNode = {
-  id: string
-  label: string
-  children: DocumentMapNode[]
-}
-
-export type RenderResponse = {
-  sessionId: string
-  html: string
-  pageInfo: PageInfo
-  zoomPercent: number
-  documentMap: DocumentMapNode[] | null
-  canGoBack: boolean
-  reportPath: string
-  parameters: ParameterSubmission[]
-}
+export type {
+  DocumentMapNode,
+  PageInfo,
+  ParameterSubmission,
+  ParameterValidValue,
+  ParametersResponse,
+  RenderResponse,
+  ReportParameter,
+} from '../../shared/api/sessionTypes'
 
 export async function fetchParameters(
   path: string,

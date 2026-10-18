@@ -1,3 +1,4 @@
+using SsrsReportViewer.Api.Features.ActionLinks;
 using SsrsReportViewer.Api.Features.Catalog;
 using SsrsReportViewer.Api.Features.ExportPrint;
 using SsrsReportViewer.Api.Features.Find;
@@ -29,6 +30,7 @@ public static class EndpointRouteBuilderExtensions
         app.MapViewerSessionGroup().MapZoomPageEndpoints();
         app.MapViewerSessionGroup().MapFindEndpoints();
         app.MapViewerSessionGroup().MapExportPrintEndpoints();
+        app.MapActionLinksEndpoints();
         return app;
     }
 }

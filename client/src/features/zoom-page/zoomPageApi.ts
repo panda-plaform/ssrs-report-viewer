@@ -1,4 +1,5 @@
-import { postSessionAction, type RenderResponse } from '../../reportApi'
+import { postSessionAction } from '../../shared/api/sessionHttp'
+import type { RenderResponse } from '../../shared/api/sessionTypes'
 
 /** Zoom via SSRS re-render (ADR-0004). */
 export function setZoom(sessionId: string, zoomPercent: number): Promise<RenderResponse> {

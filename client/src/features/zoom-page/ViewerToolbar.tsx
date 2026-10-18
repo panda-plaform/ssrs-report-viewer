@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { HtmlReplacedOptions } from '../action-links'
 import { FindControls } from '../find/FindControls'
 import type { FindResponse } from '../find/findApi'
-import type { HtmlReplacedOptions } from '../../ReportSurface'
 import {
   DEFAULT_PRINT_SETTINGS,
   downloadExport,

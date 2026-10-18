@@ -1,3 +1,5 @@
+import type { RenderResponse } from './sessionTypes'
+
 /** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
 export class ViewerSessionExpiredError extends Error {
   readonly statusCode = 410 as const
@@ -34,4 +36,19 @@ export async function throwIfNotOk(response: Response): Promise<void> {
   }
 
   throw new Error(detail)
+}
+
+export async function postSessionAction(
+  sessionId: string,
+  action: string,
+  body?: unknown,
+): Promise<RenderResponse> {
+  const init: RequestInit = { method: 'POST' }
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = JSON.stringify(body)
+  }
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, init)
+  await throwIfNotOk(response)
+  return (await response.json()) as RenderResponse
 }

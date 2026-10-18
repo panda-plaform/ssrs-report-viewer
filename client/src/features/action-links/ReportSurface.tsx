@@ -1,15 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { wireFixedHeaders } from './createFixedHeaders'
-import {
-  drillthroughReport,
-  navigateBookmark,
-  sortReport,
-  toggleDrilldown,
-  type PageInfo,
-  type ParameterSubmission,
-  type RenderResponse,
-  type SortDirection,
-} from './reportApi'
+import { wireFixedHeaders } from '../../createFixedHeaders'
+import { drillthroughReport } from '../../reportApi'
+import type { PageInfo, ParameterSubmission, RenderResponse } from '../../shared/api/sessionTypes'
+import { navigateBookmark, sortReport, toggleDrilldown, type SortDirection } from './actionLinksApi'
 
 export type HtmlReplacedOptions = {
   /** Drillthrough / in-app Back: sync `?path=` (replaceState) and reseed parameters. */
@@ -34,7 +27,7 @@ type Props = {
 
 /**
  * Injects Execution HTML into the DOM and delegates Action Links (ADR-0003).
- * Drilldown / Drillthrough / Bookmark to session APIs; External Links in a new tab.
+ * Drilldown / Sort / Bookmark / Drillthrough to session APIs; External Links leave the Viewer Session.
  * Back lives on the Viewer Toolbar (native chrome).
  */
 export function ReportSurface({

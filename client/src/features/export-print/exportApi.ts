@@ -1,4 +1,4 @@
-import { throwIfNotOk } from '../../shared/api/http'
+import { throwIfNotOk } from '../../shared/api/sessionHttp'
 import type { PrintPdfSettings } from './printPdfSettings'
 
 export type {
