@@ -73,7 +73,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         {
             logging.ClearProviders();
             logging.AddProvider(_logs);
-            logging.SetMinimumLevel(LogLevel.Warning);
+            logging.SetMinimumLevel(LogLevel.Information);
         });
 
         builder.ConfigureServices(services =>

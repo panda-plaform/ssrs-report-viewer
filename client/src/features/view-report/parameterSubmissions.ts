@@ -1,4 +1,4 @@
-import type { ParameterSubmission, ReportParameter } from './reportApi'
+import type { ParameterSubmission, ReportParameter } from './viewReportApi'
 
 /** Builds View Report / cascade submissions; NULL-checked params omit values. */
 export function toParameterSubmissions(

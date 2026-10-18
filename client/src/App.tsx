@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
-import { ParameterForm } from './ParameterForm'
+import { ParameterForm } from './features/view-report/ParameterForm'
+import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
 import { ReportSurface } from './ReportSurface'
 import { ViewerToolbar } from './ViewerToolbar'
-import type { ExecutionParameterSeed } from './executionParameterSeed'
 import {
   isViewerSessionExpiredError,
   navigateDocumentMap,

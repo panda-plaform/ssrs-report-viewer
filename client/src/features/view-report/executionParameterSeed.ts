@@ -1,4 +1,4 @@
-import type { ParameterSubmission, ReportParameter } from './reportApi'
+import type { ParameterSubmission, ReportParameter } from './viewReportApi'
 
 /** Remount key + Execution parameters used to reseed the parameter bar. */
 export type ExecutionParameterSeed = {

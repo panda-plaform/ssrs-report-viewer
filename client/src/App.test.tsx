@@ -2,14 +2,25 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { drillthroughReport, fetchParameters, findInReport, goBack, viewReport } from './reportApi'
+import { drillthroughReport, findInReport, goBack } from './reportApi'
+import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
+
+vi.mock('./features/view-report/viewReportApi', async () => {
+  const actual =
+    await vi.importActual<typeof import('./features/view-report/viewReportApi')>(
+      './features/view-report/viewReportApi',
+    )
+  return {
+    ...actual,
+    fetchParameters: vi.fn(),
+    viewReport: vi.fn(),
+  }
+})
 
 vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
   return {
     ...actual,
-    fetchParameters: vi.fn(),
-    viewReport: vi.fn(),
     setZoom: vi.fn(),
     setReportPage: vi.fn(),
     refreshReport: vi.fn(),

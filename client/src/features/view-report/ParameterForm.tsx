@@ -11,7 +11,7 @@ import {
   viewReport,
   type ReportParameter,
   type RenderResponse,
-} from './reportApi'
+} from './viewReportApi'
 import { toParameterSubmissions } from './parameterSubmissions'
 import { toDateInputValue } from './datetimeLocal'
 import {

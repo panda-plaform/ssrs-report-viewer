@@ -1,4 +1,10 @@
 import type { PrintPdfSettings } from './printPdfSettings'
+import { throwIfNotOk } from './shared/api/http'
+import type {
+  PageInfo,
+  ParameterSubmission,
+  RenderResponse,
+} from './features/view-report/viewReportApi'
 
 export type {
   PrintOrientation,
@@ -6,119 +12,24 @@ export type {
   PrintPdfSettings,
 } from './printPdfSettings'
 
-export type ParameterValidValue = {
-  label: string
-  value: string
-}
+export {
+  ViewerSessionExpiredError,
+  isViewerSessionExpiredError,
+} from './shared/api/http'
 
-export type ReportParameter = {
-  name: string
-  dataType: string
-  nullable: boolean
-  multiValue: boolean
-  required: boolean
-  prompt: string | null
-  defaultValues: string[]
-  validValues: ParameterValidValue[]
-  dependencies: string[]
-}
-
-export type ParametersResponse = {
-  path: string
-  parameters: ReportParameter[]
-}
-
-export type ParameterSubmission = {
-  name: string
-  values: string[]
-}
-
-export type PageInfo = {
-  currentPage: number
-  pageCount: number
-}
+export {
+  fetchParameters,
+  viewReport,
+  type ParameterValidValue,
+  type ReportParameter,
+  type ParametersResponse,
+  type ParameterSubmission,
+  type PageInfo,
+  type DocumentMapNode,
+  type RenderResponse,
+} from './features/view-report/viewReportApi'
 
 export type SortDirection = 'Ascending' | 'Descending' | 'None'
-export type DocumentMapNode = {
-  id: string
-  label: string
-  children: DocumentMapNode[]
-}
-
-export type RenderResponse = {
-  sessionId: string
-  html: string
-  pageInfo: PageInfo
-  zoomPercent: number
-  documentMap: DocumentMapNode[] | null
-  canGoBack: boolean
-  reportPath: string
-  parameters: ParameterSubmission[]
-}
-
-/** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
-export class ViewerSessionExpiredError extends Error {
-  readonly statusCode = 410 as const
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'ViewerSessionExpiredError'
-  }
-}
-
-export function isViewerSessionExpiredError(error: unknown): error is ViewerSessionExpiredError {
-  return error instanceof ViewerSessionExpiredError
-}
-
-async function readProblemDetail(response: Response): Promise<string> {
-  let detail = `HTTP ${response.status}`
-  try {
-    const problem = (await response.json()) as { detail?: string; title?: string }
-    detail = problem.detail ?? problem.title ?? detail
-  } catch {
-    // keep status-based detail
-  }
-  return detail
-}
-
-async function throwIfNotOk(response: Response): Promise<void> {
-  if (response.ok) {
-    return
-  }
-
-  const detail = await readProblemDetail(response)
-  if (response.status === 410) {
-    throw new ViewerSessionExpiredError(detail)
-  }
-
-  throw new Error(detail)
-}
-
-export async function fetchParameters(
-  path: string,
-  currentValues?: ParameterSubmission[],
-): Promise<ParametersResponse> {
-  const query = new URLSearchParams({ path })
-  if (currentValues && currentValues.length > 0) {
-    query.set('values', JSON.stringify(currentValues))
-  }
-  const response = await fetch(`/api/reports/parameters?${query}`)
-  await throwIfNotOk(response)
-  return (await response.json()) as ParametersResponse
-}
-
-export async function viewReport(
-  reportPath: string,
-  parameters: ParameterSubmission[],
-): Promise<RenderResponse> {
-  const response = await fetch('/api/reports/render', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reportPath, parameters }),
-  })
-  await throwIfNotOk(response)
-  return (await response.json()) as RenderResponse
-}
 
 async function postSessionAction(
   sessionId: string,
