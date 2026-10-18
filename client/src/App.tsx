@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { ParameterForm } from './ParameterForm'
-import { ReportSurface } from './ReportSurface'
+import { ReportSurface, type HtmlReplacedOptions } from './features/action-links'
 import { ViewerToolbar } from './ViewerToolbar'
 import type { ExecutionParameterSeed } from './executionParameterSeed'
 import {
@@ -11,7 +11,6 @@ import {
   type FindResponse,
   type RenderResponse,
 } from './reportApi'
-import type { HtmlReplacedOptions } from './ReportSurface'
 import {
   buildReportPathSearch,
   openReportPathDiffers,

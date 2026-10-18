@@ -3,12 +3,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using SsrsReportViewer.Api.Ssrs;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Features.ActionLinks;
 
 /// <summary>
 /// Rewrites SSRS Action Link URL shapes so the browser never targets ReportServer (ADR-0003).
 /// Drilldown / Sort / Drillthrough / Bookmark links become data-attribute markers for Report Viewer
-/// delegation; External Links stay absolute.
+/// delegation; External Links stay absolute. Owned by the Action Links slice (#66).
 /// </summary>
 public static partial class ActionLinkRewriter
 {

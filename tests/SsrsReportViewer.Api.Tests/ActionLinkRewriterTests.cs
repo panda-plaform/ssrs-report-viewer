@@ -1,3 +1,4 @@
+using SsrsReportViewer.Api.Features.ActionLinks;
 using SsrsReportViewer.Api.Reports;
 
 namespace SsrsReportViewer.Api.Tests;

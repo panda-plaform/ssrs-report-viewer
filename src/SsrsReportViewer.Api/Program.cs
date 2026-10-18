@@ -30,7 +30,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping seam (#61+). Routes below remain in Program until migrated.
+// Feature-slice endpoint mapping (#66 Action Links; remaining routes migrate in #61–#69).
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -182,7 +182,7 @@ app.MapPost("/api/reports/render", async (
     try
     {
         var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToPayload(result));
     }
     catch (RequiredParameterMissingException ex)
     {
@@ -210,7 +210,7 @@ app.MapPost("/api/sessions/{sessionId}/zoom", async (
     await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToPayload(result));
     }));
 
 app.MapPost("/api/sessions/{sessionId}/page", async (
@@ -232,7 +232,7 @@ app.MapPost("/api/sessions/{sessionId}/page", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToPayload(result));
     });
 });
 
@@ -245,7 +245,7 @@ app.MapPost("/api/sessions/{sessionId}/refresh", async (
     await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToPayload(result));
     }));
 
 app.MapPost("/api/sessions/{sessionId}/document-map", async (
@@ -267,107 +267,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    });
-});
-
-app.MapPost("/api/sessions/{sessionId}/bookmark", async (
-    string sessionId,
-    BookmarkNavigateRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Id))
-    {
-        return Results.Problem(
-            detail: "id is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Bookmark request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    });
-});
-
-app.MapGet("/api/sessions/{sessionId}/resources/{streamId}", async (
-    string sessionId,
-    string streamId,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        var stream = await viewer.GetResourceAsync(sessionId, streamId, guard, cancellationToken);
-        return Results.File(stream.Content, stream.MimeType);
-    }));
-
-// Drilldown (glossary) — keep /toggle as backward-compatible alias for ToggleItem.
-async Task<IResult> DrilldownToggleAsync(
-    string sessionId,
-    ToggleRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken)
-{
-    if (string.IsNullOrWhiteSpace(request.ToggleId))
-    {
-        return Results.Problem(
-            detail: "toggleId is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Drilldown toggle request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    });
-}
-
-app.MapPost("/api/sessions/{sessionId}/drilldown", DrilldownToggleAsync);
-app.MapPost("/api/sessions/{sessionId}/toggle", DrilldownToggleAsync);
-
-app.MapPost("/api/sessions/{sessionId}/sort", async (
-    string sessionId,
-    SortRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.SortItem))
-    {
-        return Results.Problem(
-            detail: "sortItem is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Sort request");
-    }
-
-    if (!TryParseSortDirection(request.Direction, out var direction))
-    {
-        return Results.Problem(
-            detail: "direction must be Ascending, Descending, or None.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Sort request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.SortAsync(
-            sessionId,
-            request.SortItem,
-            direction,
-            request.Clear ?? false,
-            guard,
-            cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToPayload(result));
     });
 });
 
@@ -435,7 +335,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
         try
         {
             var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(ViewerSessionResponses.ToPayload(result));
         }
         catch (RequiredParameterMissingException ex)
         {
@@ -465,7 +365,7 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
         try
         {
             var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(ViewerSessionResponses.ToPayload(result));
         }
         catch (BackStackEmptyException ex)
         {
@@ -495,7 +395,7 @@ app.MapPost("/api/sessions/{sessionId}/find", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.FindAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
-        return Results.Ok(ToFindPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToFindPayload(result));
     });
 });
 
@@ -518,20 +418,9 @@ app.MapPost("/api/sessions/{sessionId}/find/next", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.FindNextAsync(sessionId, request.FindValue.Trim(), guard, cancellationToken);
-        return Results.Ok(ToFindPayload(result));
+        return Results.Ok(ViewerSessionResponses.ToFindPayload(result));
     });
 });
-
-static bool TryParseSortDirection(string? value, out SortDirection direction)
-{
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        direction = SortDirection.Ascending;
-        return true;
-    }
-
-    return Enum.TryParse(value.Trim(), ignoreCase: true, out direction);
-}
 
 static string NormalizeCatalogPath(string? path)
 {
@@ -571,45 +460,6 @@ static IReadOnlyList<ParameterValue>? ParseParameterValuesJson(string? values)
     }
 }
 
-static object ToSessionPayload(ViewReportResult result) =>
-    new
-    {
-        sessionId = result.SessionId,
-        html = result.Html,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-        zoomPercent = result.ZoomPercent,
-        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
-        canGoBack = result.CanGoBack,
-        reportPath = result.ReportPath,
-        parameters = result.Parameters
-            .Select(p => new { name = p.Name, values = p.Values.ToArray() })
-            .ToArray(),
-    };
-
-static object ToFindPayload(FindResult result) =>
-    new
-    {
-        html = result.Html,
-        found = result.Found,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-    };
-
-static object MapDocumentMapNode(DocumentMapNode node) =>
-    new
-    {
-        id = node.Id,
-        label = node.Label,
-        children = node.Children.Select(MapDocumentMapNode).ToArray(),
-    };
-
 app.Run();
 
 public partial class Program;
@@ -623,12 +473,6 @@ public sealed record ZoomRequest(int ZoomPercent);
 public sealed record PageRequest(string? Action, int? Page);
 
 public sealed record DocumentMapNavigateRequest(string? Id);
-
-public sealed record BookmarkNavigateRequest(string? Id);
-
-public sealed record ToggleRequest(string? ToggleId);
-
-public sealed record SortRequest(string? SortItem, string? Direction, bool? Clear);
 
 public sealed record DrillthroughRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 

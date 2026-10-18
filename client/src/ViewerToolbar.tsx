@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { HtmlReplacedOptions } from './ReportSurface'
+import type { HtmlReplacedOptions } from './features/action-links'
 import {
   DEFAULT_PRINT_SETTINGS,
   PRINT_ORIENTATIONS,

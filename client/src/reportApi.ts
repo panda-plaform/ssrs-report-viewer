@@ -1,4 +1,11 @@
 import type { PrintPdfSettings } from './printPdfSettings'
+import { postSessionAction, throwIfNotOk } from './shared/api/sessionHttp'
+import type {
+  FindResponse,
+  ParameterSubmission,
+  ParametersResponse,
+  RenderResponse,
+} from './shared/api/sessionTypes'
 
 export type {
   PrintOrientation,
@@ -6,93 +13,28 @@ export type {
   PrintPdfSettings,
 } from './printPdfSettings'
 
-export type ParameterValidValue = {
-  label: string
-  value: string
-}
+export type {
+  DocumentMapNode,
+  FindResponse,
+  PageInfo,
+  ParameterSubmission,
+  ParameterValidValue,
+  ParametersResponse,
+  RenderResponse,
+  ReportParameter,
+  SortDirection,
+} from './shared/api/sessionTypes'
 
-export type ReportParameter = {
-  name: string
-  dataType: string
-  nullable: boolean
-  multiValue: boolean
-  required: boolean
-  prompt: string | null
-  defaultValues: string[]
-  validValues: ParameterValidValue[]
-  dependencies: string[]
-}
+export {
+  isViewerSessionExpiredError,
+  ViewerSessionExpiredError,
+} from './shared/api/sessionHttp'
 
-export type ParametersResponse = {
-  path: string
-  parameters: ReportParameter[]
-}
-
-export type ParameterSubmission = {
-  name: string
-  values: string[]
-}
-
-export type PageInfo = {
-  currentPage: number
-  pageCount: number
-}
-
-export type SortDirection = 'Ascending' | 'Descending' | 'None'
-export type DocumentMapNode = {
-  id: string
-  label: string
-  children: DocumentMapNode[]
-}
-
-export type RenderResponse = {
-  sessionId: string
-  html: string
-  pageInfo: PageInfo
-  zoomPercent: number
-  documentMap: DocumentMapNode[] | null
-  canGoBack: boolean
-  reportPath: string
-  parameters: ParameterSubmission[]
-}
-
-/** Thrown when a Viewer Session op returns HTTP 410 Gone (idle TTL / expired). */
-export class ViewerSessionExpiredError extends Error {
-  readonly statusCode = 410 as const
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'ViewerSessionExpiredError'
-  }
-}
-
-export function isViewerSessionExpiredError(error: unknown): error is ViewerSessionExpiredError {
-  return error instanceof ViewerSessionExpiredError
-}
-
-async function readProblemDetail(response: Response): Promise<string> {
-  let detail = `HTTP ${response.status}`
-  try {
-    const problem = (await response.json()) as { detail?: string; title?: string }
-    detail = problem.detail ?? problem.title ?? detail
-  } catch {
-    // keep status-based detail
-  }
-  return detail
-}
-
-async function throwIfNotOk(response: Response): Promise<void> {
-  if (response.ok) {
-    return
-  }
-
-  const detail = await readProblemDetail(response)
-  if (response.status === 410) {
-    throw new ViewerSessionExpiredError(detail)
-  }
-
-  throw new Error(detail)
-}
+export {
+  navigateBookmark,
+  sortReport,
+  toggleDrilldown,
+} from './features/action-links/actionLinksApi'
 
 export async function fetchParameters(
   path: string,
@@ -120,21 +62,6 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
-async function postSessionAction(
-  sessionId: string,
-  action: string,
-  body?: unknown,
-): Promise<RenderResponse> {
-  const init: RequestInit = { method: 'POST' }
-  if (body !== undefined) {
-    init.headers = { 'Content-Type': 'application/json' }
-    init.body = JSON.stringify(body)
-  }
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/${action}`, init)
-  await throwIfNotOk(response)
-  return (await response.json()) as RenderResponse
-}
-
 export function setZoom(sessionId: string, zoomPercent: number): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'zoom', { zoomPercent })
 }
@@ -151,11 +78,6 @@ export function refreshReport(sessionId: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'refresh', {})
 }
 
-export function toggleDrilldown(sessionId: string, toggleId: string): Promise<RenderResponse> {
-  // Glossary path; /toggle remains as a server-side alias.
-  return postSessionAction(sessionId, 'drilldown', { toggleId })
-}
-
 export function drillthroughReport(
   sessionId: string,
   reportPath: string,
@@ -170,19 +92,6 @@ export function goBack(sessionId: string): Promise<RenderResponse> {
 
 export function navigateDocumentMap(sessionId: string, id: string): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'document-map', { id })
-}
-
-export function navigateBookmark(sessionId: string, id: string): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'bookmark', { id })
-}
-
-export function sortReport(
-  sessionId: string,
-  sortItem: string,
-  direction: SortDirection,
-  clear = false,
-): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'sort', { sortItem, direction, clear })
 }
 
 /** Client Export format tokens (native menu order). ACCESSIBLEPDF / TIFF map server-side to DeviceInfo. */
@@ -371,12 +280,6 @@ export async function printExportPdf(
 ): Promise<void> {
   const blob = await fetchExportPdf(sessionId, printSettings)
   await printPdfBlob(blob)
-}
-
-export type FindResponse = {
-  html: string
-  found: boolean
-  pageInfo: PageInfo
 }
 
 async function postFind(
