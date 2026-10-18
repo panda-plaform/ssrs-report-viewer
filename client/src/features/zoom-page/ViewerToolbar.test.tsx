@@ -8,21 +8,23 @@ import {
   findNextInReport,
   goBack,
   printPdfBlob,
-  setReportPage,
-  setZoom,
-} from './reportApi'
+} from '../../reportApi'
 import { ViewerToolbar } from './ViewerToolbar'
+import { refreshReport, setReportPage, setZoom } from './zoomPageApi'
 
-vi.mock('./reportApi', () => ({
-  setZoom: vi.fn(),
-  setReportPage: vi.fn(),
-  refreshReport: vi.fn(),
+vi.mock('../../reportApi', () => ({
   downloadExport: vi.fn(),
   fetchExportPdf: vi.fn(),
   printPdfBlob: vi.fn(),
   findInReport: vi.fn(),
   findNextInReport: vi.fn(),
   goBack: vi.fn(),
+}))
+
+vi.mock('./zoomPageApi', () => ({
+  setZoom: vi.fn(),
+  setReportPage: vi.fn(),
+  refreshReport: vi.fn(),
 }))
 
 const pdfBlob = new Blob(['%PDF'], { type: 'application/pdf' })
@@ -75,6 +77,7 @@ describe('ViewerToolbar native chrome', () => {
   beforeEach(() => {
     vi.mocked(setZoom).mockReset().mockResolvedValue({ ...pageResult, zoomPercent: 25 })
     vi.mocked(setReportPage).mockReset().mockResolvedValue(pageResult)
+    vi.mocked(refreshReport).mockReset().mockResolvedValue(pageResult)
     vi.mocked(downloadExport).mockReset().mockResolvedValue(undefined)
     vi.mocked(fetchExportPdf).mockReset().mockResolvedValue(pdfBlob)
     vi.mocked(printPdfBlob).mockReset().mockResolvedValue(undefined)

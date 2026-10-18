@@ -31,7 +31,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #63+.
+// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #64+.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -90,54 +90,6 @@ app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
             title: "ReportViewer asset unavailable");
     }
 });
-
-app.MapPost("/api/sessions/{sessionId}/zoom", async (
-    string sessionId,
-    ZoomRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
-        return Results.Ok(SessionResponse.From(result));
-    }));
-
-app.MapPost("/api/sessions/{sessionId}/page", async (
-    string sessionId,
-    PageRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Action))
-    {
-        return Results.Problem(
-            detail: "action is required (next, previous, or goto).",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Report Page request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
-        return Results.Ok(SessionResponse.From(result));
-    });
-});
-
-app.MapPost("/api/sessions/{sessionId}/refresh", async (
-    string sessionId,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
-        return Results.Ok(SessionResponse.From(result));
-    }));
 
 app.MapPost("/api/sessions/{sessionId}/document-map", async (
     string sessionId,
@@ -439,10 +391,6 @@ static object ToFindPayload(FindResult result) =>
 app.Run();
 
 public partial class Program;
-
-public sealed record ZoomRequest(int ZoomPercent);
-
-public sealed record PageRequest(string? Action, int? Page);
 
 public sealed record DocumentMapNavigateRequest(string? Id);
 

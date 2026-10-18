@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { HtmlReplacedOptions } from './ReportSurface'
+import type { HtmlReplacedOptions } from '../../ReportSurface'
 import {
   DEFAULT_PRINT_SETTINGS,
   PRINT_ORIENTATIONS,
@@ -7,7 +7,7 @@ import {
   type PrintOrientation,
   type PrintPageSize,
   type PrintPdfSettings,
-} from './printPdfSettings'
+} from '../../printPdfSettings'
 import {
   downloadExport,
   fetchExportPdf,
@@ -15,14 +15,11 @@ import {
   findNextInReport,
   goBack,
   printPdfBlob,
-  refreshReport,
-  setReportPage,
-  setZoom,
   type ExportFormat,
   type FindResponse,
   type PageInfo,
   type RenderResponse,
-} from './reportApi'
+} from '../../reportApi'
 import {
   IconBack,
   IconChevronDown,
@@ -37,7 +34,8 @@ import {
   IconPrint,
   IconRefresh,
   IconRestore,
-} from './toolbarIcons'
+} from '../../toolbarIcons'
+import { refreshReport, setReportPage, setZoom } from './zoomPageApi'
 
 /** Percent zooms matching the native SSRS toolbar order (Page Width / Whole Page are out of scope — see ADR 0004). */
 const ZOOM_OPTIONS = [500, 200, 150, 100, 75, 50, 25, 10] as const

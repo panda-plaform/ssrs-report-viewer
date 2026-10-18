@@ -21,9 +21,6 @@ vi.mock('./reportApi', async () => {
   const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
   return {
     ...actual,
-    setZoom: vi.fn(),
-    setReportPage: vi.fn(),
-    refreshReport: vi.fn(),
     downloadExport: vi.fn(),
     findInReport: vi.fn(),
     findNextInReport: vi.fn(),
@@ -32,6 +29,12 @@ vi.mock('./reportApi', async () => {
     navigateDocumentMap: vi.fn(),
   }
 })
+
+vi.mock('./features/zoom-page/zoomPageApi', () => ({
+  setZoom: vi.fn(),
+  setReportPage: vi.fn(),
+  refreshReport: vi.fn(),
+}))
 
 vi.mock('./features/catalog/CatalogBrowser', () => ({
   CatalogBrowser: () => <div>Catalog browser</div>,
