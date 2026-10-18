@@ -1,4 +1,4 @@
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Hosting;

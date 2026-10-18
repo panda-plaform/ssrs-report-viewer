@@ -1,4 +1,4 @@
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
@@ -6,7 +6,7 @@ namespace SsrsReportViewer.Api.Composition;
 
 /// <summary>
 /// Composition-root DI registration for the Report Viewer host (ADR-0005).
-/// Feature slices add their own <c>Add…</c> helpers here as they land (#61+).
+/// Wires the shared kernel and any slice-owned services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {

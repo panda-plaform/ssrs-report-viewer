@@ -1,4 +1,4 @@
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Shared;
 
 /// <summary>
 /// Leading FixedData counts from the first tablix in an RDL (ReportViewer freeze chrome).

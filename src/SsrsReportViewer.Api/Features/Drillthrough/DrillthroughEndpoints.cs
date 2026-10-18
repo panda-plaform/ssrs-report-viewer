@@ -1,6 +1,6 @@
 using SsrsReportViewer.Api.Composition;
 using SsrsReportViewer.Api.Hosting;
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 

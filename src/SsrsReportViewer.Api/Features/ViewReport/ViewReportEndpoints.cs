@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SsrsReportViewer.Api.Hosting;
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Features.ViewReport;

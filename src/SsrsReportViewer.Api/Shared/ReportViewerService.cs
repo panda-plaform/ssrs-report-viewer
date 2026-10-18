@@ -9,7 +9,7 @@ using SsrsReportViewer.Api.Features.Find;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Shared;
 
 public sealed partial class ReportViewerService
 {

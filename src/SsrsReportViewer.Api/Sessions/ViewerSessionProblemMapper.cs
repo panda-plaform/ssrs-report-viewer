@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 
 namespace SsrsReportViewer.Api.Sessions;
 

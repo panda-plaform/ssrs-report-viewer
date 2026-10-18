@@ -28,12 +28,18 @@ vi.mock('./features/drillthrough/drillthroughApi', () => ({
   drillthroughReport: vi.fn(),
 }))
 
-vi.mock('./reportApi', async () => {
-  const actual = await vi.importActual<typeof import('./reportApi')>('./reportApi')
+vi.mock('./features/document-map/documentMapApi', () => ({
+  navigateDocumentMap: vi.fn(),
+}))
+
+vi.mock('./features/export-print/exportApi', async () => {
+  const actual =
+    await vi.importActual<typeof import('./features/export-print/exportApi')>(
+      './features/export-print/exportApi',
+    )
   return {
     ...actual,
     downloadExport: vi.fn(),
-    navigateDocumentMap: vi.fn(),
   }
 })
 

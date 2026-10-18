@@ -2,15 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './features/catalog/CatalogBrowser'
 import { ReportSurface, type HtmlReplacedOptions } from './features/action-links'
 import { DocumentMapSidebar } from './features/document-map/DocumentMapSidebar'
+import { navigateDocumentMap } from './features/document-map/documentMapApi'
 import type { FindResponse } from './features/find/findApi'
 import { ParameterForm } from './features/view-report/ParameterForm'
 import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
 import { ViewerToolbar } from './features/zoom-page/ViewerToolbar'
-import {
-  isViewerSessionExpiredError,
-  navigateDocumentMap,
-  type RenderResponse,
-} from './reportApi'
+import { isViewerSessionExpiredError } from './shared/api/sessionHttp'
+import type { RenderResponse } from './shared/api/sessionTypes'
 import {
   buildReportPathSearch,
   openReportPathDiffers,

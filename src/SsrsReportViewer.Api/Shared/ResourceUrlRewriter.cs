@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Shared;
 
 /// <summary>
 /// Rewrites ReportServer-shaped resource URLs in report HTML to Viewer Session resource endpoints

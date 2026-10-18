@@ -1,4 +1,4 @@
-import type { DocumentMapNode } from '../../reportApi'
+import type { DocumentMapNode } from '../../shared/api/sessionTypes'
 
 type Props = {
   nodes: DocumentMapNode[] | null | undefined

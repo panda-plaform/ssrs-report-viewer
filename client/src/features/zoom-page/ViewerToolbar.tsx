@@ -15,10 +15,7 @@ import {
   type PrintPdfSettings,
 } from '../export-print/exportApi'
 import { goBack } from '../drillthrough/drillthroughApi'
-import {
-  type PageInfo,
-  type RenderResponse,
-} from '../../reportApi'
+import type { PageInfo, RenderResponse } from '../../shared/api/sessionTypes'
 import {
   IconBack,
   IconChevronDown,

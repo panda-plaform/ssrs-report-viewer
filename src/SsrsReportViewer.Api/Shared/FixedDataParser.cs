@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Shared;
 
 /// <summary>
 /// Reads FixedData from RDL tablix hierarchies (Report Builder "keep header visible while scrolling").

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SsrsReportViewer.Api.Reports;
+namespace SsrsReportViewer.Api.Shared;
 
 /// <summary>
 /// Tags SSRS tablix tables with FixedData freeze counts for client CreateFixedHeaders.
