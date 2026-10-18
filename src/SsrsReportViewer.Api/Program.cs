@@ -31,7 +31,7 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #67+.
+// Feature-slice endpoint mapping (ADR-0005). Remaining routes below migrate in #68+.
 app.MapSsrsReportViewerFeatureEndpoints();
 
 // Anonymous API (ADR-0002): no authentication middleware.
@@ -89,29 +89,6 @@ app.MapGet("/api/ssrs-viewer-assets/{*name}", async (
             statusCode: StatusCodes.Status502BadGateway,
             title: "ReportViewer asset unavailable");
     }
-});
-
-app.MapPost("/api/sessions/{sessionId}/document-map", async (
-    string sessionId,
-    DocumentMapNavigateRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Id))
-    {
-        return Results.Problem(
-            detail: "id is required.",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Document Map request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(SessionResponse.From(result));
-    });
 });
 
 app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
@@ -184,7 +161,5 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
 app.Run();
 
 public partial class Program;
-
-public sealed record DocumentMapNavigateRequest(string? Id);
 
 public sealed record DrillthroughRequest(string? ReportPath, ViewReportParameter[]? Parameters);

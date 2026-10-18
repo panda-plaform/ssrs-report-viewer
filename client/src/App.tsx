@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CatalogBrowser } from './features/catalog/CatalogBrowser'
-import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { ReportSurface, type HtmlReplacedOptions } from './features/action-links'
+import { DocumentMapSidebar } from './features/document-map/DocumentMapSidebar'
 import type { FindResponse } from './features/find/findApi'
 import { ParameterForm } from './features/view-report/ParameterForm'
 import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
