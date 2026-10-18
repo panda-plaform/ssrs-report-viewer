@@ -182,7 +182,7 @@ app.MapPost("/api/reports/render", async (
     try
     {
         var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionPayload.From(result));
     }
     catch (RequiredParameterMissingException ex)
     {
@@ -199,54 +199,6 @@ app.MapPost("/api/reports/render", async (
             title: "Report not found");
     }
 });
-
-app.MapPost("/api/sessions/{sessionId}/zoom", async (
-    string sessionId,
-    ZoomRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    }));
-
-app.MapPost("/api/sessions/{sessionId}/page", async (
-    string sessionId,
-    PageRequest request,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Action))
-    {
-        return Results.Problem(
-            detail: "action is required (next, previous, or goto).",
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Invalid Report Page request");
-    }
-
-    return await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.SetPageAsync(sessionId, request.Action, request.Page, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    });
-});
-
-app.MapPost("/api/sessions/{sessionId}/refresh", async (
-    string sessionId,
-    ReportViewerService viewer,
-    ViewerSessionGuard guard,
-    ViewerSessionProblemMapper sessionProblems,
-    CancellationToken cancellationToken) =>
-    await sessionProblems.ExecuteAsync(async () =>
-    {
-        var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
-    }));
 
 app.MapPost("/api/sessions/{sessionId}/document-map", async (
     string sessionId,
@@ -267,7 +219,7 @@ app.MapPost("/api/sessions/{sessionId}/document-map", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateDocumentMapAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionPayload.From(result));
     });
 });
 
@@ -290,7 +242,7 @@ app.MapPost("/api/sessions/{sessionId}/bookmark", async (
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionPayload.From(result));
     });
 });
 
@@ -327,7 +279,7 @@ async Task<IResult> DrilldownToggleAsync(
     return await sessionProblems.ExecuteAsync(async () =>
     {
         var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionPayload.From(result));
     });
 }
 
@@ -367,7 +319,7 @@ app.MapPost("/api/sessions/{sessionId}/sort", async (
             request.Clear ?? false,
             guard,
             cancellationToken);
-        return Results.Ok(ToSessionPayload(result));
+        return Results.Ok(ViewerSessionPayload.From(result));
     });
 });
 
@@ -435,7 +387,7 @@ app.MapPost("/api/sessions/{sessionId}/drillthrough", async (
         try
         {
             var result = await viewer.DrillthroughAsync(sessionId, reportPath, parameters, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(ViewerSessionPayload.From(result));
         }
         catch (RequiredParameterMissingException ex)
         {
@@ -465,7 +417,7 @@ app.MapPost("/api/sessions/{sessionId}/back", async (
         try
         {
             var result = await viewer.BackAsync(sessionId, guard, cancellationToken);
-            return Results.Ok(ToSessionPayload(result));
+            return Results.Ok(ViewerSessionPayload.From(result));
         }
         catch (BackStackEmptyException ex)
         {
@@ -571,25 +523,6 @@ static IReadOnlyList<ParameterValue>? ParseParameterValuesJson(string? values)
     }
 }
 
-static object ToSessionPayload(ViewReportResult result) =>
-    new
-    {
-        sessionId = result.SessionId,
-        html = result.Html,
-        pageInfo = new
-        {
-            currentPage = result.PageInfo.CurrentPage,
-            pageCount = result.PageInfo.PageCount,
-        },
-        zoomPercent = result.ZoomPercent,
-        documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
-        canGoBack = result.CanGoBack,
-        reportPath = result.ReportPath,
-        parameters = result.Parameters
-            .Select(p => new { name = p.Name, values = p.Values.ToArray() })
-            .ToArray(),
-    };
-
 static object ToFindPayload(FindResult result) =>
     new
     {
@@ -602,14 +535,6 @@ static object ToFindPayload(FindResult result) =>
         },
     };
 
-static object MapDocumentMapNode(DocumentMapNode node) =>
-    new
-    {
-        id = node.Id,
-        label = node.Label,
-        children = node.Children.Select(MapDocumentMapNode).ToArray(),
-    };
-
 app.Run();
 
 public partial class Program;
@@ -617,10 +542,6 @@ public partial class Program;
 public sealed record ViewReportRequest(string? ReportPath, ViewReportParameter[]? Parameters);
 
 public sealed record ViewReportParameter(string Name, string[]? Values);
-
-public sealed record ZoomRequest(int ZoomPercent);
-
-public sealed record PageRequest(string? Action, int? Page);
 
 public sealed record DocumentMapNavigateRequest(string? Id);
 

@@ -3,7 +3,7 @@ import { CatalogBrowser } from './CatalogBrowser'
 import { DocumentMapSidebar } from './DocumentMapSidebar'
 import { ParameterForm } from './ParameterForm'
 import { ReportSurface } from './ReportSurface'
-import { ViewerToolbar } from './ViewerToolbar'
+import { ViewerToolbar } from './features/zoom-page/ViewerToolbar'
 import type { ExecutionParameterSeed } from './executionParameterSeed'
 import {
   isViewerSessionExpiredError,

@@ -10,9 +10,6 @@ vi.mock('./reportApi', async () => {
     ...actual,
     fetchParameters: vi.fn(),
     viewReport: vi.fn(),
-    setZoom: vi.fn(),
-    setReportPage: vi.fn(),
-    refreshReport: vi.fn(),
     downloadExport: vi.fn(),
     findInReport: vi.fn(),
     findNextInReport: vi.fn(),
@@ -21,6 +18,12 @@ vi.mock('./reportApi', async () => {
     navigateDocumentMap: vi.fn(),
   }
 })
+
+vi.mock('./features/zoom-page/zoomPageApi', () => ({
+  setZoom: vi.fn(),
+  setReportPage: vi.fn(),
+  refreshReport: vi.fn(),
+}))
 
 vi.mock('./CatalogBrowser', () => ({
   CatalogBrowser: () => <div>Catalog browser</div>,

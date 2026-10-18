@@ -120,7 +120,8 @@ export async function viewReport(
   return (await response.json()) as RenderResponse
 }
 
-async function postSessionAction(
+/** Shared Viewer Session POST helper for feature API modules (temporary barrel until #70). */
+export async function postSessionAction(
   sessionId: string,
   action: string,
   body?: unknown,
@@ -135,21 +136,7 @@ async function postSessionAction(
   return (await response.json()) as RenderResponse
 }
 
-export function setZoom(sessionId: string, zoomPercent: number): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'zoom', { zoomPercent })
-}
-
-export function setReportPage(
-  sessionId: string,
-  action: 'next' | 'previous' | 'goto',
-  page?: number,
-): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'page', { action, page })
-}
-
-export function refreshReport(sessionId: string): Promise<RenderResponse> {
-  return postSessionAction(sessionId, 'refresh', {})
-}
+export { refreshReport, setReportPage, setZoom } from './features/zoom-page/zoomPageApi'
 
 export function toggleDrilldown(sessionId: string, toggleId: string): Promise<RenderResponse> {
   // Glossary path; /toggle remains as a server-side alias.
