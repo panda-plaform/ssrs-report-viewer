@@ -4,6 +4,7 @@ using SsrsReportViewer.Api.Features.DocumentMap;
 using SsrsReportViewer.Api.Features.Drillthrough;
 using SsrsReportViewer.Api.Features.ExportPrint;
 using SsrsReportViewer.Api.Features.Find;
+using SsrsReportViewer.Api.Features.Infrastructure;
 using SsrsReportViewer.Api.Features.ViewReport;
 using SsrsReportViewer.Api.Features.ZoomPage;
 
@@ -11,8 +12,7 @@ namespace SsrsReportViewer.Api.Composition;
 
 /// <summary>
 /// Composition-root endpoint mapping seam (ADR-0005).
-/// Feature slices register via <c>MapXxxEndpoints</c> / <see cref="MapGroup"/> here;
-/// remaining routes stay in <c>Program</c> until their migrate tickets land.
+/// Feature slices register via <c>MapXxxEndpoints</c> / <see cref="MapGroup"/> here.
 /// </summary>
 public static class EndpointRouteBuilderExtensions
 {
@@ -23,10 +23,11 @@ public static class EndpointRouteBuilderExtensions
         endpoints.MapGroup("/api/sessions/{sessionId}");
 
     /// <summary>
-    /// Maps feature-slice endpoints owned outside <c>Program</c>.
+    /// Maps all feature-slice endpoints owned outside <c>Program</c>.
     /// </summary>
     public static WebApplication MapSsrsReportViewerFeatureEndpoints(this WebApplication app)
     {
+        app.MapInfrastructureEndpoints();
         app.MapCatalogEndpoints();
         app.MapViewReportEndpoints();
         app.MapViewerSessionGroup().MapZoomPageEndpoints();
