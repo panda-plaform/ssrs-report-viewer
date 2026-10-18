@@ -87,4 +87,9 @@ public interface ISsrsAdapter
         ExecutionHandle execution,
         string bookmarkId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Report definition bytes (ReportingService2010 GetItemDefinition) for FixedData annotation.
+    /// </summary>
+    Task<byte[]> GetItemDefinitionAsync(string reportPath, CancellationToken cancellationToken = default);
 }

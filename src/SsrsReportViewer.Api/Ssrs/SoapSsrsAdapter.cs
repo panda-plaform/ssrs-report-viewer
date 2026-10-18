@@ -335,7 +335,22 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             new XElement(Exec + "FindValue", findValue));
 
         var (document, _) = await InvokeExecutionAsync("FindString", body, execution, cancellationToken);
-        return ParseInt(document.Descendants(Exec + "FindStringResult").FirstOrDefault()?.Value, fallback: 0);
+        // ReportExecution2005 WSDL returns the page as PageNumber (same as Sort), not FindStringResult.
+        return ParseFindStringPage(document);
+    }
+
+    /// <summary>
+    /// Finds the page number from a FindString SOAP response. Prefer <c>PageNumber</c> (WSDL /
+    /// same shape as Sort); accept <c>FindStringResult</c> as a defensive fallback. Match by
+    /// local name so minor Execution namespace date variants still parse.
+    /// </summary>
+    internal static int ParseFindStringPage(XDocument document)
+    {
+        var pageNode = document.Descendants()
+                           .FirstOrDefault(e => e.Name.LocalName == "PageNumber")
+                       ?? document.Descendants()
+                           .FirstOrDefault(e => e.Name.LocalName == "FindStringResult");
+        return ParseInt(pageNode?.Value, fallback: 0);
     }
 
     private async Task<(XDocument Document, string? ExecutionId)> InvokeExecutionAsync(
@@ -541,6 +556,13 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
             sb.Append("<AccessiblePDF>true</AccessiblePDF>");
         }
 
+        if (!string.IsNullOrWhiteSpace(deviceInfo.FindString))
+        {
+            sb.Append("<FindString>")
+                .Append(System.Security.SecurityElement.Escape(deviceInfo.FindString))
+                .Append("</FindString>");
+        }
+
         sb.Append("</DeviceInfo>");
         return sb.ToString();
     }
@@ -553,6 +575,38 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         }
 
         return "/" + path.Trim().Trim('/');
+    }
+
+    public async Task<byte[]> GetItemDefinitionAsync(
+        string reportPath,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new XElement(
+            Mgmt + "GetItemDefinition",
+            new XElement(Mgmt + "ItemPath", NormalizePath(reportPath)));
+
+        try
+        {
+            var document = await _soap.Value.InvokeManagementAsync(
+                "GetItemDefinition",
+                body,
+                cancellationToken);
+            var definition = document
+                .Descendants(Mgmt + "Definition")
+                .Select(e => e.Value)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(definition))
+            {
+                throw new InvalidOperationException(
+                    $"GetItemDefinition returned no Definition for '{NormalizePath(reportPath)}'.");
+            }
+
+            return Convert.FromBase64String(definition);
+        }
+        catch (CatalogPathNotFoundException)
+        {
+            throw new ReportNotFoundException(NormalizePath(reportPath));
+        }
     }
 
     private static bool ParseBool(string? value, bool defaultValue = false) =>

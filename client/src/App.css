@@ -973,6 +973,9 @@
 .shell-report .report-html {
   flex: 1 1 auto;
   min-height: 0;
+  /* Without this, the tablix min-content width expands the flex item and
+     overflow:hidden clips — no horizontal scrollbar on #oReportDiv. */
+  min-width: 0;
 }
 
 .report-busy {
@@ -990,7 +993,8 @@
 }
 
 .report-html {
-  overflow: auto;
+  /* Scroll lives on #oReportDiv (ReportViewer CreateFixedHeaders scrollport). */
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: #fff;
@@ -1002,6 +1006,21 @@
   font-family: Tahoma, "Segoe UI", sans-serif;
   font-size: 8pt;
   line-height: normal;
+}
+
+.report-html #oReportDiv {
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ReportViewer Find chrome — same token as native .searchHighlighting */
+.report-html .searchHighlighting {
+  background-color: #ffc20d;
+  color: #000;
 }
 
 /*
@@ -1062,5 +1081,10 @@
     padding: 0;
     border: 0;
     background: transparent;
+  }
+
+  .report-html #oReportDiv {
+    overflow: visible;
+    height: auto;
   }
 }
