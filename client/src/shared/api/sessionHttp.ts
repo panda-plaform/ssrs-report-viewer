@@ -14,6 +14,11 @@ export function isViewerSessionExpiredError(error: unknown): error is ViewerSess
   return error instanceof ViewerSessionExpiredError
 }
 
+/** Fetch network rejections are TypeError; distinct from HTTP Error(detail) from throwIfNotOk. */
+export function isApiUnreachableError(error: unknown): boolean {
+  return error instanceof TypeError
+}
+
 async function readProblemDetail(response: Response): Promise<string> {
   let detail = `HTTP ${response.status}`
   try {
