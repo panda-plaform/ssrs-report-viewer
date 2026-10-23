@@ -263,12 +263,15 @@ function App() {
         role="status"
       >
         {detail}
+        {apiStatus === 'error' && (
+          <>
+            {' '}
+            <button type="button" className="primary-action" onClick={() => void checkHealth()}>
+              Retry
+            </button>
+          </>
+        )}
       </p>
-      {apiStatus === 'error' && (
-        <button type="button" className="no-print" onClick={() => void checkHealth()}>
-          Retry
-        </button>
-      )}
       {showMainUi && (
         <>
           {apiAvailable && mode === 'catalog' && (
