@@ -38,8 +38,27 @@ public static class DocumentMapEndpoints
             });
         });
 
+        group.MapPost("/document-map/visibility", async (
+            string sessionId,
+            DocumentMapVisibilityRequest request,
+            ReportViewerService viewer,
+            ViewerSessionGuard guard,
+            ViewerSessionProblemMapper sessionProblems,
+            CancellationToken cancellationToken) =>
+            await sessionProblems.ExecuteAsync(async () =>
+            {
+                var result = await viewer.SetDocumentMapVisibilityAsync(
+                    sessionId,
+                    request.Visible,
+                    guard,
+                    cancellationToken);
+                return Results.Ok(SessionResponse.From(result));
+            }));
+
         return group;
     }
 }
 
 public sealed record DocumentMapNavigateRequest(string? Id);
+
+public sealed record DocumentMapVisibilityRequest(bool Visible);
