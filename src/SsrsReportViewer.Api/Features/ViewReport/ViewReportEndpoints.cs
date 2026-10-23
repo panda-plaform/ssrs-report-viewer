@@ -118,6 +118,19 @@ public static class ViewReportEndpoints
                     statusCode: StatusCodes.Status400BadRequest,
                     title: "Required Report Parameters missing");
             }
+            catch (ParameterValueNotSetException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "View Report failed {ReportPath} {Operation} {ParameterName}",
+                    reportPath,
+                    ViewReportOperation,
+                    ex.ParameterName ?? "(unknown)");
+                return Results.Problem(
+                    detail: ex.Message,
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Required Report Parameters missing");
+            }
             catch (ReportNotFoundException ex)
             {
                 logger.LogWarning(

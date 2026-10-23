@@ -13,6 +13,62 @@ vi.mock('./viewReportApi', async () => {
   }
 })
 
+describe('ParameterForm View Report errors', () => {
+  beforeEach(() => {
+    vi.mocked(fetchParameters).mockReset()
+    vi.mocked(viewReport).mockReset()
+  })
+
+  it('shows ParameterValueNotSet ProblemDetails and keeps the form usable for retry', async () => {
+    vi.mocked(fetchParameters).mockResolvedValue({
+      path: '/Sales/Folders',
+      parameters: [
+        {
+          name: 'Region',
+          dataType: 'String',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'Region',
+          defaultValues: [],
+          validValues: [{ label: 'North', value: 'N' }],
+          dependencies: [],
+        },
+      ],
+    })
+    vi.mocked(viewReport).mockRejectedValue(
+      new Error(
+        "This report requires a default or user-defined value for the report parameter 'folder_name'.",
+      ),
+    )
+
+    const onClearSurface = vi.fn()
+    const onViewed = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ParameterForm
+        reportPath="/Sales/Folders"
+        onViewed={onViewed}
+        onClearSurface={onClearSurface}
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.selectOptions(screen.getByLabelText(/Region/), 'N')
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    expect(
+      await screen.findByRole('alert'),
+    ).toHaveTextContent(
+      "This report requires a default or user-defined value for the report parameter 'folder_name'.",
+    )
+    expect(onViewed).not.toHaveBeenCalled()
+    expect(onClearSurface).toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'View Report' })).toBeEnabled()
+    expect(screen.getByLabelText(/Region/)).toHaveValue('N')
+  })
+})
+
 describe('ParameterForm cascading Valid Values', () => {
   beforeEach(() => {
     vi.mocked(fetchParameters).mockReset()

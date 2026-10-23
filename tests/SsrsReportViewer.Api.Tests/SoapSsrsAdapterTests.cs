@@ -372,6 +372,30 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
+    public async Task ListChildren_maps_parameter_value_not_set_fault_to_ParameterValueNotSetException()
+    {
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <soap:Fault>
+                  <faultcode>soap:Client</faultcode>
+                  <faultstring>System.Web.Services.Protocols.SoapException: This report requires a default or user-defined value for the report parameter 'folder_name'. ---&gt; Microsoft.ReportingServices.Diagnostics.Utilities.ReportParameterValueNotSetException: This report requires a default or user-defined value for the report parameter 'folder_name'.</faultstring>
+                  <detail>
+                    <ErrorCode>rsReportParameterValueNotSet</ErrorCode>
+                  </detail>
+                </soap:Fault>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        using var adapter = CreateAdapter(soap);
+        var ex = await Assert.ThrowsAsync<ParameterValueNotSetException>(
+            () => adapter.ListChildrenAsync("/Any"));
+        Assert.Equal("folder_name", ex.ParameterName);
+    }
+
+    [Fact]
     public async Task Render_loads_DocumentMap_via_GetDocumentMap_when_ExecutionInfo_HasDocumentMap()
     {
         // ReportExecution2005 ExecutionInfo exposes HasDocumentMap, not the tree.

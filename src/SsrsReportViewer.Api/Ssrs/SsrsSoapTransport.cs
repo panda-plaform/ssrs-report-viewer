@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Microsoft.Extensions.Options;
 
@@ -191,7 +192,26 @@ public sealed class SsrsSoapTransport : IDisposable
             throw new ExecutionNotFoundException(faultString);
         }
 
+        if (detail.Contains("rsReportParameterValueNotSet", StringComparison.OrdinalIgnoreCase) ||
+            faultString.Contains("ReportParameterValueNotSet", StringComparison.OrdinalIgnoreCase) ||
+            faultString.Contains("ParameterValueNotSet", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ParameterValueNotSetException(
+                TryParseParameterNameFromFault(faultString),
+                faultString);
+        }
+
         throw new InvalidOperationException($"SSRS SOAP {operation} fault: {faultString}");
+    }
+
+    private static readonly Regex ParameterNameInFaultRegex = new(
+        @"report parameter '([^']+)'",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static string? TryParseParameterNameFromFault(string faultString)
+    {
+        var match = ParameterNameInFaultRegex.Match(faultString);
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static ICredentials CreateCredentials(SsrsOptions options, Uri baseUri)
