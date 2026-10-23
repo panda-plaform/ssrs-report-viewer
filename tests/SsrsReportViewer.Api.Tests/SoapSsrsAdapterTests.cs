@@ -396,6 +396,29 @@ public sealed class SoapSsrsAdapterTests
     }
 
     [Fact]
+    public async Task NavigateDocumentMap_maps_ReportNotReady_fault_to_ReportNotReadyException()
+    {
+        const string soap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <soap:Fault>
+                  <faultcode>soap:Client</faultcode>
+                  <faultstring>System.Web.Services.Protocols.SoapException: The selected report is not ready for viewing. The report is still being rendered or a report snapshot is not available. ---&gt; Microsoft.ReportingServices.Diagnostics.Utilities.ReportNotReadyException: The selected report is not ready for viewing. The report is still being rendered or a report snapshot is not available.</faultstring>
+                  <detail>
+                    <ErrorCode>rsReportNotReady</ErrorCode>
+                  </detail>
+                </soap:Fault>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        using var adapter = CreateAdapter(soap);
+        await Assert.ThrowsAsync<ReportNotReadyException>(() =>
+            adapter.NavigateDocumentMapAsync(new ExecutionHandle("exec-1"), "north"));
+    }
+
+    [Fact]
     public async Task Render_loads_DocumentMap_via_GetDocumentMap_when_ExecutionInfo_HasDocumentMap()
     {
         // ReportExecution2005 ExecutionInfo exposes HasDocumentMap, not the tree.

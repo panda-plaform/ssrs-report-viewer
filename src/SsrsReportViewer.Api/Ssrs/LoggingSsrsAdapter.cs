@@ -147,7 +147,8 @@ public sealed class LoggingSsrsAdapter : ISsrsAdapter
         ex is not OperationCanceledException
         and not CatalogPathNotFoundException
         and not ReportNotFoundException
-        and not ParameterValueNotSetException;
+        and not ParameterValueNotSetException
+        and not ReportNotReadyException;
 
     private void LogFault(string operation, Exception ex)
     {

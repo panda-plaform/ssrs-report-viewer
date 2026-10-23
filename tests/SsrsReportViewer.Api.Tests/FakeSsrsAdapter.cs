@@ -86,6 +86,16 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>When set, <see cref="ListChildrenAsync"/> throws this instead of listing (adapter fault tests).</summary>
     public Exception? NextListChildrenFault { get; set; }
 
+    /// <summary>
+    /// When set, <see cref="NavigateDocumentMapAsync"/> throws this once (e.g. ReportNotReady), then clears.
+    /// </summary>
+    public Exception? NextNavigateDocumentMapFault { get; set; }
+
+    /// <summary>
+    /// When set, <see cref="RenderAsync"/> throws this once (same ReportNotReady fault path as SOAP), then clears.
+    /// </summary>
+    public Exception? NextRenderFault { get; set; }
+
     public void Reset()
     {
         _catalog.Clear();
@@ -95,6 +105,8 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         StreamDelay = TimeSpan.Zero;
         ToggleDelay = TimeSpan.Zero;
         NextListChildrenFault = null;
+        NextNavigateDocumentMapFault = null;
+        NextRenderFault = null;
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
         LastExportDeviceInfo = null;
@@ -305,6 +317,13 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (NextRenderFault is not null)
+        {
+            var fault = NextRenderFault;
+            NextRenderFault = null;
+            throw fault;
+        }
+
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
         LastRenderedExecutionId = exec.Id;
@@ -581,6 +600,13 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (NextNavigateDocumentMapFault is not null)
+        {
+            var fault = NextNavigateDocumentMapFault;
+            NextNavigateDocumentMapFault = null;
+            throw fault;
+        }
+
         var exec = RequireExecution(execution);
         ViewerSessionMutations++;
 

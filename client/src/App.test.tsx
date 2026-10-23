@@ -532,12 +532,15 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
 
-    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new Error('Document Map navigate failed'))
+    // Mirrors ProblemDetails detail from ReportNotReady → 409 (sessionHttp throwIfNotOk).
+    const reportNotReadyDetail =
+      'The selected report is not ready for viewing. The report is still being rendered or a report snapshot is not available.'
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new Error(reportNotReadyDetail))
 
     await user.click(screen.getByRole('button', { name: 'Section A' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Document Map navigate failed')
+      expect(screen.getByRole('alert')).toHaveTextContent(reportNotReadyDetail)
     })
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'true')
