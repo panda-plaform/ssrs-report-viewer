@@ -459,6 +459,51 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_returns_400_when_Render_raises_ParameterValueNotSet()
+    {
+        // Non-prompted required param without DefaultValues bypasses form preflight; Fake Render
+        // mirrors SSRS rsReportParameterValueNotSet (e.g. folder_name).
+        _factory.Fake.SeedReport(
+            "/Sales/Folders",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+                new FakeReportParameter(
+                    Name: "folder_name",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "folder_name",
+                    Required: true,
+                    PromptUser: false),
+            ],
+            html: "<div>ok</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Folders",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Post_render_succeeds_when_nullable_parameter_submitted_with_empty_values()
     {
         _factory.Fake.SeedReport(

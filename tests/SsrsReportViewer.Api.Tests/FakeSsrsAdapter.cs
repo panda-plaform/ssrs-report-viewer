@@ -328,8 +328,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
                 values.Count == 0 ||
                 values.All(string.IsNullOrWhiteSpace))
             {
-                throw new InvalidOperationException(
-                    $"SSRS SOAP Render fault: This report requires a default or user-defined value for the report parameter '{parameter.Name}'.");
+                throw new ParameterValueNotSetException(parameter.Name);
             }
         }
 
