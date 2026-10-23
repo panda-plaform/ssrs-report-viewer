@@ -313,6 +313,7 @@ function App() {
               {render.sessionId && (
                 <ViewerToolbar
                   sessionId={render.sessionId}
+                  reportPath={render.reportPath}
                   pageInfo={render.pageInfo}
                   zoomPercent={render.zoomPercent}
                   busy={busy}

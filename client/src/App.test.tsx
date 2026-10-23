@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -8,6 +8,7 @@ import {
   navigateDocumentMap,
   setDocumentMapVisibility,
 } from './features/document-map/documentMapApi'
+import { writeDocumentMapVisibilityPreference } from './features/document-map/documentMapVisibilityPreference'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
@@ -675,3 +676,125 @@ describe('Report Viewer chrome composition', () => {
     })
   })
 })
+
+describe('Document Map Visibility Preference round-trip', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/?path=%2FReports%2FDemo')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: 'Healthy' }),
+      }),
+    )
+
+    vi.mocked(fetchParameters).mockReset().mockResolvedValue({
+      path: '/Reports/Demo',
+      parameters: [
+        {
+          name: 'Region',
+          dataType: 'String',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'Region',
+          defaultValues: ['North'],
+          validValues: [
+            { label: 'North', value: 'North' },
+            { label: 'South', value: 'South' },
+          ],
+          dependencies: [],
+        },
+      ],
+    })
+
+    vi.mocked(viewReport).mockReset().mockImplementation(async (_path, _params, documentMapVisible) => ({
+      ...renderResult,
+      documentMapVisible: documentMapVisible ?? true,
+    }))
+
+    vi.mocked(setDocumentMapVisibility).mockReset().mockImplementation(async (_sessionId, visible) => ({
+      ...renderResult,
+      documentMapVisible: visible,
+    }))
+  })
+
+  it('View Report omits a visibility seed when no preference exists (defaults visible)', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array))
+    expect(viewReport.mock.calls[0]?.length).toBe(2)
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+  })
+
+  it('View Report seeds Viewer Session from a stored hidden preference', async () => {
+    writeDocumentMapVisibilityPreference('/Reports/Demo', false)
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    await waitFor(() => {
+      expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array), false)
+    })
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+  })
+
+  it('successful toolbar toggle writes the preference for the Report path', async () => {
+    const user = await openReportChrome()
+
+    await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
+
+    await waitFor(() => {
+      expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', false)
+    })
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+
+    // Simulate session loss / reload: remount App and View Report again.
+    cleanup()
+    vi.mocked(viewReport).mockClear()
+    vi.mocked(viewReport).mockImplementation(async (_path, _params, documentMapVisible) => ({
+      ...renderResult,
+      sessionId: 'session-2',
+      documentMapVisible: documentMapVisible ?? true,
+    }))
+
+    const userAfterReload = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await userAfterReload.click(screen.getByRole('button', { name: 'View Report' }))
+
+    await waitFor(() => {
+      expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array), false)
+    })
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+  })
+
+  it('does not apply another Report path preference when Viewing Report', async () => {
+    writeDocumentMapVisibilityPreference('/Reports/Other', false)
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array))
+    expect(viewReport.mock.calls[0]?.length).toBe(2)
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+  })
+})
+
