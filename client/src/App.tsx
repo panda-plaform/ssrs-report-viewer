@@ -17,10 +17,6 @@ import {
 } from './reportPathUrl'
 import './App.css'
 
-type HealthResponse = {
-  status: string
-}
-
 type ApiStatus = 'loading' | 'ok' | 'error'
 
 function App() {
@@ -37,38 +33,27 @@ function App() {
   const [maximized, setMaximized] = useState(false)
   const [documentMapCurrentId, setDocumentMapCurrentId] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function checkHealth() {
-      try {
-        const response = await fetch('/api/health')
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-
-        const body = (await response.json()) as HealthResponse
-        if (!cancelled) {
-          setApiStatus('ok')
-          setDetail(`API ${body.status}`)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setApiStatus('error')
-          setDetail(
-            error instanceof Error
-              ? error.message
-              : 'Unable to reach API. Is the API running on http://localhost:5201?',
-          )
-        }
+  const checkHealth = useCallback(async () => {
+    setApiStatus('loading')
+    setDetail('Checking API…')
+    try {
+      const response = await fetch('/api/health')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
       }
-    }
 
-    void checkHealth()
-    return () => {
-      cancelled = true
+      await response.json()
+      setApiStatus('ok')
+      setDetail('API available')
+    } catch {
+      setApiStatus('error')
+      setDetail('API unavailable. Retry when the API is reachable.')
     }
   }, [])
+
+  useEffect(() => {
+    void checkHealth()
+  }, [checkHealth])
 
   const clearSurface = useCallback(() => {
     setRender(null)
@@ -252,6 +237,11 @@ function App() {
       >
         {detail}
       </p>
+      {apiStatus === 'error' && (
+        <button type="button" className="no-print" onClick={() => void checkHealth()}>
+          Retry
+        </button>
+      )}
       {apiStatus === 'ok' && (
         <>
           {mode === 'catalog' && (
