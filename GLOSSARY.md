@@ -76,7 +76,7 @@ Server-side text search within the current Execution, including navigation to th
 Producing a downloadable file from the current Execution via the native format set (Word, Excel, PowerPoint, PDF, Accessible PDF, TIFF, MHTML, CSV, or XML).
 
 **Print**:
-Report Viewer toolbar action that opens page size and orientation settings, creates a printer-friendly PDF of the current Execution (via Export with page DeviceInfo), then opens the browser print dialog on that PDF. Distinct from the Export menu’s direct file download.
+Report Viewer toolbar action that opens page size and orientation settings, creates a printer-friendly PDF of the current Execution (via Export with page DeviceInfo), then opens the browser print dialog on that PDF. Distinct from the Export menuâ€™s direct file download.
 
 **Action Link**:
 A clickable target inside report HTML that the Report Viewer interprets (Drilldown, sort, Drillthrough, Bookmark).

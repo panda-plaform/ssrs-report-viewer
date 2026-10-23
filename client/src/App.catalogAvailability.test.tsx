@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { API_UNAVAILABLE_COPY } from './shared/api/sessionHttp'
 
 const CATALOG_UNAVAILABLE_COPY =
   'Catalog unavailable. The API is up, but the Catalog could not be loaded. Retry.'
@@ -78,6 +79,24 @@ describe('Catalog Availability', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
+  })
+
+  it('flips API Availability unavailable when Catalog fetch rejects with a network TypeError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetchByUrl({
+        catalog: () => Promise.reject(new TypeError('Failed to fetch')),
+      }),
+    )
+
+    render(<App />)
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(CATALOG_UNAVAILABLE_COPY)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 
   it('Retry re-fetches the current Catalog folder only', async () => {

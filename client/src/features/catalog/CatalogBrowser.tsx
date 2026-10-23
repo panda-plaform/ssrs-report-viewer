@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isApiUnreachableError } from '../../shared/api/sessionHttp'
 import {
   fetchCatalog,
   isCatalogAvailabilityLoss,
@@ -13,6 +14,7 @@ const CATALOG_UNAVAILABLE_COPY =
 type Props = {
   selectedReportPath: string | null
   onSelectReport: (path: string) => void
+  onError?: (error: unknown) => void
 }
 
 function parentPath(path: string): string | null {
@@ -29,7 +31,7 @@ function parentPath(path: string): string | null {
   return trimmed.slice(0, slash)
 }
 
-export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
+export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: Props) {
   const [path, setPath] = useState('/')
   const [folders, setFolders] = useState<CatalogItem[]>([])
   const [reports, setReports] = useState<CatalogItem[]>([])
@@ -53,6 +55,10 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
         }
       } catch (err) {
         if (!cancelled) {
+          if (isApiUnreachableError(err)) {
+            onError?.(err)
+            return
+          }
           setFolders([])
           setReports([])
           if (isCatalogAvailabilityLoss(err)) {
@@ -70,7 +76,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
     return () => {
       cancelled = true
     }
-  }, [path, reloadKey])
+  }, [path, reloadKey, onError])
 
   const up = parentPath(path)
 

@@ -8,6 +8,7 @@ import { ParameterForm } from './features/view-report/ParameterForm'
 import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
 import { ViewerToolbar } from './features/zoom-page/ViewerToolbar'
 import {
+  API_UNAVAILABLE_COPY,
   isApiUnreachableError,
   isViewerSessionExpiredError,
 } from './shared/api/sessionHttp'
@@ -36,7 +37,8 @@ function App() {
   const [maximized, setMaximized] = useState(false)
   const [documentMapCurrentId, setDocumentMapCurrentId] = useState<string | null>(null)
 
-  const checkHealth = useCallback(async () => {
+  const checkHealth = useCallback(async (options?: { isCancelled?: () => boolean }) => {
+    const isCancelled = options?.isCancelled ?? (() => false)
     setApiStatus('loading')
     setDetail('Checking API…')
     try {
@@ -46,16 +48,26 @@ function App() {
       }
 
       await response.json()
+      if (isCancelled()) {
+        return
+      }
       setApiStatus('ok')
       setDetail('API available')
     } catch {
+      if (isCancelled()) {
+        return
+      }
       setApiStatus('error')
-      setDetail('API unavailable. Retry when the API is reachable.')
+      setDetail(API_UNAVAILABLE_COPY)
     }
   }, [])
 
   useEffect(() => {
-    void checkHealth()
+    let cancelled = false
+    void checkHealth({ isCancelled: () => cancelled })
+    return () => {
+      cancelled = true
+    }
   }, [checkHealth])
 
   const clearSurface = useCallback(() => {
@@ -171,7 +183,7 @@ function App() {
 
     if (isApiUnreachableError(error)) {
       setApiStatus('error')
-      setDetail('API unavailable. Retry when the API is reachable.')
+      setDetail(API_UNAVAILABLE_COPY)
       setSurfaceError(null)
       return
     }
@@ -264,6 +276,7 @@ function App() {
               <CatalogBrowser
                 selectedReportPath={selectedReportPath}
                 onSelectReport={handleSelectReport}
+                onError={handleSurfaceError}
               />
             </div>
           )}
@@ -306,6 +319,7 @@ function App() {
                   onViewed={handleViewed}
                   onClearSurface={clearSurface}
                   onReturnToCatalog={handleReturnToCatalog}
+                  onError={handleSurfaceError}
                 />
               )}
             </div>
