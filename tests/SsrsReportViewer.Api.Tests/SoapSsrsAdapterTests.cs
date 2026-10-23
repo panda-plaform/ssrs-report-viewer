@@ -371,7 +371,87 @@ public sealed class SoapSsrsAdapterTests
         await Assert.ThrowsAsync<CatalogPathNotFoundException>(() => adapter.ListChildrenAsync("/Missing"));
     }
 
-    private static SoapSsrsAdapter CreateAdapter(string responseXml, CapturingSoapHandler? handler = null)
+    [Fact]
+    public async Task Render_loads_DocumentMap_via_GetDocumentMap_when_ExecutionInfo_HasDocumentMap()
+    {
+        // ReportExecution2005 ExecutionInfo exposes HasDocumentMap, not the tree.
+        // The tree comes from GetDocumentMap — looking only at GetExecutionInfo leaves the pane empty
+        // for every report that has a Document Map.
+        const string renderSoap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <RenderResponse xmlns="http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices">
+                  <Result></Result>
+                  <MimeType>text/html</MimeType>
+                  <StreamIds />
+                </RenderResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+        const string executionInfoSoap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <GetExecutionInfoResponse xmlns="http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices">
+                  <executionInfo>
+                    <HasSnapshot>true</HasSnapshot>
+                    <NeedsProcessing>false</NeedsProcessing>
+                    <AllowQueryExecution>true</AllowQueryExecution>
+                    <CredentialsRequired>false</CredentialsRequired>
+                    <ParametersRequired>false</ParametersRequired>
+                    <ExpirationDateTime>2026-10-23T00:00:00</ExpirationDateTime>
+                    <ExecutionDateTime>2026-10-23T00:00:00</ExecutionDateTime>
+                    <NumPages>2</NumPages>
+                    <HasDocumentMap>true</HasDocumentMap>
+                    <AutoRefreshInterval>0</AutoRefreshInterval>
+                  </executionInfo>
+                </GetExecutionInfoResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+        const string documentMapSoap = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+              <soap:Body>
+                <GetDocumentMapResponse xmlns="http://schemas.microsoft.com/sqlserver/2005/06/30/reporting/reportingservices">
+                  <result>
+                    <Label>Report</Label>
+                    <UniqueName>root</UniqueName>
+                    <Children>
+                      <DocumentMapNode>
+                        <Label>Section A</Label>
+                        <UniqueName>section-a</UniqueName>
+                        <Children />
+                      </DocumentMapNode>
+                    </Children>
+                  </result>
+                </GetDocumentMapResponse>
+              </soap:Body>
+            </soap:Envelope>
+            """;
+
+        var handler = new SequencedSoapHandler(renderSoap, executionInfoSoap, documentMapSoap);
+        using var adapter = CreateAdapter(renderSoap, handler);
+
+        var result = await adapter.RenderAsync(
+            new ExecutionHandle("exec-1"),
+            "HTML5",
+            new DeviceInfo());
+
+        Assert.NotNull(result.DocumentMap);
+        var root = Assert.Single(result.DocumentMap);
+        Assert.Equal("root", root.Id);
+        Assert.Equal("Report", root.Label);
+        var child = Assert.Single(root.Children);
+        Assert.Equal("section-a", child.Id);
+        Assert.Equal("Section A", child.Label);
+        Assert.Contains(
+            handler.SoapActions,
+            a => a is not null && a.Contains("GetDocumentMap", StringComparison.Ordinal));
+    }
+
+    private static SoapSsrsAdapter CreateAdapter(string responseXml, HttpMessageHandler? handler = null)
     {
         var options = Options.Create(new SsrsOptions
         {
@@ -410,6 +490,34 @@ public sealed class SoapSsrsAdapterTests
             {
                 Content = new StringContent(responseXml, Encoding.UTF8, "text/xml"),
             };
+        }
+    }
+
+    private sealed class SequencedSoapHandler(params string[] responseXmls) : HttpMessageHandler
+    {
+        private int _index;
+        public List<string?> SoapActions { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            SoapActions.Add(
+                request.Headers.TryGetValues("SOAPAction", out var values)
+                    ? values.FirstOrDefault()
+                    : null);
+
+            if (_index >= responseXmls.Length)
+            {
+                throw new InvalidOperationException(
+                    $"Unexpected SOAP call #{_index + 1}; only {responseXmls.Length} responses queued.");
+            }
+
+            var xml = responseXmls[_index++];
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(xml, Encoding.UTF8, "text/xml"),
+            });
         }
     }
 }
