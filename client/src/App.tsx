@@ -127,6 +127,7 @@ function App() {
       pageInfo: result.pageInfo,
       zoomPercent: render.zoomPercent,
       documentMap: render.documentMap,
+      documentMapVisible: render.documentMapVisible,
       canGoBack: render.canGoBack,
       reportPath: render.reportPath,
       parameters: render.parameters,
@@ -210,8 +211,10 @@ function App() {
   const showReportViewBar = !maximized
   const showParameterForm = (!hasSession || parametersExpanded) && !maximized
   const documentMapNodes = render?.documentMap
-  const hasDocumentMap =
-    !maximized && Array.isArray(documentMapNodes) && documentMapNodes.length > 0
+  const documentMapPresent =
+    Array.isArray(documentMapNodes) && documentMapNodes.length > 0
+  const documentMapVisible = render?.documentMapVisible ?? true
+  const showDocumentMapPane = !maximized && documentMapPresent && documentMapVisible
 
   const shellClass = [
     reportMode ? 'shell shell-report' : 'shell',
@@ -223,7 +226,7 @@ function App() {
 
   const layoutClass = [
     'viewer-layout',
-    hasDocumentMap ? 'viewer-layout-with-map' : 'viewer-layout-report-only',
+    showDocumentMapPane ? 'viewer-layout-with-map' : 'viewer-layout-report-only',
   ].join(' ')
 
   return (
@@ -298,7 +301,10 @@ function App() {
             </div>
           )}
           {render ? (
-            <div className={layoutClass} data-has-document-map={hasDocumentMap ? 'true' : 'false'}>
+            <div
+              className={layoutClass}
+              data-has-document-map={showDocumentMapPane ? 'true' : 'false'}
+            >
               {render.sessionId && (
                 <ViewerToolbar
                   sessionId={render.sessionId}
@@ -307,6 +313,8 @@ function App() {
                   busy={busy}
                   canGoBack={render.canGoBack}
                   maximized={maximized}
+                  hasDocumentMap={documentMapPresent}
+                  documentMapVisible={documentMapVisible}
                   onMaximizedChange={setMaximized}
                   onUpdated={handleHtmlReplaced}
                   onFindResult={handleFindResult}
@@ -314,7 +322,7 @@ function App() {
                   onBusyChange={setBusy}
                 />
               )}
-              {hasDocumentMap && (
+              {showDocumentMapPane && (
                 <div className="no-print viewer-layout-map">
                   <DocumentMapSidebar
                     nodes={documentMapNodes}
