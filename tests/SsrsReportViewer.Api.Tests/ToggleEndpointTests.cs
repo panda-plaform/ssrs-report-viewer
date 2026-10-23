@@ -92,6 +92,53 @@ public sealed class ToggleEndpointTests : IClassFixture<ApiFactory>
         Assert.Contains("data-state=\"expanded\"", body.Html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Post_drilldown_expands_data_sources_path_before_toggle_shape()
+    {
+        // Fixture matches Example Reports → Data Sources: ReplacementRoot query starts with the
+        // report path, then rc:Toggle (previously mis-rewritten as Drillthrough).
+        _factory.Fake.SeedReport(
+            "/Example Reports/Data Sources",
+            parameters: [],
+            html: """
+                  <div class="report">
+                    <a href="{ReplacementRoot}?/Example%20Reports/Data%20Sources&amp;rc:Toggle=32iT0">
+                      <IMG BORDER="0" SRC="{ResourceStreamRoot}2022.1.0.0TogglePlus.gif" ALT="+"/>
+                    </a>
+                    <div class="detail" data-toggle="32iT0" data-state="{toggle:32iT0}">ReportServer details</div>
+                    <a href="{ReplacementRoot}?/Sales/Child&amp;Region=North">Open child</a>
+                  </div>
+                  """);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Example Reports/Data Sources", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var rendered = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(rendered);
+
+        Assert.Contains("data-ssrs-action=\"drilldown\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"32iT0\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("ssrs-toggle-icon", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("data-state=\"collapsed\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-action=\"drillthrough\"", rendered.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "data-ssrs-action=\"drillthrough\" data-ssrs-report-path=\"/Example Reports/Data Sources\"",
+            rendered.Html,
+            StringComparison.Ordinal);
+
+        var drilldown = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/drilldown",
+            new { toggleId = "32iT0" });
+
+        Assert.Equal(HttpStatusCode.OK, drilldown.StatusCode);
+        var toggled = await drilldown.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(toggled);
+        Assert.Contains("data-state=\"expanded\"", toggled.Html, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-action=\"drilldown\"", toggled.Html, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"32iT0\"", toggled.Html, StringComparison.Ordinal);
+    }
+
 [Fact]
     public async Task Post_toggle_returns_problem_details_when_session_missing()
     {

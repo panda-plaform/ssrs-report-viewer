@@ -130,6 +130,30 @@ describe('ReportSurface Action Links', () => {
     )
   })
 
+  it('Drilldown via toggle icon replaces Execution HTML', async () => {
+    // Data Sources chrome: plus/minus img inside the Drilldown Action Link.
+    const user = userEvent.setup()
+    const { onHtmlReplaced } = renderSurface({
+      html: `<div>
+        <a href="#" data-ssrs-action="drilldown" data-ssrs-toggle-id="32iT0">
+          <img class="ssrs-toggle-icon" alt="+" title="+" width="9" height="9" />
+        </a>
+        <span>/Data Sources/ReportServer</span>
+      </div>`,
+    })
+
+    await user.click(screen.getByRole('img', { name: '+' }))
+
+    await waitFor(() => {
+      expect(toggleDrilldown).toHaveBeenCalledWith('session-1', '32iT0')
+    })
+    expect(onHtmlReplaced).toHaveBeenCalledWith(
+      expect.objectContaining({ html: '<div>Parent toggled</div>' }),
+      undefined,
+    )
+    expect(drillthroughReport).not.toHaveBeenCalled()
+  })
+
   it('does not double-submit Drilldown while busy', async () => {
     const user = userEvent.setup()
     renderSurface({ busy: true })

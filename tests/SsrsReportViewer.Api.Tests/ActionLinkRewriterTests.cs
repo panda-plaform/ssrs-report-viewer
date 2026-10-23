@@ -315,6 +315,50 @@ public sealed class ActionLinkRewriterTests
         Assert.DoesNotContain("TogglePlus.gif", rewritten, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("&amp;")]
+    [InlineData("&amp;amp;")]
+    public void Rewrite_maps_data_sources_path_before_toggle_to_drilldown(string amp)
+    {
+        // Live Example Reports → Data Sources emits ReplacementRoot with the report path
+        // first, then rc:Toggle. That must become Drilldown — not Drillthrough to the same path
+        // (which drops the toggle id and makes clicks look like a no-op).
+        var html =
+            $"""
+            <a href="/api/sessions/s1/actions/?/Example%20Reports/Data%20Sources{amp}rc:Toggle=32iT0">
+              <IMG BORDER="0" SRC="/api/sessions/s1/resources/2022.1.0.0TogglePlus.gif" ALT="+"/>
+            </a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drilldown\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"32iT0\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("ssrs-toggle-icon", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("TogglePlus.gif", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("rc%3AToggle")]
+    [InlineData("rc%3atoggle")]
+    public void Rewrite_maps_percent_encoded_toggle_query_keys(string toggleKey)
+    {
+        var html =
+            $"""
+            <a href="/api/sessions/s1/actions/http://thor/ReportServer?%2FExample%20Reports%2FData%20Sources&amp;{toggleKey}=32iT0">
+              <IMG BORDER="0" SRC="/api/sessions/s1/resources/TogglePlus.gif" ALT="+"/>
+            </a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drilldown\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"32iT0\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportServer", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Rewrite_replaces_toggle_minus_gif_with_svg()
     {
