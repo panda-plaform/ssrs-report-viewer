@@ -102,7 +102,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       )}
 
       {loadState === 'unavailable' && (
-        <p className="catalog-status catalog-error" role="alert">
+        <p className="status status-error" role="alert">
           {CATALOG_UNAVAILABLE_COPY}{' '}
           <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
             Retry
@@ -111,7 +111,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       )}
 
       {loadState === 'error' && (
-        <p className="catalog-status catalog-error" role="alert">
+        <p className="status status-error" role="alert">
           {error}
         </p>
       )}

@@ -76,7 +76,9 @@ describe('Catalog Availability', () => {
     render(<App />)
 
     expect(await screen.findByText('API available')).toBeInTheDocument()
-    expect(await screen.findByRole('alert')).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
+    expect(alert).toHaveClass('status', 'status-error')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
   })
@@ -155,6 +157,7 @@ describe('Catalog Availability', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Catalog path not found.')
     expect(alert).not.toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
+    expect(alert).toHaveClass('status', 'status-error')
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 
@@ -175,13 +178,17 @@ describe('Catalog Availability', () => {
     })
 
     expect(screen.getByText('API available')).toBeInTheDocument()
-    expect(screen.getByText('Loading Catalog…')).toBeInTheDocument()
+    const loading = screen.getByText('Loading Catalog…')
+    expect(loading).toBeInTheDocument()
+    expect(loading).not.toHaveClass('status-error')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000)
     })
 
-    expect(screen.getByRole('alert')).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
+    expect(alert).toHaveClass('status', 'status-error')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.getByText('API available')).toBeInTheDocument()
     expect(screen.queryByText('Loading Catalog…')).not.toBeInTheDocument()
