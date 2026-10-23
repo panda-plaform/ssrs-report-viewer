@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { isApiUnreachableError } from '../../shared/api/sessionHttp'
 import {
   mergeCascadedNullChecked,
   mergeCascadedValues,
@@ -33,6 +34,7 @@ type Props = {
   onViewed: (result: RenderResponse) => void
   onClearSurface: () => void
   onReturnToCatalog?: () => void
+  onError?: (error: unknown) => void
 }
 
 export function ParameterForm({
@@ -43,6 +45,7 @@ export function ParameterForm({
   onViewed,
   onClearSurface,
   onReturnToCatalog,
+  onError,
 }: Props) {
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [parameters, setParameters] = useState<ReportParameter[]>([])
@@ -91,6 +94,10 @@ export function ParameterForm({
         }
       } catch (err) {
         if (!cancelled) {
+          if (isApiUnreachableError(err)) {
+            onError?.(err)
+            return
+          }
           setParameters([])
           setValues({})
           setNullChecked({})
@@ -104,7 +111,7 @@ export function ParameterForm({
     return () => {
       cancelled = true
     }
-  }, [reportPath])
+  }, [reportPath, onError])
 
   useEffect(() => {
     if (loadState !== 'ok' || !executionSeed || executionSeed.reportPath !== reportPath) {
@@ -156,6 +163,10 @@ export function ParameterForm({
         setNullChecked((current) => mergeCascadedNullChecked(response.parameters, current))
       } catch (err) {
         if (!cancelled) {
+          if (isApiUnreachableError(err)) {
+            onError?.(err)
+            return
+          }
           setError(err instanceof Error ? err.message : 'Failed to refresh cascading parameters')
         }
       }
@@ -165,7 +176,7 @@ export function ParameterForm({
     return () => {
       cancelled = true
     }
-  }, [cascadeKey, loadState, parameters, reportPath])
+  }, [cascadeKey, loadState, parameters, reportPath, onError])
 
   function setSingleValue(name: string, value: string) {
     setValues((current) => ({ ...current, [name]: [value] }))
@@ -195,8 +206,12 @@ export function ParameterForm({
       const result = await viewReport(reportPath, submissions, documentMapVisible)
       onViewed(result)
     } catch (err) {
-      onClearSurface()
-      setError(err instanceof Error ? err.message : 'View Report failed')
+      if (isApiUnreachableError(err)) {
+        onError?.(err)
+      } else {
+        onClearSurface()
+        setError(err instanceof Error ? err.message : 'View Report failed')
+      }
     } finally {
       setSubmitting(false)
       onBusyChange?.(false)

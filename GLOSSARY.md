@@ -58,6 +58,14 @@ A named jump target within the current Execution.
 **Service Account**:
 The domain identity the API uses to authenticate to SSRS via NTLM.
 
+**API Availability**:
+Whether the Report Viewer can reach our API process. Distinct from whether the Catalog (and thus SSRS) is reachable.
+_Avoid_: API Healthy, API up, connection status (ambiguous with SSRS)
+
+**Catalog Availability**:
+Whether the Report Viewer can load the Catalog through the API (SSRS reachable for browsing). Requires API Availability; failure here does not mean the API process is down.
+_Avoid_: API Healthy, SSRS down (implementation), connection status
+
 **View Report**:
 The explicit user action that applies Report Parameters and creates or replaces a Viewer Session / Execution for display.
 

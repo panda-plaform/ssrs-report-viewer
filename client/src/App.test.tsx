@@ -10,6 +10,7 @@ import {
 } from './features/document-map/documentMapApi'
 import { writeDocumentMapVisibilityPreference } from './features/document-map/documentMapVisibilityPreference'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
+import { API_UNAVAILABLE_COPY, ViewerSessionExpiredError } from './shared/api/sessionHttp'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
   const actual =
@@ -81,6 +82,237 @@ async function openReportChrome() {
   await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
   return user
 }
+
+describe('API Availability first paint', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('shows Checking API while health is in flight', async () => {
+    let resolveHealth!: (value: { ok: boolean; json: () => Promise<{ status: string }> }) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveHealth = resolve
+          }),
+      ),
+    )
+
+    render(<App />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Checking API…')
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Catalog browser')).not.toBeInTheDocument()
+
+    resolveHealth({
+      ok: true,
+      json: async () => ({ status: 'Healthy' }),
+    })
+
+    expect(await screen.findByRole('status')).toHaveTextContent('API available')
+  })
+
+  it('shows API available when health succeeds', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: 'Healthy' }),
+      }),
+    )
+
+    render(<App />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('API available')
+    expect(screen.queryByText(/API Healthy/i)).not.toBeInTheDocument()
+  })
+
+  it('shows API unavailable with Retry and keeps Catalog gated on initial health failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Failed to fetch')))
+
+    render(<App />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent(API_UNAVAILABLE_COPY)
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('Catalog browser')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+  })
+
+  it('Retry re-checks /api/health and unlocks the Catalog gate on success', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: 'Healthy' }),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('Catalog browser')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('API available')
+    expect(screen.getByText('Catalog browser')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/health')
+    expect(fetchMock.mock.calls.every((call) => call[0] === '/api/health')).toBe(true)
+  })
+})
+
+describe('API Availability mid-session', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/?path=%2FReports%2FDemo')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: 'Healthy' }),
+      }),
+    )
+
+    vi.mocked(fetchParameters).mockReset().mockResolvedValue({
+      path: '/Reports/Demo',
+      parameters: [
+        {
+          name: 'StartDate',
+          dataType: 'DateTime',
+          nullable: true,
+          multiValue: false,
+          required: false,
+          prompt: 'Start Date',
+          defaultValues: ['2024-01-15'],
+          validValues: [],
+          dependencies: [],
+        },
+      ],
+    })
+
+    vi.mocked(viewReport).mockReset().mockResolvedValue(renderResult)
+    vi.mocked(navigateDocumentMap).mockReset()
+    vi.mocked(setDocumentMapVisibility).mockReset().mockResolvedValue({
+      ...renderResult,
+      documentMapVisible: false,
+    })
+  })
+
+  it('shows API unavailable with Retry, keeps report HTML, and leaves status visible in report mode', async () => {
+    const user = await openReportChrome()
+
+    expect(document.querySelector('.report-html')).toHaveTextContent('Report HTML')
+
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(unavailable).not.toHaveClass('visually-hidden')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(document.querySelector('.report-html')).toHaveTextContent('Report HTML')
+    expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+  })
+
+  it('disables toolbar and Document Map API actions while API Availability is lost', async () => {
+    const user = await openReportChrome()
+
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+
+    await screen.findByText(API_UNAVAILABLE_COPY)
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toBeDisabled()
+    expect(within(toolbar).getByRole('button', { name: 'Find' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Section A' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'View Report' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeEnabled()
+  })
+
+  it('Retry re-checks /api/health only, re-enables actions, and keeps the Viewer Session without replaying', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'Healthy' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = await openReportChrome()
+
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+    await screen.findByRole('button', { name: 'Retry' })
+
+    const healthCallsBeforeRetry = fetchMock.mock.calls.filter((call) => call[0] === '/api/health')
+      .length
+    navigateDocumentMap.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('API available')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(document.querySelector('.report-html')).toHaveTextContent('Report HTML')
+    expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Section A' })).toBeEnabled()
+    expect(navigateDocumentMap).not.toHaveBeenCalled()
+
+    const healthCallsAfterRetry = fetchMock.mock.calls.filter((call) => call[0] === '/api/health')
+    expect(healthCallsAfterRetry.length).toBe(healthCallsBeforeRetry + 1)
+    expect(fetchMock.mock.calls.slice(healthCallsBeforeRetry).every((call) => call[0] === '/api/health')).toBe(
+      true,
+    )
+  })
+
+  it('keeps Viewer Session expired (410) handling distinct from API Availability loss', async () => {
+    const user = await openReportChrome()
+
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(
+      new ViewerSessionExpiredError('Viewer Session expired'),
+    )
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Viewer Session expired')
+    expect(screen.queryByText(API_UNAVAILABLE_COPY)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('toolbar', { name: 'Report Viewer toolbar' })).not.toBeInTheDocument()
+    expect(document.querySelector('.report-html')).not.toBeInTheDocument()
+    expect(screen.getByText('API available')).toHaveClass('visually-hidden')
+  })
+
+  it('flips API Availability unavailable when View Report rejects with a network TypeError', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    vi.mocked(viewReport).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+  })
+
+  it('flips API Availability unavailable when Report Parameter load rejects with a network TypeError', async () => {
+    vi.mocked(fetchParameters).mockReset().mockRejectedValue(new TypeError('Failed to fetch'))
+
+    render(<App />)
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+  })
+})
 
 describe('Report Viewer chrome composition', () => {
   beforeEach(() => {
@@ -322,7 +554,7 @@ describe('Report Viewer chrome composition', () => {
     const lede = shell.querySelector('.lede')
     expect(lede).toHaveClass('visually-hidden')
 
-    const status = within(shell).getByText(/API Healthy/i)
+    const status = within(shell).getByText(/API available/i)
     expect(status).toHaveClass('visually-hidden')
 
     expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()

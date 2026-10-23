@@ -7,7 +7,11 @@ import type { FindResponse } from './features/find/findApi'
 import { ParameterForm } from './features/view-report/ParameterForm'
 import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
 import { ViewerToolbar } from './features/zoom-page/ViewerToolbar'
-import { isViewerSessionExpiredError } from './shared/api/sessionHttp'
+import {
+  API_UNAVAILABLE_COPY,
+  isApiUnreachableError,
+  isViewerSessionExpiredError,
+} from './shared/api/sessionHttp'
 import type { RenderResponse } from './shared/api/sessionTypes'
 import {
   buildReportPathSearch,
@@ -16,10 +20,6 @@ import {
   viewerModeFromReportPath,
 } from './reportPathUrl'
 import './App.css'
-
-type HealthResponse = {
-  status: string
-}
 
 type ApiStatus = 'loading' | 'ok' | 'error'
 
@@ -37,38 +37,38 @@ function App() {
   const [maximized, setMaximized] = useState(false)
   const [documentMapCurrentId, setDocumentMapCurrentId] = useState<string | null>(null)
 
+  const checkHealth = useCallback(async (options?: { isCancelled?: () => boolean }) => {
+    const isCancelled = options?.isCancelled ?? (() => false)
+    setApiStatus('loading')
+    setDetail('Checking API…')
+    try {
+      const response = await fetch('/api/health')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      await response.json()
+      if (isCancelled()) {
+        return
+      }
+      setApiStatus('ok')
+      setDetail('API available')
+    } catch {
+      if (isCancelled()) {
+        return
+      }
+      setApiStatus('error')
+      setDetail(API_UNAVAILABLE_COPY)
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
-
-    async function checkHealth() {
-      try {
-        const response = await fetch('/api/health')
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-
-        const body = (await response.json()) as HealthResponse
-        if (!cancelled) {
-          setApiStatus('ok')
-          setDetail(`API ${body.status}`)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setApiStatus('error')
-          setDetail(
-            error instanceof Error
-              ? error.message
-              : 'Unable to reach API. Is the API running on http://localhost:5201?',
-          )
-        }
-      }
-    }
-
-    void checkHealth()
+    void checkHealth({ isCancelled: () => cancelled })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [checkHealth])
 
   const clearSurface = useCallback(() => {
     setRender(null)
@@ -181,6 +181,13 @@ function App() {
       return
     }
 
+    if (isApiUnreachableError(error)) {
+      setApiStatus('error')
+      setDetail(API_UNAVAILABLE_COPY)
+      setSurfaceError(null)
+      return
+    }
+
     if (typeof error === 'string') {
       setSurfaceError(error || null)
       return
@@ -212,6 +219,9 @@ function App() {
 
   const mode = viewerModeFromReportPath(selectedReportPath)
   const reportMode = mode === 'report'
+  const apiAvailable = apiStatus === 'ok'
+  const keepReportChrome = Boolean(render)
+  const showMainUi = apiAvailable || keepReportChrome
   const hasSession = Boolean(render?.sessionId)
   const showReportViewBar = !maximized
   const showParameterForm = (!hasSession || parametersExpanded) && !maximized
@@ -220,6 +230,8 @@ function App() {
     Array.isArray(documentMapNodes) && documentMapNodes.length > 0
   const documentMapVisible = render?.documentMapVisible ?? true
   const showDocumentMapPane = !maximized && documentMapPresent && documentMapVisible
+  const hideStatusInReportMode = reportMode && apiAvailable
+  const apiActionsLocked = !apiAvailable
 
   const shellClass = [
     reportMode ? 'shell shell-report' : 'shell',
@@ -244,7 +256,7 @@ function App() {
       </p>
       <p
         className={
-          reportMode
+          hideStatusInReportMode
             ? `status status-${apiStatus} visually-hidden no-print`
             : `status status-${apiStatus} no-print`
         }
@@ -252,13 +264,19 @@ function App() {
       >
         {detail}
       </p>
-      {apiStatus === 'ok' && (
+      {apiStatus === 'error' && (
+        <button type="button" className="no-print" onClick={() => void checkHealth()}>
+          Retry
+        </button>
+      )}
+      {showMainUi && (
         <>
-          {mode === 'catalog' && (
+          {apiAvailable && mode === 'catalog' && (
             <div className="no-print">
               <CatalogBrowser
                 selectedReportPath={selectedReportPath}
                 onSelectReport={handleSelectReport}
+                onError={handleSurfaceError}
               />
             </div>
           )}
@@ -296,11 +314,12 @@ function App() {
                 <ParameterForm
                   reportPath={selectedReportPath}
                   executionSeed={executionSeed}
-                  busy={busy}
+                  busy={busy || apiActionsLocked}
                   onBusyChange={setBusy}
                   onViewed={handleViewed}
                   onClearSurface={clearSurface}
                   onReturnToCatalog={handleReturnToCatalog}
+                  onError={handleSurfaceError}
                 />
               )}
             </div>
@@ -316,7 +335,7 @@ function App() {
                   reportPath={render.reportPath}
                   pageInfo={render.pageInfo}
                   zoomPercent={render.zoomPercent}
-                  busy={busy}
+                  busy={busy || apiActionsLocked}
                   canGoBack={render.canGoBack}
                   maximized={maximized}
                   documentMapPresent={documentMapPresent}
@@ -332,7 +351,7 @@ function App() {
                 <div className="no-print viewer-layout-map">
                   <DocumentMapSidebar
                     nodes={documentMapNodes}
-                    busy={busy}
+                    busy={busy || apiActionsLocked}
                     currentNodeId={documentMapCurrentId}
                     onNavigate={(id) => {
                       void handleDocumentMapNavigate(id)
@@ -342,7 +361,7 @@ function App() {
               )}
               <ReportSurface
                 html={render.html}
-                sessionId={render.sessionId}
+                sessionId={apiAvailable ? render.sessionId : null}
                 pageInfo={render.pageInfo}
                 busy={busy}
                 error={surfaceError}
