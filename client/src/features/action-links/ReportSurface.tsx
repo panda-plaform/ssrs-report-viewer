@@ -14,6 +14,14 @@ export type HtmlReplacedOptions = {
   collapseParameters?: boolean
 }
 
+/**
+ * Defense-in-depth for leftover SSRS toggle hrefs (`rc:Toggle` / `rc%3AToggle`).
+ * ActionLinkRewriter is the rewrite source of truth; this only catches misses.
+ */
+export function isUnrewrittenDrilldownHref(href: string): boolean {
+  return /rc(:|%3[Aa])Toggle/i.test(href)
+}
+
 type Props = {
   html: string | null
   sessionId: string | null
@@ -202,7 +210,7 @@ export function ReportSurface({
         event.preventDefault()
         event.stopPropagation()
         // Unrewritten Drilldown targets: preventDefault alone is a silent failure.
-        if (/rc(:|%3[Aa])Toggle/i.test(href)) {
+        if (isUnrewrittenDrilldownHref(href)) {
           onError('Unrewritten Drilldown toggle link')
         }
       }
