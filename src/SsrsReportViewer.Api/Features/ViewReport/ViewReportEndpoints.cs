@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SsrsReportViewer.Api.Hosting;
+using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Shared;
 using SsrsReportViewer.Api.Ssrs;
 
@@ -113,10 +114,26 @@ public static class ViewReportEndpoints
                     "View Report failed {ReportPath} {Operation}",
                     reportPath,
                     ViewReportOperation);
-                return Results.Problem(
-                    detail: ex.Message,
-                    statusCode: StatusCodes.Status400BadRequest,
-                    title: "Required Report Parameters missing");
+                return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
+            }
+            catch (ParameterValueNotSetException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "View Report failed {ReportPath} {Operation} {ParameterName}",
+                    reportPath,
+                    ViewReportOperation,
+                    ex.ParameterName ?? "(unknown)");
+                return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
+            }
+            catch (ReportNotReadyException ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "View Report failed {ReportPath} {Operation}",
+                    reportPath,
+                    ViewReportOperation);
+                return ViewerFaultProblems.ReportNotReady(ex.Message);
             }
             catch (ReportNotFoundException ex)
             {

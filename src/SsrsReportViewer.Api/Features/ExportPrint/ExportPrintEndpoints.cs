@@ -84,7 +84,7 @@ public static class ExportPrintEndpoints
                     statusCode: StatusCodes.Status400BadRequest,
                     title: "Invalid Export request");
             }
-        });
+        }, sessionId);
     }
 
     private static void LogExportOutcome(

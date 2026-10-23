@@ -77,6 +77,36 @@ public sealed class RequiredParameterMissingException : Exception
 }
 
 /// <summary>
+/// SSRS Render (or SetExecutionParameters) rejected the Execution because a Report Parameter
+/// has no value (<c>rsReportParameterValueNotSet</c> / ReportParameterValueNotSetException).
+/// </summary>
+public sealed class ParameterValueNotSetException : Exception
+{
+    public ParameterValueNotSetException(string? parameterName, string? faultMessage = null)
+        : base(BuildMessage(parameterName, faultMessage))
+    {
+        ParameterName = parameterName;
+    }
+
+    public string? ParameterName { get; }
+
+    private static string BuildMessage(string? parameterName, string? faultMessage)
+    {
+        if (!string.IsNullOrWhiteSpace(parameterName))
+        {
+            return $"This report requires a default or user-defined value for the report parameter '{parameterName}'.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(faultMessage))
+        {
+            return faultMessage;
+        }
+
+        return "This report requires a default or user-defined value for a report parameter.";
+    }
+}
+
+/// <summary>
 /// SSRS no longer holds the Execution (idle drop / unknown Execution id).
 /// </summary>
 public sealed class ExecutionNotFoundException : Exception
@@ -88,4 +118,15 @@ public sealed class ExecutionNotFoundException : Exception
     }
 
     public string ExecutionId { get; }
+}
+
+/// <summary>
+/// SSRS Execution is not ready for viewing (still rendering / snapshot unavailable).
+/// </summary>
+public sealed class ReportNotReadyException : Exception
+{
+    public ReportNotReadyException(string message)
+        : base(message)
+    {
+    }
 }

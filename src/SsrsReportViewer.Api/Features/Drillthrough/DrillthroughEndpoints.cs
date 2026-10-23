@@ -56,10 +56,7 @@ public static class DrillthroughEndpoints
             }
             catch (RequiredParameterMissingException ex)
             {
-                return Results.Problem(
-                    detail: ex.Message,
-                    statusCode: StatusCodes.Status400BadRequest,
-                    title: "Required Report Parameters missing");
+                return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
             }
             catch (ReportNotFoundException ex)
             {
@@ -68,7 +65,7 @@ public static class DrillthroughEndpoints
                     statusCode: StatusCodes.Status404NotFound,
                     title: "Report not found");
             }
-        });
+        }, sessionId);
     }
 
     private static async Task<IResult> BackAsync(
@@ -91,5 +88,5 @@ public static class DrillthroughEndpoints
                     statusCode: StatusCodes.Status400BadRequest,
                     title: "Drillthrough back stack empty");
             }
-        });
+        }, sessionId);
 }

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Tests;
 
@@ -99,6 +100,90 @@ public sealed class ZoomPageRefreshEndpointTests : IClassFixture<ApiFactory>
         Assert.False(string.IsNullOrWhiteSpace(refreshedExec));
         Assert.NotEqual(firstExec, refreshedExec);
         Assert.Equal(1, body.PageInfo.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Post_refresh_maps_ParameterValueNotSet_to_400_required_parameters()
+    {
+        // Shared Execution-create path: residual ParameterValueNotSet must not 500 (#93).
+        await SeedAndRenderAsync(pageCount: 1);
+        _factory.Fake.NextRenderFault = new ParameterValueNotSetException("folder_name");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{_sessionId}/refresh",
+            new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_refresh_fail_fast_before_LoadReport_when_non_prompted_non_nullable_has_no_default()
+    {
+        // Same unresolved-required check as View Report on shared Execution-create (#90 review).
+        _factory.Fake.SeedReport(
+            "/Sales/Folders",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div>Folders {{Region}}</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Folders",
+                parameters = new[] { new { name = "Region", values = new[] { "North" } } },
+            });
+        Assert.Equal(HttpStatusCode.OK, render.StatusCode);
+        var body = await render.Content.ReadFromJsonAsync<SessionRenderResponse>();
+        Assert.NotNull(body);
+        var sessionId = body.SessionId;
+        var executionsAfterRender = _factory.Fake.ActiveExecutionCount;
+        var lastLoaded = _factory.Fake.LastLoadedExecutionId;
+
+        // Definitions change so Refresh sees a non-prompted required gap (session only keeps prompted).
+        _factory.Fake.SeedReport(
+            "/Sales/Folders",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+                new FakeReportParameter(
+                    Name: "folder_name",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "folder_name",
+                    Required: true,
+                    PromptUser: false),
+            ],
+            html: "<div>Folders {{Region}}</div>");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{sessionId}/refresh",
+            new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Equal(executionsAfterRender, _factory.Fake.ActiveExecutionCount);
+        Assert.Equal(lastLoaded, _factory.Fake.LastLoadedExecutionId);
     }
 
     [Fact]

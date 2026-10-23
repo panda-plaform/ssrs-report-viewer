@@ -29,7 +29,7 @@ public static class ZoomPageEndpoints
         {
             var result = await viewer.SetZoomAsync(sessionId, request.ZoomPercent, guard, cancellationToken);
             return Results.Ok(SessionResponse.From(result));
-        });
+        }, sessionId);
 
     private static async Task<IResult> SetPageAsync(
         string sessionId,
@@ -56,7 +56,7 @@ public static class ZoomPageEndpoints
                 guard,
                 cancellationToken);
             return Results.Ok(SessionResponse.From(result));
-        });
+        }, sessionId);
     }
 
     private static async Task<IResult> RefreshAsync(
@@ -69,7 +69,7 @@ public static class ZoomPageEndpoints
         {
             var result = await viewer.RefreshAsync(sessionId, guard, cancellationToken);
             return Results.Ok(SessionResponse.From(result));
-        });
+        }, sessionId);
 }
 
 public sealed record ZoomRequest(int ZoomPercent);

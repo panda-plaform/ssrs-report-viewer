@@ -333,6 +333,77 @@ public sealed class DrillthroughEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_back_reload_fallback_fail_fast_before_LoadReport_when_unresolved_required()
+    {
+        // Back reload-fallback shares View Report's unresolved-required check (#90 review).
+        _factory.Fake.SeedReport(
+            "/Sales/Parent",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+            ],
+            html: "<div>Parent {{Region}}</div>");
+        _factory.Fake.SeedReport("/Sales/Child", parameters: [], html: "<div>Child</div>");
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Parent",
+                parameters = new[] { new { name = "Region", values = new[] { "West" } } },
+            });
+        var parent = await render.Content.ReadFromJsonAsync<SessionHtmlResponse>();
+        Assert.NotNull(parent);
+        var parentExecutionId = _factory.Fake.LastLoadedExecutionId!;
+
+        var drillthrough = await _client.PostAsJsonAsync(
+            $"/api/sessions/{parent.SessionId}/drillthrough",
+            new { reportPath = "/Sales/Child", parameters = Array.Empty<object>() });
+        Assert.Equal(HttpStatusCode.OK, drillthrough.StatusCode);
+        Assert.True(_factory.Fake.DropExecution(parentExecutionId));
+
+        var executionsBeforeBack = _factory.Fake.ActiveExecutionCount;
+        var lastLoadedBeforeBack = _factory.Fake.LastLoadedExecutionId;
+
+        _factory.Fake.SeedReport(
+            "/Sales/Parent",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true),
+                new FakeReportParameter(
+                    Name: "folder_name",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "folder_name",
+                    Required: true,
+                    PromptUser: false),
+            ],
+            html: "<div>Parent {{Region}}</div>");
+
+        var back = await _client.PostAsync($"/api/sessions/{parent.SessionId}/back", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, back.StatusCode);
+        var problem = await back.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Equal(executionsBeforeBack, _factory.Fake.ActiveExecutionCount);
+        Assert.Equal(lastLoadedBeforeBack, _factory.Fake.LastLoadedExecutionId);
+    }
+
+    [Fact]
     public async Task Post_drillthrough_returns_problem_details_when_report_missing()
     {
         _factory.Fake.SeedReport("/Sales/Parent", parameters: [], html: "<div>parent</div>");

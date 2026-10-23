@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SsrsReportViewer.Api.Shared;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Sessions;
 
@@ -16,7 +17,10 @@ public sealed class ViewerSessionProblemMapper
         _logger = logger;
     }
 
-    public async Task<IResult> ExecuteAsync(Func<Task<IResult>> action)
+    public Task<IResult> ExecuteAsync(Func<Task<IResult>> action) =>
+        ExecuteAsync(action, sessionId: null);
+
+    public async Task<IResult> ExecuteAsync(Func<Task<IResult>> action, string? sessionId)
     {
         try
         {
@@ -83,5 +87,43 @@ public sealed class ViewerSessionProblemMapper
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Viewer Session busy");
         }
+        catch (ReportNotReadyException ex)
+        {
+            using (BeginSessionScope(sessionId))
+            {
+                _logger.LogWarning(ex, "SSRS Report not ready for Execution interaction");
+            }
+
+            return ViewerFaultProblems.ReportNotReady(ex.Message);
+        }
+        catch (ParameterValueNotSetException ex)
+        {
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["ParameterName"] = ex.ParameterName ?? "(unknown)",
+            }))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "SSRS ParameterValueNotSet on Viewer Session interaction {ParameterName}",
+                    ex.ParameterName ?? "(unknown)");
+            }
+
+            return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
+        }
+        catch (RequiredParameterMissingException ex)
+        {
+            _logger.LogWarning(ex, "Required Report Parameters missing on Viewer Session interaction");
+
+            return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
+        }
     }
+
+    private IDisposable? BeginSessionScope(string? sessionId) =>
+        string.IsNullOrWhiteSpace(sessionId)
+            ? null
+            : _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["SessionId"] = sessionId,
+            });
 }

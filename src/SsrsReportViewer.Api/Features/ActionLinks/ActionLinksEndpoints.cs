@@ -35,7 +35,7 @@ public static class ActionLinksEndpoints
             {
                 var result = await viewer.NavigateBookmarkAsync(sessionId, request.Id.Trim(), guard, cancellationToken);
                 return Results.Ok(SessionResponse.From(result));
-            });
+            }, sessionId);
         });
 
         sessions.MapGet("/resources/{streamId}", async (
@@ -49,7 +49,7 @@ public static class ActionLinksEndpoints
             {
                 var stream = await viewer.GetResourceAsync(sessionId, streamId, guard, cancellationToken);
                 return Results.File(stream.Content, stream.MimeType);
-            }));
+            }, sessionId));
 
         // Drilldown (glossary) — keep /toggle as backward-compatible alias for ToggleItem.
         async Task<IResult> DrilldownToggleAsync(
@@ -72,7 +72,7 @@ public static class ActionLinksEndpoints
             {
                 var result = await viewer.ToggleAsync(sessionId, request.ToggleId, guard, cancellationToken);
                 return Results.Ok(SessionResponse.From(result));
-            });
+            }, sessionId);
         }
 
         sessions.MapPost("/drilldown", DrilldownToggleAsync);
@@ -112,7 +112,7 @@ public static class ActionLinksEndpoints
                     guard,
                     cancellationToken);
                 return Results.Ok(SessionResponse.From(result));
-            });
+            }, sessionId);
         });
 
         return endpoints;
