@@ -79,7 +79,13 @@ describe('Catalog Availability', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
     expect(alert).toHaveClass('status', 'status-error')
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(alert).toContainElement(retry)
+    expect(retry).toHaveClass('primary-action')
+    expect(screen.getByRole('button', { name: 'Up' })).toHaveClass('primary-action')
+    expect(
+      screen.queryByText('Select a Report to enter parameters and View Report.'),
+    ).not.toBeInTheDocument()
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
   })
 
@@ -128,6 +134,9 @@ describe('Catalog Availability', () => {
 
     expect(await screen.findByRole('button', { name: /Folder.*Sales/i })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Select a Report to enter parameters and View Report.'),
+    ).toBeInTheDocument()
     expect(catalogCalls).toBe(2)
     expect(fetchMock.mock.calls.every((call) => String(call[0]).includes('/api/catalog') || String(call[0]).includes('/api/health'))).toBe(
       true,
@@ -159,6 +168,9 @@ describe('Catalog Availability', () => {
     expect(alert).not.toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
     expect(alert).toHaveClass('status', 'status-error')
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Select a Report to enter parameters and View Report.'),
+    ).not.toBeInTheDocument()
   })
 
   it('turns Loading Catalog into Catalog unavailable after 15 seconds', async () => {
@@ -181,6 +193,9 @@ describe('Catalog Availability', () => {
     const loading = screen.getByText('Loading Catalog…')
     expect(loading).toBeInTheDocument()
     expect(loading).not.toHaveClass('status-error')
+    expect(
+      screen.queryByText('Select a Report to enter parameters and View Report.'),
+    ).not.toBeInTheDocument()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000)
@@ -192,5 +207,8 @@ describe('Catalog Availability', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.getByText('API available')).toBeInTheDocument()
     expect(screen.queryByText('Loading Catalog…')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Select a Report to enter parameters and View Report.'),
+    ).not.toBeInTheDocument()
   })
 })

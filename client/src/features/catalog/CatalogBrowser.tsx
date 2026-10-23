@@ -90,7 +90,12 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       </header>
 
       <div className="catalog-toolbar">
-        <button type="button" disabled={up === null} onClick={() => up && setPath(up)}>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={up === null}
+          onClick={() => up && setPath(up)}
+        >
           Up
         </button>
       </div>
@@ -104,7 +109,11 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       {loadState === 'unavailable' && (
         <p className="status status-error" role="alert">
           {CATALOG_UNAVAILABLE_COPY}{' '}
-          <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => setReloadKey((key) => key + 1)}
+          >
             Retry
           </button>
         </p>
@@ -148,11 +157,13 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
         </ul>
       )}
 
-      <p className="catalog-selection" role="status">
-        {selectedReportPath
-          ? `Selected Report: ${selectedReportPath}`
-          : 'Select a Report to enter parameters and View Report.'}
-      </p>
+      {loadState === 'ok' && (
+        <p className="catalog-selection" role="status">
+          {selectedReportPath
+            ? `Selected Report: ${selectedReportPath}`
+            : 'Select a Report to enter parameters and View Report.'}
+        </p>
+      )}
     </section>
   )
 }
