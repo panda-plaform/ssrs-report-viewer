@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using SsrsReportViewer.Api.Sessions;
 using SsrsReportViewer.Api.Ssrs;
@@ -14,9 +15,14 @@ namespace SsrsReportViewer.Api.Tests;
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly FakeTimeProvider _time = new(DateTimeOffset.UtcNow);
+    private readonly CapturingLoggerProvider _logs = new();
     private int _sessionIdleTimeoutMinutes = 20;
+    private string _ssrsPassword = "test-password";
 
     public FakeSsrsAdapter Fake { get; } = new();
+
+    /// <summary>Capturing logger seam for high-value observability assertions.</summary>
+    public CapturingLoggerProvider Logs => _logs;
 
     public int SessionCount =>
         Services.GetRequiredService<IViewerSessionStore>().Count;
@@ -25,6 +31,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     {
         _sessionIdleTimeoutMinutes = Math.Max(1, (int)Math.Ceiling(idleTimeout.TotalMinutes));
     }
+
+    /// <summary>Must be called before the first <see cref="WebApplicationFactory{TEntryPoint}.CreateClient"/>.</summary>
+    public void UseSsrsPassword(string password) => _ssrsPassword = password;
 
     public void AdvanceTime(TimeSpan delta) => _time.Advance(delta);
 
@@ -58,11 +67,23 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting($"Ssrs:{nameof(SsrsOptions.SessionIdleTimeoutMinutes)}", _sessionIdleTimeoutMinutes.ToString());
+        builder.UseSetting($"Ssrs:{nameof(SsrsOptions.Password)}", _ssrsPassword);
+
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddProvider(_logs);
+            logging.SetMinimumLevel(LogLevel.Warning);
+            // App categories emit Information for high-signal slice outcomes (View Report / Find / Export / Print).
+            logging.AddFilter("SsrsReportViewer", LogLevel.Information);
+        });
 
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<ISsrsAdapter>();
-            services.AddSingleton<ISsrsAdapter>(Fake);
+            // Wrap Fake so SSRS adapter fault logging stays on the same seam as production.
+            services.AddSingleton<ISsrsAdapter>(sp =>
+                new LoggingSsrsAdapter(Fake, sp.GetRequiredService<ILogger<LoggingSsrsAdapter>>()));
 
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(_time);

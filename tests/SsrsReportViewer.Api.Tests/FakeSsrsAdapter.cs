@@ -54,7 +54,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     public DeviceInfo? LastHtmlDeviceInfo { get; private set; }
 
     /// <summary>
-    /// Expected Find hit chrome after <see cref="SsrsReportViewer.Api.Reports.FindHighlightNormalizer"/>
+    /// Expected Find hit chrome after <see cref="SsrsReportViewer.Api.Features.Find.FindHighlightNormalizer"/>
     /// (ReportViewer <c>searchHighlighting</c>).
     /// </summary>
     public const string FindHighlightOpenTag =
@@ -83,6 +83,9 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     /// <summary>Optional delay applied inside ToggleItemAsync (busy serialization tests).</summary>
     public TimeSpan ToggleDelay { get; set; } = TimeSpan.Zero;
 
+    /// <summary>When set, <see cref="ListChildrenAsync"/> throws this instead of listing (adapter fault tests).</summary>
+    public Exception? NextListChildrenFault { get; set; }
+
     public void Reset()
     {
         _catalog.Clear();
@@ -91,6 +94,7 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
         ViewerSessionMutations = 0;
         StreamDelay = TimeSpan.Zero;
         ToggleDelay = TimeSpan.Zero;
+        NextListChildrenFault = null;
         LastLoadedExecutionId = null;
         LastRenderedExecutionId = null;
         LastExportDeviceInfo = null;
@@ -148,6 +152,13 @@ public sealed partial class FakeSsrsAdapter : ISsrsAdapter
     public Task<IReadOnlyList<CatalogItem>> ListChildrenAsync(string path, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (NextListChildrenFault is not null)
+        {
+            var fault = NextListChildrenFault;
+            NextListChildrenFault = null;
+            throw fault;
+        }
 
         var key = NormalizePath(path);
         if (!_catalog.TryGetValue(key, out var children))

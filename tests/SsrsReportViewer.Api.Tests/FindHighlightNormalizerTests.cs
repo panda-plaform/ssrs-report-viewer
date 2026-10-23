@@ -8,7 +8,7 @@ public sealed class FindHighlightNormalizerTests
         const string html =
             """<TD><span ID="oHit0" style="COLOR:highlighttext;BACKGROUND-COLOR:highlight;">Log</span></TD>""";
 
-        var normalized = SsrsReportViewer.Api.Reports.FindHighlightNormalizer.Normalize(html);
+        var normalized = SsrsReportViewer.Api.Features.Find.FindHighlightNormalizer.Normalize(html);
 
         Assert.Contains(
             """<span id="oHit0" class="searchHighlighting">Log</span>""",
@@ -23,7 +23,7 @@ public sealed class FindHighlightNormalizerTests
     {
         const string html = """<span class="a34" style="COLOR:Black">Report Name</span>""";
 
-        var normalized = SsrsReportViewer.Api.Reports.FindHighlightNormalizer.Normalize(html);
+        var normalized = SsrsReportViewer.Api.Features.Find.FindHighlightNormalizer.Normalize(html);
 
         Assert.Equal(html, normalized);
     }

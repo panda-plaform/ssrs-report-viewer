@@ -1,4 +1,4 @@
-using SsrsReportViewer.Api.Reports;
+using SsrsReportViewer.Api.Shared;
 
 namespace SsrsReportViewer.Api.Tests;
 
