@@ -545,6 +545,46 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Post_render_maps_ReportNotReady_to_409_ProblemDetails()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+            ],
+            html: "<div>ok</div>");
+        _factory.Fake.NextRenderFault = new ReportNotReadyException(
+            "The selected report is not ready for viewing. The report is still being rendered or a report snapshot is not available.");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Report not ready", problem.GetProperty("title").GetString());
+        Assert.Contains(
+            "not ready for viewing",
+            problem.GetProperty("detail").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_render_succeeds_when_nullable_parameter_submitted_with_empty_values()
     {
         _factory.Fake.SeedReport(

@@ -17,7 +17,10 @@ public sealed class ViewerSessionProblemMapper
         _logger = logger;
     }
 
-    public async Task<IResult> ExecuteAsync(Func<Task<IResult>> action)
+    public Task<IResult> ExecuteAsync(Func<Task<IResult>> action) =>
+        ExecuteAsync(action, sessionId: null);
+
+    public async Task<IResult> ExecuteAsync(Func<Task<IResult>> action, string? sessionId)
     {
         try
         {
@@ -86,14 +89,12 @@ public sealed class ViewerSessionProblemMapper
         }
         catch (ReportNotReadyException ex)
         {
-            _logger.LogWarning(ex, "SSRS Report not ready for Execution interaction");
+            using (BeginSessionScope(sessionId))
+            {
+                _logger.LogWarning(ex, "SSRS Report not ready for Execution interaction");
+            }
 
-            return Results.Problem(
-                detail: string.IsNullOrWhiteSpace(ex.Message)
-                    ? "The selected report is not ready for viewing. View the report again, then retry."
-                    : ex.Message,
-                statusCode: StatusCodes.Status409Conflict,
-                title: "Report not ready");
+            return ViewerFaultProblems.ReportNotReady(ex.Message);
         }
         catch (ParameterValueNotSetException ex)
         {
@@ -108,19 +109,21 @@ public sealed class ViewerSessionProblemMapper
                     ex.ParameterName ?? "(unknown)");
             }
 
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Required Report Parameters missing");
+            return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
         }
         catch (RequiredParameterMissingException ex)
         {
             _logger.LogWarning(ex, "Required Report Parameters missing on Viewer Session interaction");
 
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Required Report Parameters missing");
+            return ViewerFaultProblems.RequiredParametersMissing(ex.Message);
         }
     }
+
+    private IDisposable? BeginSessionScope(string? sessionId) =>
+        string.IsNullOrWhiteSpace(sessionId)
+            ? null
+            : _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["SessionId"] = sessionId,
+            });
 }

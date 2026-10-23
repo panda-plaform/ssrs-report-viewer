@@ -173,6 +173,12 @@ public sealed partial class ReportViewerService
                     forRendering: false,
                     valuesForCascading: null,
                     ct);
+                var missing = FindUnresolvedRequiredParameters(definitions, session.Parameters);
+                if (missing.Length > 0)
+                {
+                    throw new RequiredParameterMissingException(missing);
+                }
+
                 var resolved = PrepareParametersForSsrs(definitions, session.Parameters);
                 var execution = await _ssrs.LoadReportAsync(session.ReportPath, ct);
                 await _ssrs.SetParametersAsync(
@@ -286,6 +292,12 @@ public sealed partial class ReportViewerService
                         forRendering: false,
                         valuesForCascading: null,
                         ct);
+                    var missing = FindUnresolvedRequiredParameters(definitions, entry.Parameters);
+                    if (missing.Length > 0)
+                    {
+                        throw new RequiredParameterMissingException(missing);
+                    }
+
                     var resolved = PrepareParametersForSsrs(definitions, entry.Parameters);
                     var execution = await _ssrs.LoadReportAsync(entry.ReportPath, ct);
                     await _ssrs.SetParametersAsync(
@@ -748,9 +760,10 @@ public sealed partial class ReportViewerService
             _options.DefaultCulture);
 
     /// <summary>
-    /// View Report preflight: form-visible required params must be submitted; non-nullable params
-    /// with no submitted value and no DefaultValues are rejected before LoadReport/Render
-    /// (including non-prompted) so SSRS never sees ParameterValueNotSet for that gap.
+    /// Shared Execution-create preflight (View Report, Refresh, Back reload-fallback):
+    /// form-visible required params must be submitted; non-nullable params with no submitted
+    /// value and no DefaultValues are rejected before LoadReport/Render (including non-prompted)
+    /// so SSRS never sees ParameterValueNotSet for that gap. Drillthrough open-for-form skips this.
     /// </summary>
     internal static string[] FindUnresolvedRequiredParameters(
         IReadOnlyList<ReportParameterDefinition> definitions,

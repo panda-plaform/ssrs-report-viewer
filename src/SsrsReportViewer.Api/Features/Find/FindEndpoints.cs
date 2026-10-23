@@ -45,7 +45,7 @@ public static class FindEndpoints
                 cancellationToken);
             LogFindOutcome(logger, operation: "find", sessionId, result);
             return Results.Ok(ToFindPayload(result));
-        });
+        }, sessionId);
     }
 
     private static async Task<IResult> FindNextAsync(
@@ -74,7 +74,7 @@ public static class FindEndpoints
                 cancellationToken);
             LogFindOutcome(logger, operation: "find/next", sessionId, result);
             return Results.Ok(ToFindPayload(result));
-        });
+        }, sessionId);
     }
 
     private static void LogFindOutcome(

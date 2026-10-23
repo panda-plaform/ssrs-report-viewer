@@ -35,7 +35,7 @@ public static class DocumentMapEndpoints
                     guard,
                     cancellationToken);
                 return Results.Ok(SessionResponse.From(result));
-            });
+            }, sessionId);
         });
 
         group.MapPost("/document-map/visibility", async (
@@ -53,7 +53,7 @@ public static class DocumentMapEndpoints
                     guard,
                     cancellationToken);
                 return Results.Ok(SessionResponse.From(result));
-            }));
+            }, sessionId));
 
         return group;
     }
