@@ -229,7 +229,7 @@ function App() {
   const documentMapPresent =
     Array.isArray(documentMapNodes) && documentMapNodes.length > 0
   const documentMapVisible = render?.documentMapVisible ?? true
-  const showDocumentMapPane = !maximized && documentMapPresent && documentMapVisible
+  const showDocumentMapPane = documentMapPresent && documentMapVisible
   const hideStatusInReportMode = reportMode && apiAvailable
   const apiActionsLocked = !apiAvailable
 
