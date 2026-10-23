@@ -13,6 +13,151 @@ vi.mock('./viewReportApi', async () => {
   }
 })
 
+describe('ParameterForm required Report Parameter chrome', () => {
+  beforeEach(() => {
+    vi.mocked(fetchParameters).mockReset()
+    vi.mocked(viewReport).mockReset()
+  })
+
+  it('shows a label asterisk and required border on a required text Report Parameter when the form loads', async () => {
+    vi.mocked(fetchParameters).mockResolvedValue({
+      path: '/Sales/Detail',
+      parameters: [
+        {
+          name: 'CustomerId',
+          dataType: 'String',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'Customer Id',
+          defaultValues: [],
+          validValues: [],
+          dependencies: [],
+        },
+      ],
+    })
+
+    render(
+      <ParameterForm
+        reportPath="/Sales/Detail"
+        onViewed={vi.fn()}
+        onClearSurface={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'View Report' })
+
+    expect(screen.getByText('Customer Id *')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Customer Id/)).toHaveClass('parameter-control--required')
+    expect(viewReport).not.toHaveBeenCalled()
+  })
+
+  it('shows neither a label asterisk nor a required border on a non-required text Report Parameter', async () => {
+    vi.mocked(fetchParameters).mockResolvedValue({
+      path: '/Sales/Detail',
+      parameters: [
+        {
+          name: 'Notes',
+          dataType: 'String',
+          nullable: true,
+          multiValue: false,
+          required: false,
+          prompt: 'Notes',
+          defaultValues: [],
+          validValues: [],
+          dependencies: [],
+        },
+      ],
+    })
+
+    render(
+      <ParameterForm
+        reportPath="/Sales/Detail"
+        onViewed={vi.fn()}
+        onClearSurface={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'View Report' })
+
+    expect(screen.getByText('Notes')).toBeInTheDocument()
+    expect(screen.queryByText('Notes *')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^Notes$/)).not.toHaveClass('parameter-control--required')
+  })
+
+  it('shows required chrome on select, date, boolean, and multi-value controls when the form loads', async () => {
+    vi.mocked(fetchParameters).mockResolvedValue({
+      path: '/Sales/Mixed',
+      parameters: [
+        {
+          name: 'Region',
+          dataType: 'String',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'Region',
+          defaultValues: [],
+          validValues: [{ label: 'North', value: 'N' }],
+          dependencies: [],
+        },
+        {
+          name: 'AsOf',
+          dataType: 'DateTime',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'As Of',
+          defaultValues: [],
+          validValues: [],
+          dependencies: [],
+        },
+        {
+          name: 'Active',
+          dataType: 'Boolean',
+          nullable: false,
+          multiValue: false,
+          required: true,
+          prompt: 'Active',
+          defaultValues: [],
+          validValues: [],
+          dependencies: [],
+        },
+        {
+          name: 'Tags',
+          dataType: 'String',
+          nullable: false,
+          multiValue: true,
+          required: true,
+          prompt: 'Tags',
+          defaultValues: [],
+          validValues: [{ label: 'A', value: 'A' }],
+          dependencies: [],
+        },
+      ],
+    })
+
+    render(
+      <ParameterForm
+        reportPath="/Sales/Mixed"
+        onViewed={vi.fn()}
+        onClearSurface={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'View Report' })
+
+    expect(screen.getByText('Region *')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Region/)).toHaveClass('parameter-control--required')
+    expect(screen.getByText('As Of *')).toBeInTheDocument()
+    expect(screen.getByLabelText(/As Of/)).toHaveClass('parameter-control--required')
+    expect(screen.getByText('Active *')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Active/)).toHaveClass('parameter-control--required')
+    expect(screen.getByText('Tags *')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tags' })).toHaveClass('parameter-control--required')
+    expect(viewReport).not.toHaveBeenCalled()
+  })
+})
+
 describe('ParameterForm View Report errors', () => {
   beforeEach(() => {
     vi.mocked(fetchParameters).mockReset()

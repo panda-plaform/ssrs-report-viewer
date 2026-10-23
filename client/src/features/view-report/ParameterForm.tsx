@@ -313,6 +313,7 @@ function ParameterField({
   const label = parameter.prompt || parameter.name
   const dataType = parameter.dataType.toLowerCase()
   const valueDisabled = disabled || isNull
+  const requiredClass = parameter.required ? 'parameter-control--required' : undefined
 
   let control: ReactNode
   if (parameter.multiValue) {
@@ -323,6 +324,7 @@ function ParameterField({
         validValues={parameter.validValues}
         values={values}
         disabled={valueDisabled}
+        required={parameter.required}
         onChange={onMultiChange}
       />
     )
@@ -330,6 +332,7 @@ function ParameterField({
     control = (
       <select
         id={`param-${parameter.name}`}
+        className={requiredClass}
         value={values[0] ?? ''}
         disabled={valueDisabled}
         onChange={(event) => onSingleChange(event.target.value)}
@@ -343,7 +346,7 @@ function ParameterField({
     control = (
       <input
         id={`param-${parameter.name}`}
-        className="parameter-datetime"
+        className={['parameter-datetime', requiredClass].filter(Boolean).join(' ')}
         type="date"
         value={toDateInputValue(values[0] ?? '')}
         disabled={valueDisabled}
@@ -354,6 +357,7 @@ function ParameterField({
     control = (
       <select
         id={`param-${parameter.name}`}
+        className={requiredClass}
         value={values[0] ?? ''}
         disabled={valueDisabled}
         onChange={(event) => onSingleChange(event.target.value)}
@@ -371,6 +375,7 @@ function ParameterField({
       <input
         id={`param-${parameter.name}`}
         type="text"
+        className={requiredClass}
         value={values[0] ?? ''}
         disabled={valueDisabled}
         onChange={(event) => onSingleChange(event.target.value)}
@@ -410,6 +415,7 @@ type MultiValueDropdownProps = {
   validValues: ReportParameter['validValues']
   values: string[]
   disabled: boolean
+  required?: boolean
   onChange: (values: string[]) => void
 }
 
@@ -419,6 +425,7 @@ function MultiValueDropdown({
   validValues,
   values,
   disabled,
+  required = false,
   onChange,
 }: MultiValueDropdownProps) {
   const [open, setOpen] = useState(false)
@@ -476,7 +483,9 @@ function MultiValueDropdown({
       <button
         type="button"
         id={id}
-        className="parameter-multivalue-trigger"
+        className={['parameter-multivalue-trigger', required ? 'parameter-control--required' : undefined]
+          .filter(Boolean)
+          .join(' ')}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}

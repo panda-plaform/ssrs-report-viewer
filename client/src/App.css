@@ -347,6 +347,13 @@
   background: #fff;
 }
 
+.parameter-field input.parameter-control--required,
+.parameter-field select.parameter-control--required,
+.parameter-multivalue-trigger.parameter-control--required {
+  border-color: #b45309;
+  border-width: 2px;
+}
+
 .parameters-bar .parameter-field input[type="text"],
 .parameters-bar .parameter-field input[type="date"],
 .parameters-bar .parameter-field select {
