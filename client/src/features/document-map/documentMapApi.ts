@@ -11,3 +11,14 @@ export function navigateDocumentMap(
 ): Promise<RenderResponse> {
   return postSessionAction(sessionId, 'document-map', { id })
 }
+
+/**
+ * Update Viewer Session Document Map Visibility without an SSRS re-render.
+ * POST /api/sessions/{sessionId}/document-map/visibility
+ */
+export function setDocumentMapVisibility(
+  sessionId: string,
+  visible: boolean,
+): Promise<RenderResponse> {
+  return postSessionAction(sessionId, 'document-map/visibility', { visible })
+}

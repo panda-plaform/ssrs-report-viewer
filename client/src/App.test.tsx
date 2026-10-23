@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { findInReport } from './features/find/findApi'
 import { drillthroughReport, goBack } from './features/drillthrough/drillthroughApi'
+import { setDocumentMapVisibility } from './features/document-map/documentMapApi'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
@@ -30,6 +31,7 @@ vi.mock('./features/drillthrough/drillthroughApi', () => ({
 
 vi.mock('./features/document-map/documentMapApi', () => ({
   navigateDocumentMap: vi.fn(),
+  setDocumentMapVisibility: vi.fn(),
 }))
 
 vi.mock('./features/export-print/exportApi', async () => {
@@ -59,6 +61,7 @@ const renderResult = {
   pageInfo: { currentPage: 1, pageCount: 3 },
   zoomPercent: 100,
   documentMap: [{ id: 'n1', label: 'Section A', children: [] }],
+  documentMapVisible: true,
   canGoBack: false,
   reportPath: '/Reports/Demo',
   parameters: [{ name: 'StartDate', values: ['2024-01-15'] }],
@@ -121,6 +124,10 @@ describe('Report Viewer chrome composition', () => {
     vi.mocked(viewReport).mockReset().mockResolvedValue(renderResult)
     vi.mocked(goBack).mockReset()
     vi.mocked(drillthroughReport).mockReset()
+    vi.mocked(setDocumentMapVisibility).mockReset().mockResolvedValue({
+      ...renderResult,
+      documentMapVisible: false,
+    })
   })
 
   it('shows the Report Parameter strip before View Report', async () => {
@@ -165,6 +172,7 @@ describe('Report Viewer chrome composition', () => {
     expect(layout).toHaveAttribute('data-has-document-map', 'true')
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Section A' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
   })
 
   it('uses a single-column report-only layout when Document Map is empty', async () => {
@@ -179,6 +187,55 @@ describe('Report Viewer chrome composition', () => {
     expect(layout).toHaveClass('viewer-layout-report-only')
     expect(layout).toHaveAttribute('data-has-document-map', 'false')
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hide Document Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show Document Map' })).not.toBeInTheDocument()
+  })
+
+  it('hides the Document Map pane when Viewer Session Document Map Visibility is false', async () => {
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: false,
+    })
+
+    await openReportChrome()
+
+    const layout = document.querySelector('.viewer-layout')
+    expect(layout).toHaveClass('viewer-layout-report-only')
+    expect(layout).toHaveAttribute('data-has-document-map', 'false')
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+  })
+
+  it('hides and restores the Document Map pane via the toolbar visibility control', async () => {
+    const user = await openReportChrome()
+
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: false,
+    })
+    await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
+
+    await waitFor(() => {
+      expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', false)
+    })
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: true,
+    })
+    await user.click(screen.getByRole('button', { name: 'Show Document Map' }))
+
+    await waitFor(() => {
+      expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', true)
+    })
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'true')
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
   })
 
   it('tones down shell marketing chrome so toolbar and report lead after View Report', async () => {
@@ -299,6 +356,26 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+  })
+
+  it('restores session Document Map Visibility after leaving maximize when the pane was hidden', async () => {
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: false,
+    })
+    const user = await openReportChrome()
+
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Maximize' }))
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
   })
 
   it('shows NULL under nullable controls and a DateTime calendar field in the strip', async () => {
