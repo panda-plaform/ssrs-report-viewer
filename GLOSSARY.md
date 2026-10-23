@@ -8,7 +8,7 @@ Domain language for the Panda SSRS Report Viewer: a proxied viewer over on-prem 
 The React UI that browses the catalog, collects parameters, shows report HTML, and owns toolbar actions (find, zoom, page, print, export).
 
 **Viewer Session**:
-Our opaque client-facing session for one open report interaction, including zoom, page, document-map state, and the drillthrough back stack.
+Our opaque client-facing session for one open report interaction, including zoom, page, Document Map visibility, and the drillthrough back stack.
 
 **Execution**:
 The SSRS report-execution instance bound to a Viewer Session (SSRS execution id / execution header).
@@ -43,6 +43,14 @@ Navigating from one Report to another Report with parameters.
 
 **Document Map**:
 The hierarchical navigation tree for positions within the current Execution.
+
+**Document Map Visibility**:
+Whether the Report Viewer shows the Document Map pane for the current Viewer Session. Distinct from the Document Map tree itself.
+_Avoid_: document-map state (ambiguous), map open, sidebar visible
+
+**Document Map Visibility Preference**:
+The user's durable choice of Document Map Visibility for a Report path, restored when a new Viewer Session is created or after the previous session is gone.
+_Avoid_: localStorage preference, cookie, remembered map state
 
 **Bookmark**:
 A named jump target within the current Execution.
