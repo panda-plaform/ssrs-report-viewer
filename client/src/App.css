@@ -583,9 +583,60 @@
   border-left: 1px solid #ddd;
 }
 
+.document-map-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.document-map-toggle,
+.document-map-toggle-spacer {
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.document-map-toggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #555;
+  position: relative;
+}
+
+.document-map-toggle::before {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0 auto;
+  border-top: 0.28rem solid transparent;
+  border-bottom: 0.28rem solid transparent;
+  border-left: 0.4rem solid currentColor;
+  transform-origin: 35% 50%;
+  transition: transform 0.12s ease;
+}
+
+.document-map-toggle[aria-expanded='true']::before {
+  transform: rotate(90deg);
+}
+
+.document-map-toggle:hover:not(:disabled) {
+  color: #1a3d28;
+}
+
+.document-map-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .document-map-node {
+  flex: 1 1 auto;
   display: block;
   width: 100%;
+  min-width: 0;
   margin: 0.1rem 0;
   padding: 0.35rem 0.4rem;
   border: 0;
@@ -598,6 +649,11 @@
 
 .document-map-node:hover:not(:disabled) {
   background: #e8f0ea;
+}
+
+.document-map-node[aria-current='true'] {
+  background: #d5e6da;
+  font-weight: 600;
 }
 
 .document-map-node:disabled {

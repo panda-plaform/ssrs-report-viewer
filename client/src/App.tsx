@@ -35,6 +35,7 @@ function App() {
   const [executionSeed, setExecutionSeed] = useState<ExecutionParameterSeed | null>(null)
   const [parametersExpanded, setParametersExpanded] = useState(true)
   const [maximized, setMaximized] = useState(false)
+  const [documentMapCurrentId, setDocumentMapCurrentId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -76,6 +77,7 @@ function App() {
     setExecutionSeed(null)
     setParametersExpanded(true)
     setMaximized(false)
+    setDocumentMapCurrentId(null)
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined)
     }
@@ -112,6 +114,7 @@ function App() {
 
   function handleViewed(result: RenderResponse) {
     setSurfaceError(null)
+    setDocumentMapCurrentId(null)
     setRender(result)
   }
 
@@ -170,6 +173,7 @@ function App() {
       setBusy(false)
       setParametersExpanded(true)
       setMaximized(false)
+      setDocumentMapCurrentId(null)
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => undefined)
       }
@@ -196,6 +200,7 @@ function App() {
       try {
         const next = await navigateDocumentMap(render.sessionId, id)
         setRender(next)
+        setDocumentMapCurrentId(id)
       } catch (err) {
         handleSurfaceError(err)
       } finally {
@@ -328,6 +333,7 @@ function App() {
                   <DocumentMapSidebar
                     nodes={documentMapNodes}
                     busy={busy}
+                    currentNodeId={documentMapCurrentId}
                     onNavigate={(id) => {
                       void handleDocumentMapNavigate(id)
                     }}
