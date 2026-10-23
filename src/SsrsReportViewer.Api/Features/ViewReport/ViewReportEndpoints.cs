@@ -99,7 +99,11 @@ public static class ViewReportEndpoints
 
             try
             {
-                var result = await viewer.ViewReportAsync(reportPath, parameters, cancellationToken);
+                var result = await viewer.ViewReportAsync(
+                    reportPath,
+                    parameters,
+                    cancellationToken,
+                    request.DocumentMapVisible);
                 return Results.Ok(SessionResponse.From(result));
             }
             catch (RequiredParameterMissingException ex)
