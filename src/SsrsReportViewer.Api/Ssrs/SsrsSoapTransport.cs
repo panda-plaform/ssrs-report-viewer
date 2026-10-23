@@ -191,6 +191,12 @@ public sealed class SsrsSoapTransport : IDisposable
             throw new ExecutionNotFoundException(faultString);
         }
 
+        if (detail.Contains("rsReportNotReady", StringComparison.OrdinalIgnoreCase) ||
+            faultString.Contains("ReportNotReady", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ReportNotReadyException(faultString);
+        }
+
         throw new InvalidOperationException($"SSRS SOAP {operation} fault: {faultString}");
     }
 

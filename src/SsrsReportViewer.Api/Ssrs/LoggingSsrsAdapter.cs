@@ -146,7 +146,8 @@ public sealed class LoggingSsrsAdapter : ISsrsAdapter
     private static bool ShouldLogFault(Exception ex) =>
         ex is not OperationCanceledException
         and not CatalogPathNotFoundException
-        and not ReportNotFoundException;
+        and not ReportNotFoundException
+        and not ReportNotReadyException;
 
     private void LogFault(string operation, Exception ex)
     {

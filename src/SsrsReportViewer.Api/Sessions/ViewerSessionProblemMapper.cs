@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SsrsReportViewer.Api.Shared;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Sessions;
 
@@ -82,6 +83,17 @@ public sealed class ViewerSessionProblemMapper
                 detail: ex.Message,
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Viewer Session busy");
+        }
+        catch (ReportNotReadyException ex)
+        {
+            _logger.LogWarning(ex, "SSRS Report not ready for Execution interaction");
+
+            return Results.Problem(
+                detail: string.IsNullOrWhiteSpace(ex.Message)
+                    ? "The selected report is not ready for viewing. View the report again, then retry."
+                    : ex.Message,
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Report not ready");
         }
     }
 }

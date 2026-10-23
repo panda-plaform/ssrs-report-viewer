@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Tests;
 
@@ -136,6 +137,68 @@ public sealed class DocumentMapEndpointTests : IClassFixture<ApiFactory>
         Assert.True(
             problem.TryGetProperty("title", out _) || problem.TryGetProperty("detail", out _),
             "Expected ProblemDetails-shaped body");
+    }
+
+    [Fact]
+    public async Task Document_map_navigation_maps_ReportNotReady_to_409_ProblemDetails()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div class=\"report\">Home</div>",
+            documentMap: [new FakeDocumentMapNode("north", "North Region")],
+            documentMapHtml: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["north"] = "<div class=\"report\">North</div>",
+            });
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<RenderWithMapResponse>();
+        Assert.NotNull(rendered);
+
+        _factory.Fake.NextNavigateDocumentMapFault = new ReportNotReadyException(
+            "The selected report is not ready for viewing. The report is still being rendered or a report snapshot is not available.");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/document-map",
+            new { id = "north" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Report not ready", problem.GetProperty("title").GetString());
+        Assert.Contains(
+            "not ready for viewing",
+            problem.GetProperty("detail").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Document_map_navigation_ReportNotReady_is_distinct_from_session_busy()
+    {
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters: [],
+            html: "<div>ok</div>",
+            documentMap: [new FakeDocumentMapNode("north", "North")]);
+
+        var render = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new { reportPath = "/Sales/Revenue", parameters = Array.Empty<object>() });
+        var rendered = await render.Content.ReadFromJsonAsync<RenderWithMapResponse>();
+        Assert.NotNull(rendered);
+
+        _factory.Fake.NextNavigateDocumentMapFault = new ReportNotReadyException(
+            "The selected report is not ready for viewing.");
+
+        var notReady = await _client.PostAsJsonAsync(
+            $"/api/sessions/{rendered.SessionId}/document-map",
+            new { id = "north" });
+        Assert.Equal(HttpStatusCode.Conflict, notReady.StatusCode);
+        var notReadyProblem = await notReady.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Report not ready", notReadyProblem.GetProperty("title").GetString());
+        Assert.NotEqual("Viewer Session busy", notReadyProblem.GetProperty("title").GetString());
     }
 
     private sealed record RenderWithMapResponse(

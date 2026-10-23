@@ -89,3 +89,14 @@ public sealed class ExecutionNotFoundException : Exception
 
     public string ExecutionId { get; }
 }
+
+/// <summary>
+/// SSRS Execution is not ready for viewing (still rendering / snapshot unavailable).
+/// </summary>
+public sealed class ReportNotReadyException : Exception
+{
+    public ReportNotReadyException(string message)
+        : base(message)
+    {
+    }
+}
