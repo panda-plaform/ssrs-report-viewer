@@ -58,6 +58,14 @@ A named jump target within the current Execution.
 **Service Account**:
 The domain identity the API uses to authenticate to SSRS via NTLM.
 
+**API Availability**:
+Whether the Report Viewer can reach our API process. Distinct from whether the Catalog (and thus SSRS) is reachable.
+_Avoid_: API Healthy, API up, connection status (ambiguous with SSRS)
+
+**Catalog Availability**:
+Whether the Report Viewer can load the Catalog through the API (SSRS reachable for browsing). Requires API Availability; failure here does not mean the API process is down.
+_Avoid_: API Healthy, SSRS down (implementation), connection status
+
 **View Report**:
 The explicit user action that applies Report Parameters and creates or replaces a Viewer Session / Execution for display.
 
@@ -68,7 +76,7 @@ Server-side text search within the current Execution, including navigation to th
 Producing a downloadable file from the current Execution via the native format set (Word, Excel, PowerPoint, PDF, Accessible PDF, TIFF, MHTML, CSV, or XML).
 
 **Print**:
-Report Viewer toolbar action that opens page size and orientation settings, creates a printer-friendly PDF of the current Execution (via Export with page DeviceInfo), then opens the browser print dialog on that PDF. Distinct from the Export menuâ€™s direct file download.
+Report Viewer toolbar action that opens page size and orientation settings, creates a printer-friendly PDF of the current Execution (via Export with page DeviceInfo), then opens the browser print dialog on that PDF. Distinct from the Export menu’s direct file download.
 
 **Action Link**:
 A clickable target inside report HTML that the Report Viewer interprets (Drilldown, sort, Drillthrough, Bookmark).
