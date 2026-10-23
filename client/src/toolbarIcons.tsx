@@ -113,6 +113,17 @@ export function IconFindNext(_props: IconProps) {
   )
 }
 
+export function IconDocumentMap(_props: IconProps) {
+  return (
+    <svg {...svgProps}>
+      <path d="M3 4h10" />
+      <path d="M3 8h7" />
+      <path d="M3 12h10" />
+      <path d="M5 4v8" />
+    </svg>
+  )
+}
+
 export function IconMaximize(_props: IconProps) {
   return (
     <svg {...svgProps}>

@@ -13,6 +13,7 @@ describe('drillthroughApi', () => {
           pageInfo: { currentPage: 1, pageCount: 1 },
           zoomPercent: 100,
           documentMap: null,
+          documentMapVisible: true,
           canGoBack: true,
           reportPath: '/Sales/Child',
           parameters: [],

@@ -8,6 +8,7 @@ import {
   printPdfBlob,
 } from '../export-print/exportApi'
 import { goBack } from '../drillthrough/drillthroughApi'
+import { setDocumentMapVisibility } from '../document-map/documentMapApi'
 import { ViewerToolbar } from './ViewerToolbar'
 import { refreshReport, setReportPage, setZoom } from './zoomPageApi'
 
@@ -32,6 +33,10 @@ vi.mock('../drillthrough/drillthroughApi', () => ({
   goBack: vi.fn(),
 }))
 
+vi.mock('../document-map/documentMapApi', () => ({
+  setDocumentMapVisibility: vi.fn(),
+}))
+
 vi.mock('./zoomPageApi', () => ({
   setZoom: vi.fn(),
   setReportPage: vi.fn(),
@@ -46,6 +51,7 @@ const pageResult = {
   pageInfo: { currentPage: 2, pageCount: 5 },
   zoomPercent: 100,
   documentMap: null,
+  documentMapVisible: true,
   canGoBack: false,
   reportPath: '/Reports/Demo',
   parameters: [],
@@ -57,6 +63,8 @@ function renderToolbar(
     canGoBack: boolean
     busy: boolean
     maximized: boolean
+    documentMapPresent: boolean
+    documentMapVisible: boolean
   }> = {},
 ) {
   const onUpdated = vi.fn()
@@ -68,11 +76,14 @@ function renderToolbar(
   render(
     <ViewerToolbar
       sessionId="session-1"
+      reportPath="/Reports/Demo"
       pageInfo={overrides.pageInfo ?? { currentPage: 2, pageCount: 5 }}
       zoomPercent={100}
       busy={overrides.busy ?? false}
       canGoBack={overrides.canGoBack ?? false}
       maximized={overrides.maximized ?? false}
+      documentMapPresent={overrides.documentMapPresent ?? false}
+      documentMapVisible={overrides.documentMapVisible ?? true}
       onMaximizedChange={onMaximizedChange}
       onUpdated={onUpdated}
       onFindResult={onFindResult}
@@ -103,6 +114,71 @@ describe('ViewerToolbar native chrome', () => {
       pageInfo: { currentPage: 4, pageCount: 5 },
     })
     vi.mocked(goBack).mockReset().mockResolvedValue({ ...pageResult, canGoBack: true })
+    vi.mocked(setDocumentMapVisibility).mockReset().mockResolvedValue({
+      ...pageResult,
+      documentMapVisible: false,
+    })
+  })
+
+  it('omits Document Map control when the Execution has no Document Map tree', () => {
+    renderToolbar({ documentMapPresent: false })
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    expect(within(toolbar).queryByRole('button', { name: 'Hide Document Map' })).not.toBeInTheDocument()
+    expect(within(toolbar).queryByRole('button', { name: 'Show Document Map' })).not.toBeInTheDocument()
+  })
+
+  it('shows Hide Document Map when the tree is present and Document Map Visibility is true', () => {
+    renderToolbar({ documentMapPresent: true, documentMapVisible: true })
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    const control = within(toolbar).getByRole('button', { name: 'Hide Document Map' })
+    expect(control).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows Show Document Map when the tree is present and Document Map Visibility is false', () => {
+    renderToolbar({ documentMapPresent: true, documentMapVisible: false })
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
+    const control = within(toolbar).getByRole('button', { name: 'Show Document Map' })
+    expect(control).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('toggles Document Map Visibility via the session visibility API', async () => {
+    const user = userEvent.setup()
+    const hiddenResult = { ...pageResult, documentMapVisible: false }
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce(hiddenResult)
+    const { onUpdated } = renderToolbar({ documentMapPresent: true, documentMapVisible: true })
+
+    await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
+
+    expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', false)
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalledWith(hiddenResult)
+    })
+  })
+
+  it('shows Document Map again via the session visibility API', async () => {
+    const user = userEvent.setup()
+    const shownResult = { ...pageResult, documentMapVisible: true }
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce(shownResult)
+    const { onUpdated } = renderToolbar({ documentMapPresent: true, documentMapVisible: false })
+
+    await user.click(screen.getByRole('button', { name: 'Show Document Map' }))
+
+    expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', true)
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalledWith(shownResult)
+    })
+  })
+
+  it('does not toggle Document Map Visibility while busy', async () => {
+    const user = userEvent.setup()
+    renderToolbar({ documentMapPresent: true, documentMapVisible: true, busy: true })
+
+    await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
+
+    expect(setDocumentMapVisibility).not.toHaveBeenCalled()
   })
 
   it('exposes Report Page, Refresh, Back, Zoom, Export, Print, Find, and Maximize in one toolbar', () => {
@@ -532,11 +608,14 @@ describe('ViewerToolbar native chrome', () => {
     const { unmount } = render(
       <ViewerToolbar
         sessionId="session-1"
+        reportPath="/Reports/Demo"
         pageInfo={{ currentPage: 1, pageCount: 5 }}
         zoomPercent={100}
         busy={false}
         canGoBack={false}
         maximized={false}
+        documentMapPresent={false}
+        documentMapVisible={true}
         onMaximizedChange={() => {}}
         onUpdated={() => {}}
         onFindResult={() => {}}
@@ -554,11 +633,14 @@ describe('ViewerToolbar native chrome', () => {
     render(
       <ViewerToolbar
         sessionId="session-1"
+        reportPath="/Reports/Demo"
         pageInfo={{ currentPage: 5, pageCount: 5 }}
         zoomPercent={100}
         busy={false}
         canGoBack={false}
         maximized={false}
+        documentMapPresent={false}
+        documentMapVisible={true}
         onMaximizedChange={() => {}}
         onUpdated={() => {}}
         onFindResult={() => {}}

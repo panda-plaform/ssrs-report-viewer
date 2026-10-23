@@ -65,7 +65,8 @@ public sealed partial class ReportViewerService
     public async Task<ViewReportResult> ViewReportAsync(
         string reportPath,
         IReadOnlyList<ParameterValue> parameters,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool? documentMapVisible = null)
     {
         // Full definitions (including non-prompted) for required checks and default resolution.
         // ForRendering=false avoids data-source parameter queries before LoadReport.
@@ -100,7 +101,28 @@ public sealed partial class ReportViewerService
             reportPath,
             execution,
             FilterPromptedParameters(definitions, resolved));
+        session.DocumentMapVisible = documentMapVisible ?? true;
         return await RenderSessionAsync(session, cancellationToken);
+    }
+
+    /// <summary>
+    /// Updates Document Map Visibility on the Viewer Session and returns the standard payload
+    /// without an SSRS re-render (uses cached last HTML).
+    /// </summary>
+    public Task<ViewReportResult> SetDocumentMapVisibilityAsync(
+        string sessionId,
+        bool visible,
+        ViewerSessionGuard guard,
+        CancellationToken cancellationToken)
+    {
+        return guard.ExecuteAsync(
+            sessionId,
+            (session, _) =>
+            {
+                session.DocumentMapVisible = visible;
+                return Task.FromResult(FromCachedSession(session));
+            },
+            cancellationToken);
     }
 
     public async Task<ViewReportResult> SetZoomAsync(
@@ -475,16 +497,35 @@ public sealed partial class ReportViewerService
         var html = PrepareHtml(render, resourceRoot, replacementRoot);
         var fixedData = await GetFixedDataAsync(session.ReportPath, cancellationToken);
         html = FixedHeaderAnnotator.Annotate(html, fixedData);
-        return new ViewReportResult(
+        session.CacheRender(html, render.DocumentMap);
+        return ToViewReportResult(session, html, render.DocumentMap);
+    }
+
+    private static ViewReportResult FromCachedSession(ViewerSession session)
+    {
+        if (string.IsNullOrEmpty(session.LastHtml))
+        {
+            throw new InvalidViewerInteractionException(
+                "Viewer Session has no cached HTML for Document Map Visibility update.");
+        }
+
+        return ToViewReportResult(session, session.LastHtml, session.LastDocumentMap);
+    }
+
+    private static ViewReportResult ToViewReportResult(
+        ViewerSession session,
+        string html,
+        IReadOnlyList<DocumentMapNode>? documentMap) =>
+        new(
             session.Id,
             html,
-            new PageInfo(render.CurrentPage, render.PageCount),
+            new PageInfo(session.CurrentPage, session.PageCount),
             session.ZoomPercent,
             session.CanGoBack,
-            render.DocumentMap,
+            documentMap,
             session.ReportPath,
-            session.Parameters);
-    }
+            session.Parameters,
+            session.DocumentMapVisible);
 
     private async Task<FixedDataInfo> GetFixedDataAsync(
         string reportPath,
@@ -987,7 +1028,8 @@ public sealed record ViewReportResult(
     bool CanGoBack,
     IReadOnlyList<DocumentMapNode>? DocumentMap,
     string ReportPath,
-    IReadOnlyList<ParameterValue> Parameters);
+    IReadOnlyList<ParameterValue> Parameters,
+    bool DocumentMapVisible = true);
 
 public sealed record FindResult(string Html, bool Found, PageInfo PageInfo, string ReportPath);
 

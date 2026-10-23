@@ -44,6 +44,8 @@ export type RenderResponse = {
   pageInfo: PageInfo
   zoomPercent: number
   documentMap: DocumentMapNode[] | null
+  /** Viewer Session Document Map Visibility (chrome; not an SSRS Execution setting). */
+  documentMapVisible: boolean
   canGoBack: boolean
   reportPath: string
   parameters: ParameterSubmission[]

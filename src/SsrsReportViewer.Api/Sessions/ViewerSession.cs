@@ -50,7 +50,28 @@ public sealed class ViewerSession : IAsyncDisposable
 
     public int PageCount { get; set; } = 1;
 
+    /// <summary>
+    /// Document Map Visibility for this Viewer Session (default visible when unseeded).
+    /// </summary>
+    public bool DocumentMapVisible { get; set; } = true;
+
+    /// <summary>
+    /// Last prepared report HTML for chrome-only session responses (no SSRS re-render).
+    /// </summary>
+    public string? LastHtml { get; private set; }
+
+    /// <summary>
+    /// Document Map tree from the last HTML render (cached with <see cref="LastHtml"/>).
+    /// </summary>
+    public IReadOnlyList<DocumentMapNode>? LastDocumentMap { get; private set; }
+
     public bool CanGoBack => _backStack.Count > 0;
+
+    public void CacheRender(string html, IReadOnlyList<DocumentMapNode>? documentMap)
+    {
+        LastHtml = html;
+        LastDocumentMap = documentMap;
+    }
 
     public void Touch(DateTimeOffset utcNow) => LastActivityUtc = utcNow;
 

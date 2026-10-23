@@ -14,11 +14,14 @@ import {
   type PrintPageSize,
   type PrintPdfSettings,
 } from '../export-print/exportApi'
+import { setDocumentMapVisibility } from '../document-map/documentMapApi'
+import { writeDocumentMapVisibilityPreference } from '../document-map/documentMapVisibilityPreference'
 import { goBack } from '../drillthrough/drillthroughApi'
 import type { PageInfo, RenderResponse } from '../../shared/api/sessionTypes'
 import {
   IconBack,
   IconChevronDown,
+  IconDocumentMap,
   IconExport,
   IconFirst,
   IconLast,
@@ -56,11 +59,17 @@ const PAGE_SIZE_LABELS: Record<PrintPageSize, string> = {
 
 type Props = {
   sessionId: string
+  /** Open Report path — keys Document Map Visibility Preference writes. */
+  reportPath: string
   pageInfo: PageInfo
   zoomPercent: number
   busy: boolean
   canGoBack: boolean
   maximized: boolean
+  /** True when the Execution provides a Document Map tree (control shown only then). */
+  documentMapPresent: boolean
+  /** Viewer Session Document Map Visibility. */
+  documentMapVisible: boolean
   onMaximizedChange: (maximized: boolean) => void
   onUpdated: (result: RenderResponse, options?: HtmlReplacedOptions) => void
   onFindResult: (result: FindResponse) => void
@@ -70,15 +79,18 @@ type Props = {
 
 /**
  * Unified native-style Report Viewer toolbar: Report Page, Refresh, Back, Zoom,
- * Export menu, Print, Find, and Maximize.
+ * Export menu, Print, Find, Document Map Visibility, and Maximize.
  */
 export function ViewerToolbar({
   sessionId,
+  reportPath,
   pageInfo,
   zoomPercent,
   busy,
   canGoBack,
   maximized,
+  documentMapPresent,
+  documentMapVisible,
   onMaximizedChange,
   onUpdated,
   onFindResult,
@@ -442,6 +454,35 @@ export function ViewerToolbar({
         onError={onError}
         onBusyChange={onBusyChange}
       />
+
+      {documentMapPresent && (
+        <>
+          <span className="viewer-toolbar-sep" aria-hidden="true" />
+          <button
+            type="button"
+            className="viewer-toolbar-icon"
+            aria-label={documentMapVisible ? 'Hide Document Map' : 'Show Document Map'}
+            title={documentMapVisible ? 'Hide Document Map' : 'Show Document Map'}
+            aria-pressed={documentMapVisible}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const result = await setDocumentMapVisibility(
+                  sessionId,
+                  !documentMapVisible,
+                )
+                writeDocumentMapVisibilityPreference(
+                  reportPath,
+                  result.documentMapVisible,
+                )
+                return result
+              })
+            }
+          >
+            <IconDocumentMap />
+          </button>
+        </>
+      )}
 
       <span className="viewer-toolbar-sep" aria-hidden="true" />
 

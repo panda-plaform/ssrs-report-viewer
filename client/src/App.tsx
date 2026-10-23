@@ -35,6 +35,7 @@ function App() {
   const [executionSeed, setExecutionSeed] = useState<ExecutionParameterSeed | null>(null)
   const [parametersExpanded, setParametersExpanded] = useState(true)
   const [maximized, setMaximized] = useState(false)
+  const [documentMapCurrentId, setDocumentMapCurrentId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -76,6 +77,7 @@ function App() {
     setExecutionSeed(null)
     setParametersExpanded(true)
     setMaximized(false)
+    setDocumentMapCurrentId(null)
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined)
     }
@@ -112,6 +114,7 @@ function App() {
 
   function handleViewed(result: RenderResponse) {
     setSurfaceError(null)
+    setDocumentMapCurrentId(null)
     setRender(result)
   }
 
@@ -127,6 +130,7 @@ function App() {
       pageInfo: result.pageInfo,
       zoomPercent: render.zoomPercent,
       documentMap: render.documentMap,
+      documentMapVisible: render.documentMapVisible,
       canGoBack: render.canGoBack,
       reportPath: render.reportPath,
       parameters: render.parameters,
@@ -169,6 +173,7 @@ function App() {
       setBusy(false)
       setParametersExpanded(true)
       setMaximized(false)
+      setDocumentMapCurrentId(null)
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => undefined)
       }
@@ -195,6 +200,7 @@ function App() {
       try {
         const next = await navigateDocumentMap(render.sessionId, id)
         setRender(next)
+        setDocumentMapCurrentId(id)
       } catch (err) {
         handleSurfaceError(err)
       } finally {
@@ -210,8 +216,10 @@ function App() {
   const showReportViewBar = !maximized
   const showParameterForm = (!hasSession || parametersExpanded) && !maximized
   const documentMapNodes = render?.documentMap
-  const hasDocumentMap =
-    !maximized && Array.isArray(documentMapNodes) && documentMapNodes.length > 0
+  const documentMapPresent =
+    Array.isArray(documentMapNodes) && documentMapNodes.length > 0
+  const documentMapVisible = render?.documentMapVisible ?? true
+  const showDocumentMapPane = !maximized && documentMapPresent && documentMapVisible
 
   const shellClass = [
     reportMode ? 'shell shell-report' : 'shell',
@@ -223,7 +231,7 @@ function App() {
 
   const layoutClass = [
     'viewer-layout',
-    hasDocumentMap ? 'viewer-layout-with-map' : 'viewer-layout-report-only',
+    showDocumentMapPane ? 'viewer-layout-with-map' : 'viewer-layout-report-only',
   ].join(' ')
 
   return (
@@ -298,15 +306,21 @@ function App() {
             </div>
           )}
           {render ? (
-            <div className={layoutClass} data-has-document-map={hasDocumentMap ? 'true' : 'false'}>
+            <div
+              className={layoutClass}
+              data-document-map-pane={showDocumentMapPane ? 'true' : 'false'}
+            >
               {render.sessionId && (
                 <ViewerToolbar
                   sessionId={render.sessionId}
+                  reportPath={render.reportPath}
                   pageInfo={render.pageInfo}
                   zoomPercent={render.zoomPercent}
                   busy={busy}
                   canGoBack={render.canGoBack}
                   maximized={maximized}
+                  documentMapPresent={documentMapPresent}
+                  documentMapVisible={documentMapVisible}
                   onMaximizedChange={setMaximized}
                   onUpdated={handleHtmlReplaced}
                   onFindResult={handleFindResult}
@@ -314,11 +328,12 @@ function App() {
                   onBusyChange={setBusy}
                 />
               )}
-              {hasDocumentMap && (
+              {showDocumentMapPane && (
                 <div className="no-print viewer-layout-map">
                   <DocumentMapSidebar
                     nodes={documentMapNodes}
                     busy={busy}
+                    currentNodeId={documentMapCurrentId}
                     onNavigate={(id) => {
                       void handleDocumentMapNavigate(id)
                     }}

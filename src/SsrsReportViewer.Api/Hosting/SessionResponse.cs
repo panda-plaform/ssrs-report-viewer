@@ -20,6 +20,7 @@ public static class SessionResponse
             },
             zoomPercent = result.ZoomPercent,
             documentMap = result.DocumentMap?.Select(MapDocumentMapNode).ToArray(),
+            documentMapVisible = result.DocumentMapVisible,
             canGoBack = result.CanGoBack,
             reportPath = result.ReportPath,
             parameters = result.Parameters
