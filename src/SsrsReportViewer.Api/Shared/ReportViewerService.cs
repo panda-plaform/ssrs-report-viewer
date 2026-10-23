@@ -75,18 +75,7 @@ public sealed partial class ReportViewerService
             forRendering: false,
             valuesForCascading: null,
             cancellationToken);
-        var missing = definitions
-            .Where(d => d.ShownOnParameterForm && d.Required)
-            .Where(d =>
-            {
-                var submitted = parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, d.Name, StringComparison.OrdinalIgnoreCase));
-                return submitted is null || submitted.Values.Count == 0 ||
-                       submitted.Values.All(string.IsNullOrWhiteSpace);
-            })
-            .Select(d => d.Name)
-            .ToArray();
-
+        var missing = FindUnresolvedRequiredParameters(definitions, parameters);
         if (missing.Length > 0)
         {
             throw new RequiredParameterMissingException(missing);
@@ -757,6 +746,40 @@ public sealed partial class ReportViewerService
             definitions,
             ResolveParametersForExecution(definitions, submitted),
             _options.DefaultCulture);
+
+    /// <summary>
+    /// View Report preflight: form-visible required params must be submitted; non-nullable params
+    /// with no submitted value and no DefaultValues are rejected before LoadReport/Render
+    /// (including non-prompted) so SSRS never sees ParameterValueNotSet for that gap.
+    /// </summary>
+    internal static string[] FindUnresolvedRequiredParameters(
+        IReadOnlyList<ReportParameterDefinition> definitions,
+        IReadOnlyList<ParameterValue> submitted)
+    {
+        return definitions
+            .Where(d =>
+            {
+                var value = submitted.FirstOrDefault(p =>
+                    string.Equals(p.Name, d.Name, StringComparison.OrdinalIgnoreCase));
+                var hasSubmittedValue = value is not null &&
+                    value.Values.Count > 0 &&
+                    value.Values.Any(v => !string.IsNullOrWhiteSpace(v));
+                if (hasSubmittedValue)
+                {
+                    return false;
+                }
+
+                if (d.ShownOnParameterForm && d.Required)
+                {
+                    return true;
+                }
+
+                // Non-nullable without DefaultValues cannot rely on LoadReport leftovers.
+                return !d.Nullable && d.DefaultValues.Count == 0;
+            })
+            .Select(d => d.Name)
+            .ToArray();
+    }
 
     /// <summary>
     /// Empty Values means SSRS NULL only for nullable parameters. Blank non-nullables must not

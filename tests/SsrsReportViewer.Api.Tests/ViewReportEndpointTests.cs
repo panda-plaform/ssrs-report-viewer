@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Tests;
 
@@ -459,10 +460,10 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Post_render_returns_400_when_Render_raises_ParameterValueNotSet()
+    public async Task Post_render_fail_fast_before_LoadReport_when_non_prompted_non_nullable_has_no_default()
     {
-        // Non-prompted required param without DefaultValues bypasses form preflight; Fake Render
-        // mirrors SSRS rsReportParameterValueNotSet (e.g. folder_name).
+        // Non-prompted non-nullable without DefaultValues must not reach LoadReport/Render
+        // (avoids SSRS ParameterValueNotSet / orphan Execution — e.g. folder_name).
         _factory.Fake.SeedReport(
             "/Sales/Folders",
             parameters:
@@ -491,6 +492,46 @@ public sealed class ViewReportEndpointTests : IClassFixture<ApiFactory>
             new
             {
                 reportPath = "/Sales/Folders",
+                parameters = new[]
+                {
+                    new { name = "Region", values = new[] { "N" } },
+                },
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Equal(0, _factory.Fake.ActiveExecutionCount);
+        Assert.Equal(0, _factory.SessionCount);
+        Assert.Null(_factory.Fake.LastRenderedExecutionId);
+    }
+
+    [Fact]
+    public async Task Post_render_returns_400_when_Render_raises_ParameterValueNotSet()
+    {
+        // Residual #91 mapping: when Render still raises ParameterValueNotSet, same 400 shape.
+        _factory.Fake.SeedReport(
+            "/Sales/Revenue",
+            parameters:
+            [
+                new FakeReportParameter(
+                    Name: "Region",
+                    DataType: "Text",
+                    Nullable: false,
+                    MultiValue: false,
+                    Prompt: "Region",
+                    Required: true,
+                    ValidValues: [("North", "N")]),
+            ],
+            html: "<div>ok</div>");
+        _factory.Fake.NextRenderFault = new ParameterValueNotSetException("folder_name");
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/reports/render",
+            new
+            {
+                reportPath = "/Sales/Revenue",
                 parameters = new[]
                 {
                     new { name = "Region", values = new[] { "N" } },
