@@ -6,6 +6,7 @@ import {
   seedFormFromExecution,
   type ExecutionParameterSeed,
 } from './executionParameterSeed'
+import { readDocumentMapVisibilityPreference } from '../document-map/documentMapVisibilityPreference'
 import {
   fetchParameters,
   viewReport,
@@ -188,9 +189,13 @@ export function ParameterForm({
     setError(null)
 
     const submissions = toParameterSubmissions(parameters, values, nullChecked)
+    const documentMapVisible = readDocumentMapVisibilityPreference(reportPath)
 
     try {
-      const result = await viewReport(reportPath, submissions)
+      const result =
+        documentMapVisible === undefined
+          ? await viewReport(reportPath, submissions)
+          : await viewReport(reportPath, submissions, documentMapVisible)
       onViewed(result)
     } catch (err) {
       onClearSurface()

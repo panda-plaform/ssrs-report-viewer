@@ -15,6 +15,7 @@ import {
   type PrintPdfSettings,
 } from '../export-print/exportApi'
 import { setDocumentMapVisibility } from '../document-map/documentMapApi'
+import { writeDocumentMapVisibilityPreference } from '../document-map/documentMapVisibilityPreference'
 import { goBack } from '../drillthrough/drillthroughApi'
 import type { PageInfo, RenderResponse } from '../../shared/api/sessionTypes'
 import {
@@ -58,6 +59,8 @@ const PAGE_SIZE_LABELS: Record<PrintPageSize, string> = {
 
 type Props = {
   sessionId: string
+  /** Open Report path — keys Document Map Visibility Preference writes. */
+  reportPath: string
   pageInfo: PageInfo
   zoomPercent: number
   busy: boolean
@@ -80,6 +83,7 @@ type Props = {
  */
 export function ViewerToolbar({
   sessionId,
+  reportPath,
   pageInfo,
   zoomPercent,
   busy,
@@ -462,7 +466,17 @@ export function ViewerToolbar({
             aria-pressed={documentMapVisible}
             disabled={busy}
             onClick={() =>
-              void run(() => setDocumentMapVisibility(sessionId, !documentMapVisible))
+              void run(async () => {
+                const result = await setDocumentMapVisibility(
+                  sessionId,
+                  !documentMapVisible,
+                )
+                writeDocumentMapVisibilityPreference(
+                  reportPath,
+                  result.documentMapVisible,
+                )
+                return result
+              })
             }
           >
             <IconDocumentMap />

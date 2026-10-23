@@ -76,6 +76,7 @@ function renderToolbar(
   render(
     <ViewerToolbar
       sessionId="session-1"
+      reportPath="/Reports/Demo"
       pageInfo={overrides.pageInfo ?? { currentPage: 2, pageCount: 5 }}
       zoomPercent={100}
       busy={overrides.busy ?? false}
@@ -607,6 +608,7 @@ describe('ViewerToolbar native chrome', () => {
     const { unmount } = render(
       <ViewerToolbar
         sessionId="session-1"
+        reportPath="/Reports/Demo"
         pageInfo={{ currentPage: 1, pageCount: 5 }}
         zoomPercent={100}
         busy={false}
@@ -631,6 +633,7 @@ describe('ViewerToolbar native chrome', () => {
     render(
       <ViewerToolbar
         sessionId="session-1"
+        reportPath="/Reports/Demo"
         pageInfo={{ currentPage: 5, pageCount: 5 }}
         zoomPercent={100}
         busy={false}
