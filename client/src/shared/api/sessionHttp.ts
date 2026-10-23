@@ -14,6 +14,9 @@ export function isViewerSessionExpiredError(error: unknown): error is ViewerSess
   return error instanceof ViewerSessionExpiredError
 }
 
+/** User-facing copy when API Availability is lost (first paint or mid-session). */
+export const API_UNAVAILABLE_COPY = 'API unavailable. Retry when the API is reachable.'
+
 /** Fetch network rejections are TypeError; distinct from HTTP Error(detail) from throwIfNotOk. */
 export function isApiUnreachableError(error: unknown): boolean {
   return error instanceof TypeError

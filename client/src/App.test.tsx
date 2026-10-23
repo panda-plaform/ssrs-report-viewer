@@ -10,7 +10,7 @@ import {
 } from './features/document-map/documentMapApi'
 import { writeDocumentMapVisibilityPreference } from './features/document-map/documentMapVisibilityPreference'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
-import { ViewerSessionExpiredError } from './shared/api/sessionHttp'
+import { API_UNAVAILABLE_COPY, ViewerSessionExpiredError } from './shared/api/sessionHttp'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
   const actual =
@@ -134,9 +134,7 @@ describe('API Availability first paint', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'API unavailable. Retry when the API is reachable.',
-    )
+    expect(await screen.findByRole('status')).toHaveTextContent(API_UNAVAILABLE_COPY)
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText('Catalog browser')).not.toBeInTheDocument()
     expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
@@ -213,7 +211,7 @@ describe('API Availability mid-session', () => {
     vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await user.click(screen.getByRole('button', { name: 'Section A' }))
 
-    const unavailable = await screen.findByText('API unavailable. Retry when the API is reachable.')
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
     expect(unavailable).toHaveAttribute('role', 'status')
     expect(unavailable).not.toHaveClass('visually-hidden')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
@@ -228,7 +226,7 @@ describe('API Availability mid-session', () => {
     vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await user.click(screen.getByRole('button', { name: 'Section A' }))
 
-    await screen.findByText('API unavailable. Retry when the API is reachable.')
+    await screen.findByText(API_UNAVAILABLE_COPY)
 
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
     expect(within(toolbar).getByRole('button', { name: 'Refresh' })).toBeDisabled()
@@ -283,11 +281,36 @@ describe('API Availability mid-session', () => {
     await user.click(screen.getByRole('button', { name: 'Section A' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Viewer Session expired')
-    expect(screen.queryByText('API unavailable. Retry when the API is reachable.')).not.toBeInTheDocument()
+    expect(screen.queryByText(API_UNAVAILABLE_COPY)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(screen.queryByRole('toolbar', { name: 'Report Viewer toolbar' })).not.toBeInTheDocument()
     expect(document.querySelector('.report-html')).not.toBeInTheDocument()
     expect(screen.getByText('API available')).toHaveClass('visually-hidden')
+  })
+
+  it('flips API Availability unavailable when View Report rejects with a network TypeError', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'View Report' })
+    vi.mocked(viewReport).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(screen.getByRole('button', { name: 'View Report' }))
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
+  })
+
+  it('flips API Availability unavailable when Report Parameter load rejects with a network TypeError', async () => {
+    vi.mocked(fetchParameters).mockReset().mockRejectedValue(new TypeError('Failed to fetch'))
+
+    render(<App />)
+
+    const unavailable = await screen.findByText(API_UNAVAILABLE_COPY)
+    expect(unavailable).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument()
   })
 })
 
