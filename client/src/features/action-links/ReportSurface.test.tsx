@@ -130,6 +130,62 @@ describe('ReportSurface Action Links', () => {
     )
   })
 
+  it('does not double-submit Drilldown while busy', async () => {
+    const user = userEvent.setup()
+    renderSurface({ busy: true })
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+  })
+
+  it('does not double-submit Drilldown while a request is in flight', async () => {
+    let resolveToggle: ((value: typeof childResult) => void) | undefined
+    vi.mocked(toggleDrilldown).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveToggle = resolve
+        }),
+    )
+
+    const user = userEvent.setup()
+    const { onHtmlReplaced } = renderSurface()
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    expect(toggleDrilldown).toHaveBeenCalledTimes(1)
+
+    resolveToggle?.({
+      ...childResult,
+      canGoBack: false,
+      reportPath: '/Sales/Parent',
+      html: '<div>Parent toggled</div>',
+      parameters: [],
+    })
+    await waitFor(() => {
+      expect(onHtmlReplaced).toHaveBeenCalledWith(
+        expect.objectContaining({ reportPath: '/Sales/Parent' }),
+        undefined,
+      )
+    })
+  })
+
+  it('surfaces Drilldown API failures via onError', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleDrilldown).mockRejectedValueOnce(new Error('session gone'))
+    const { onHtmlReplaced, onError, onBusyChange } = renderSurface()
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'session gone' }))
+    })
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+    expect(onBusyChange).toHaveBeenCalledWith(true)
+    expect(onBusyChange).toHaveBeenCalledWith(false)
+  })
+
   it('does not double-submit Drillthrough while busy', async () => {
     const user = userEvent.setup()
     renderSurface({ busy: true })
