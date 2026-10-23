@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
-import { fetchCatalog, type CatalogItem } from './catalogApi'
+import {
+  fetchCatalog,
+  isCatalogAvailabilityLoss,
+  type CatalogItem,
+} from './catalogApi'
 
-type LoadState = 'loading' | 'ok' | 'error'
+type LoadState = 'loading' | 'ok' | 'error' | 'unavailable'
+
+const CATALOG_UNAVAILABLE_COPY =
+  'Catalog unavailable. The API is up, but the Catalog could not be loaded. Retry.'
 
 type Props = {
   selectedReportPath: string | null
@@ -28,6 +35,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
   const [reports, setReports] = useState<CatalogItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -47,8 +55,13 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
         if (!cancelled) {
           setFolders([])
           setReports([])
-          setLoadState('error')
-          setError(err instanceof Error ? err.message : 'Failed to load Catalog')
+          if (isCatalogAvailabilityLoss(err)) {
+            setLoadState('unavailable')
+            setError(null)
+          } else {
+            setLoadState('error')
+            setError(err instanceof Error ? err.message : 'Failed to load Catalog')
+          }
         }
       }
     }
@@ -57,7 +70,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
     return () => {
       cancelled = true
     }
-  }, [path])
+  }, [path, reloadKey])
 
   const up = parentPath(path)
 
@@ -79,6 +92,15 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport }: Props) {
       {loadState === 'loading' && (
         <p className="catalog-status" role="status">
           Loading Catalog…
+        </p>
+      )}
+
+      {loadState === 'unavailable' && (
+        <p className="catalog-status catalog-error" role="alert">
+          {CATALOG_UNAVAILABLE_COPY}{' '}
+          <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
+            Retry
+          </button>
         </p>
       )}
 

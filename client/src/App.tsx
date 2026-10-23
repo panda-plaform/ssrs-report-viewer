@@ -17,10 +17,6 @@ import {
 } from './reportPathUrl'
 import './App.css'
 
-type HealthResponse = {
-  status: string
-}
-
 type ApiStatus = 'loading' | 'ok' | 'error'
 
 function App() {
@@ -47,10 +43,10 @@ function App() {
           throw new Error(`HTTP ${response.status}`)
         }
 
-        const body = (await response.json()) as HealthResponse
+        await response.json()
         if (!cancelled) {
           setApiStatus('ok')
-          setDetail(`API ${body.status}`)
+          setDetail('API available')
         }
       } catch (error) {
         if (!cancelled) {

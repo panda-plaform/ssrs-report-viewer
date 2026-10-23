@@ -322,7 +322,7 @@ describe('Report Viewer chrome composition', () => {
     const lede = shell.querySelector('.lede')
     expect(lede).toHaveClass('visually-hidden')
 
-    const status = within(shell).getByText(/API Healthy/i)
+    const status = within(shell).getByText(/API available/i)
     expect(status).toHaveClass('visually-hidden')
 
     expect(screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })).toBeInTheDocument()
