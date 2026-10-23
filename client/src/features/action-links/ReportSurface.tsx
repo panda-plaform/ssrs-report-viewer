@@ -106,6 +106,7 @@ export function ReportSurface({
         event.stopPropagation()
         const toggleId = anchor.getAttribute('data-ssrs-toggle-id')
         if (!toggleId) {
+          onError('Drilldown Action Link is missing toggle id')
           return
         }
 
@@ -200,6 +201,10 @@ export function ReportSurface({
       if (/reportserver/i.test(href) || href.includes('/api/sessions/')) {
         event.preventDefault()
         event.stopPropagation()
+        // Unrewritten Drilldown targets: preventDefault alone is a silent failure.
+        if (/rc(:|%3[Aa])Toggle/i.test(href)) {
+          onError('Unrewritten Drilldown toggle link')
+        }
       }
     }
 
