@@ -376,31 +376,43 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
         var body = new XElement(Exec + "GetExecutionInfo");
         var (document, _) = await InvokeExecutionAsync("GetExecutionInfo", body, execution, cancellationToken);
         var info = document.Descendants(Exec + "ExecutionInfo").FirstOrDefault()
+                   ?? document.Descendants(Exec + "executionInfo").FirstOrDefault()
                    ?? document.Descendants(Exec + "GetExecutionInfoResult").FirstOrDefault();
         var pageCount = ParseInt(info?.Element(Exec + "NumPages")?.Value, fallback: 1);
-        var mapRoot = info?.Element(Exec + "DocumentMap");
-        IReadOnlyList<DocumentMapNode>? documentMap = mapRoot is null
-            ? null
-            : ParseDocumentMap(mapRoot);
+
+        // ReportExecution2005 ExecutionInfo carries HasDocumentMap only; the tree is GetDocumentMap.
+        // Some envelopes historically inlined DocumentMap — keep that as a defensive fallback.
+        IReadOnlyList<DocumentMapNode>? documentMap = null;
+        var inlineMap = info?.Element(Exec + "DocumentMap");
+        if (inlineMap is not null)
+        {
+            documentMap = ParseDocumentMap(inlineMap);
+        }
+        else if (ParseBool(info?.Element(Exec + "HasDocumentMap")?.Value))
+        {
+            documentMap = await GetDocumentMapAsync(execution, cancellationToken);
+        }
 
         return (Math.Max(1, pageCount), 1, documentMap);
     }
 
+    private async Task<IReadOnlyList<DocumentMapNode>?> GetDocumentMapAsync(
+        ExecutionHandle execution,
+        CancellationToken cancellationToken)
+    {
+        var body = new XElement(Exec + "GetDocumentMap");
+        var (document, _) = await InvokeExecutionAsync("GetDocumentMap", body, execution, cancellationToken);
+        // WSDL: GetDocumentMapResponse/result (DocumentMapNode). Also accept GetDocumentMapResult.
+        var mapRoot = document.Descendants(Exec + "result").FirstOrDefault()
+                      ?? document.Descendants(Exec + "GetDocumentMapResult").FirstOrDefault()
+                      ?? document.Descendants().FirstOrDefault(e => e.Name.LocalName == "result");
+        return mapRoot is null ? null : ParseDocumentMap(mapRoot);
+    }
+
     private static IReadOnlyList<DocumentMapNode>? ParseDocumentMap(XElement mapRoot)
     {
-        // SSRS often wraps entries under a synthetic root DocumentMap / DocumentMapNode.
-        var directChildren = mapRoot.Elements(Exec + "DocumentMapNode").ToArray();
-        if (directChildren.Length > 0)
-        {
-            return ParseDocumentMapNodes(directChildren).ToArray();
-        }
-
-        var nested = mapRoot.Elements(Exec + "Children").Elements(Exec + "DocumentMapNode").ToArray();
-        if (nested.Length > 0)
-        {
-            return ParseDocumentMapNodes(nested).ToArray();
-        }
-
+        // GetDocumentMap returns a DocumentMapNode root (Label/UniqueName/Children).
+        // Prefer that shape before unwrapping Children-only wrappers.
         var uniqueName = mapRoot.Element(Exec + "UniqueName")?.Value;
         if (!string.IsNullOrWhiteSpace(uniqueName))
         {
@@ -412,6 +424,19 @@ public sealed class SoapSsrsAdapter : ISsrsAdapter, IDisposable
                     ParseDocumentMapNodes(
                         mapRoot.Elements(Exec + "Children").Elements(Exec + "DocumentMapNode")).ToArray()),
             ];
+        }
+
+        // Synthetic DocumentMap wrapper: direct or Children-nested DocumentMapNode entries.
+        var directChildren = mapRoot.Elements(Exec + "DocumentMapNode").ToArray();
+        if (directChildren.Length > 0)
+        {
+            return ParseDocumentMapNodes(directChildren).ToArray();
+        }
+
+        var nested = mapRoot.Elements(Exec + "Children").Elements(Exec + "DocumentMapNode").ToArray();
+        if (nested.Length > 0)
+        {
+            return ParseDocumentMapNodes(nested).ToArray();
         }
 
         return null;
