@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { findInReport } from './features/find/findApi'
 import { drillthroughReport, goBack } from './features/drillthrough/drillthroughApi'
-import { setDocumentMapVisibility } from './features/document-map/documentMapApi'
+import {
+  navigateDocumentMap,
+  setDocumentMapVisibility,
+} from './features/document-map/documentMapApi'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
 
 vi.mock('./features/view-report/viewReportApi', async () => {
@@ -124,6 +127,7 @@ describe('Report Viewer chrome composition', () => {
     vi.mocked(viewReport).mockReset().mockResolvedValue(renderResult)
     vi.mocked(goBack).mockReset()
     vi.mocked(drillthroughReport).mockReset()
+    vi.mocked(navigateDocumentMap).mockReset()
     vi.mocked(setDocumentMapVisibility).mockReset().mockResolvedValue({
       ...renderResult,
       documentMapVisible: false,
@@ -236,6 +240,73 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'true')
     expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+  })
+
+  it('expands and collapses Document Map branches without navigating', async () => {
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      documentMap: [
+        {
+          id: 'root',
+          label: 'Revenue',
+          children: [
+            { id: 'north', label: 'North Region', children: [] },
+            { id: 'south', label: 'South Region', children: [] },
+          ],
+        },
+      ],
+    })
+    const user = await openReportChrome()
+
+    expect(screen.getByRole('button', { name: 'North Region' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Collapse Revenue' }))
+    expect(screen.queryByRole('button', { name: 'North Region' })).not.toBeInTheDocument()
+    expect(navigateDocumentMap).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Expand Revenue' }))
+    expect(screen.getByRole('button', { name: 'North Region' })).toBeInTheDocument()
+    expect(navigateDocumentMap).not.toHaveBeenCalled()
+  })
+
+  it('marks the Document Map node current after a successful navigate', async () => {
+    const user = await openReportChrome()
+
+    vi.mocked(navigateDocumentMap).mockResolvedValueOnce({
+      ...renderResult,
+      html: '<div class="report-body">Section A</div>',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+
+    await waitFor(() => {
+      expect(navigateDocumentMap).toHaveBeenCalledWith('session-1', 'n1')
+    })
+    expect(screen.getByRole('button', { name: 'Section A' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+  })
+
+  it('keeps Document Map Visibility when navigate fails', async () => {
+    const user = await openReportChrome()
+
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+
+    vi.mocked(navigateDocumentMap).mockRejectedValueOnce(new Error('Document Map navigate failed'))
+
+    await user.click(screen.getByRole('button', { name: 'Section A' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Document Map navigate failed')
+    })
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'true')
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Section A' })).not.toHaveAttribute('aria-current')
   })
 
   it('tones down shell marketing chrome so toolbar and report lead after View Report', async () => {
