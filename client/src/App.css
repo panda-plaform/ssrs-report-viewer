@@ -84,19 +84,6 @@
   margin-bottom: 0.75rem;
 }
 
-.catalog-toolbar button {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid #bbb;
-  background: #fff;
-  cursor: pointer;
-  font: inherit;
-}
-
-.catalog-toolbar button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .catalog-status {
   margin: 0 0 0.75rem;
   color: #444;
@@ -478,12 +465,13 @@
   cursor: not-allowed;
 }
 
-/* Shared primary action (View Report, availability Retry). */
+/* Shared primary action (View Report, Catalog Up, availability Retry). */
 .primary-action,
 .parameters-actions button {
+  appearance: none;
   padding: 0.35rem 0.75rem;
   border: 1px solid #2f6f3e;
-  background: #2f6f3e;
+  background-color: #2f6f3e;
   color: #fff;
   cursor: pointer;
   font: inherit;

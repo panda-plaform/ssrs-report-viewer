@@ -90,7 +90,12 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       </header>
 
       <div className="catalog-toolbar">
-        <button type="button" disabled={up === null} onClick={() => up && setPath(up)}>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={up === null}
+          onClick={() => up && setPath(up)}
+        >
           Up
         </button>
       </div>

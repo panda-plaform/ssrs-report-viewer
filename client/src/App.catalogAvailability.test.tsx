@@ -82,6 +82,7 @@ describe('Catalog Availability', () => {
     const retry = screen.getByRole('button', { name: 'Retry' })
     expect(alert).toContainElement(retry)
     expect(retry).toHaveClass('primary-action')
+    expect(screen.getByRole('button', { name: 'Up' })).toHaveClass('primary-action')
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
   })
 
