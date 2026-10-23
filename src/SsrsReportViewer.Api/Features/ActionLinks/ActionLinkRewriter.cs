@@ -513,8 +513,10 @@ public static partial class ActionLinkRewriter
         RegexOptions.IgnoreCase)]
     private static partial Regex SortIconAltRegex();
 
+    // rc:Toggle may appear after a report path (Data Sources) or as rc%3AToggle (HTMLFragment=false).
+    // Match the key anywhere in the href so Drillthrough rewrite cannot steal the anchor.
     [GeneratedRegex(
-        """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"[^"]*(?:rc:Toggle|rc%3AToggle)=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootToggleRegex();
 
@@ -524,12 +526,12 @@ public static partial class ActionLinkRewriter
     private static partial Regex ReplacementRootBookmarkRegex();
 
     [GeneratedRegex(
-        """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?(?<query>(?!rc:Toggle=)[^"]+)"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"(?<root>[^"]*?)\?(?<query>(?![^"]*(?:rc:Toggle|rc%3AToggle)=)[^"]+)"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReplacementRootDrillthroughRegex();
 
     [GeneratedRegex(
-        """<a\b[^>]*?\bhref\s*=\s*"[^"]*ReportServer[^"]*[?&](?:amp;)?rc:Toggle=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
+        """<a\b[^>]*?\bhref\s*=\s*"[^"]*ReportServer[^"]*(?:rc:Toggle|rc%3AToggle)=(?<id>[^"&]+)[^"]*"[^>]*>(?<label>.*?)</a>""",
         RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex ReportServerToggleRegex();
 
