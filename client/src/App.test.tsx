@@ -8,7 +8,10 @@ import {
   navigateDocumentMap,
   setDocumentMapVisibility,
 } from './features/document-map/documentMapApi'
-import { writeDocumentMapVisibilityPreference } from './features/document-map/documentMapVisibilityPreference'
+import {
+  readDocumentMapVisibilityPreference,
+  writeDocumentMapVisibilityPreference,
+} from './features/document-map/documentMapVisibilityPreference'
 import { fetchParameters, viewReport } from './features/view-report/viewReportApi'
 import { API_UNAVAILABLE_COPY, ViewerSessionExpiredError } from './shared/api/sessionHttp'
 
@@ -636,7 +639,7 @@ describe('Report Viewer chrome composition', () => {
     expect(findStatus.tagName.toLowerCase()).toBe('span')
   })
 
-  it('enters fullscreen on Maximize and hides parameters / Document Map until Restore', async () => {
+  it('enters fullscreen on Maximize and keeps Document Map while hiding parameters until Restore', async () => {
     const user = await openReportChrome()
 
     expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
@@ -650,8 +653,9 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.queryByRole('button', { name: 'Return to Catalog' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Hide parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'true')
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -662,7 +666,7 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })
 
-  it('restores session Document Map Visibility after leaving maximize when the pane was hidden', async () => {
+  it('leaves Document Map Visibility unchanged when restoring after maximize hid the pane', async () => {
     vi.mocked(viewReport).mockResolvedValueOnce({
       ...renderResult,
       documentMapVisible: false,
@@ -674,12 +678,69 @@ describe('Report Viewer chrome composition', () => {
 
     await user.click(screen.getByRole('button', { name: 'Maximize' }))
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
     expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
     expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Return to Catalog' })).toBeInTheDocument()
+  })
+
+  it('toggles Document Map Visibility and Preference while maximized', async () => {
+    localStorage.clear()
+    const user = await openReportChrome()
+
+    await user.click(screen.getByRole('button', { name: 'Maximize' }))
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: false,
+    })
+    await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
+
+    await waitFor(() => {
+      expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', false)
+    })
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
+    expect(readDocumentMapVisibilityPreference('/Reports/Demo')).toBe(false)
+
+    vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce({
+      ...renderResult,
+      documentMapVisible: true,
+    })
+    await user.click(screen.getByRole('button', { name: 'Show Document Map' }))
+
+    await waitFor(() => {
+      expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', true)
+    })
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
+    expect(readDocumentMapVisibilityPreference('/Reports/Demo')).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Report Parameters' })).toBeInTheDocument()
+  })
+
+  it('omits Document Map pane and toolbar control while maximized when Execution has no Document Map', async () => {
+    vi.mocked(viewReport).mockResolvedValueOnce({
+      ...renderResult,
+      documentMap: null,
+    })
+    const user = await openReportChrome()
+
+    await user.click(screen.getByRole('button', { name: 'Maximize' }))
+
+    expect(screen.getByRole('main')).toHaveClass('shell-maximized')
+    expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hide Document Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show Document Map' })).not.toBeInTheDocument()
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
   })
 
   it('shows NULL under nullable controls and a DateTime calendar field in the strip', async () => {
