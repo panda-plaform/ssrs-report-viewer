@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using SsrsReportViewer.Api.Ssrs;
 
 namespace SsrsReportViewer.Api.Tests;
 
@@ -99,6 +100,23 @@ public sealed class ZoomPageRefreshEndpointTests : IClassFixture<ApiFactory>
         Assert.False(string.IsNullOrWhiteSpace(refreshedExec));
         Assert.NotEqual(firstExec, refreshedExec);
         Assert.Equal(1, body.PageInfo.CurrentPage);
+    }
+
+    [Fact]
+    public async Task Post_refresh_maps_ParameterValueNotSet_to_400_required_parameters()
+    {
+        // Shared Execution-create path: residual ParameterValueNotSet must not 500 (#93).
+        await SeedAndRenderAsync(pageCount: 1);
+        _factory.Fake.NextRenderFault = new ParameterValueNotSetException("folder_name");
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/sessions/{_sessionId}/refresh",
+            new { });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Required Report Parameters missing", problem.GetProperty("title").GetString());
+        Assert.Contains("folder_name", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

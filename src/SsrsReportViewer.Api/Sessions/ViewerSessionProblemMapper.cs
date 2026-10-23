@@ -95,5 +95,32 @@ public sealed class ViewerSessionProblemMapper
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Report not ready");
         }
+        catch (ParameterValueNotSetException ex)
+        {
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                ["ParameterName"] = ex.ParameterName ?? "(unknown)",
+            }))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "SSRS ParameterValueNotSet on Viewer Session interaction {ParameterName}",
+                    ex.ParameterName ?? "(unknown)");
+            }
+
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Required Report Parameters missing");
+        }
+        catch (RequiredParameterMissingException ex)
+        {
+            _logger.LogWarning(ex, "Required Report Parameters missing on Viewer Session interaction");
+
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Required Report Parameters missing");
+        }
     }
 }
