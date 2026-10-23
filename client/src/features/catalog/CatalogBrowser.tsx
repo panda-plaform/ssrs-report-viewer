@@ -157,7 +157,7 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
         </ul>
       )}
 
-      {loadState !== 'unavailable' && (
+      {loadState === 'ok' && (
         <p className="catalog-selection" role="status">
           {selectedReportPath
             ? `Selected Report: ${selectedReportPath}`
