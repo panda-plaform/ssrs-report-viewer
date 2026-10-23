@@ -666,7 +666,7 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })
 
-  it('leaves Document Map Visibility unchanged when restoring after maximize hid the pane', async () => {
+  it('leaves Document Map Visibility unchanged when restoring after maximize with Visibility already off', async () => {
     vi.mocked(viewReport).mockResolvedValueOnce({
       ...renderResult,
       documentMapVisible: false,
