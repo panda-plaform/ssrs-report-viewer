@@ -116,7 +116,7 @@ describe('ReportSurface Action Links', () => {
 
   it('keeps Drilldown toggles distinct from Drillthrough', async () => {
     const user = userEvent.setup()
-    const { onHtmlReplaced } = renderSurface()
+    const { onHtmlReplaced, onError } = renderSurface()
 
     await user.click(screen.getByRole('link', { name: 'Toggle' }))
 
@@ -128,6 +128,139 @@ describe('ReportSurface Action Links', () => {
       expect.objectContaining({ reportPath: '/Sales/Parent' }),
       undefined,
     )
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('Drilldown via toggle icon replaces Execution HTML', async () => {
+    // Data Sources chrome: plus/minus img inside the Drilldown Action Link.
+    const user = userEvent.setup()
+    const { onHtmlReplaced } = renderSurface({
+      html: `<div>
+        <a href="#" data-ssrs-action="drilldown" data-ssrs-toggle-id="32iT0">
+          <img class="ssrs-toggle-icon" alt="+" title="+" width="9" height="9" />
+        </a>
+        <span>/Data Sources/ReportServer</span>
+      </div>`,
+    })
+
+    await user.click(screen.getByRole('img', { name: '+' }))
+
+    await waitFor(() => {
+      expect(toggleDrilldown).toHaveBeenCalledWith('session-1', '32iT0')
+    })
+    expect(onHtmlReplaced).toHaveBeenCalledWith(
+      expect.objectContaining({ html: '<div>Parent toggled</div>' }),
+      undefined,
+    )
+    expect(drillthroughReport).not.toHaveBeenCalled()
+  })
+
+  it('does not double-submit Drilldown while busy', async () => {
+    const user = userEvent.setup()
+    renderSurface({ busy: true })
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+  })
+
+  it('does not double-submit Drilldown while a request is in flight', async () => {
+    let resolveToggle: ((value: typeof childResult) => void) | undefined
+    vi.mocked(toggleDrilldown).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveToggle = resolve
+        }),
+    )
+
+    const user = userEvent.setup()
+    const { onHtmlReplaced } = renderSurface()
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    expect(toggleDrilldown).toHaveBeenCalledTimes(1)
+
+    resolveToggle?.({
+      ...childResult,
+      canGoBack: false,
+      reportPath: '/Sales/Parent',
+      html: '<div>Parent toggled</div>',
+      parameters: [],
+    })
+    await waitFor(() => {
+      expect(onHtmlReplaced).toHaveBeenCalledWith(
+        expect.objectContaining({ reportPath: '/Sales/Parent' }),
+        undefined,
+      )
+    })
+  })
+
+  it('surfaces Drilldown API failures via onError', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleDrilldown).mockRejectedValueOnce(new Error('session gone'))
+    const { onHtmlReplaced, onError, onBusyChange } = renderSurface()
+
+    await user.click(screen.getByRole('link', { name: 'Toggle' }))
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'session gone' }))
+    })
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+    expect(onBusyChange).toHaveBeenCalledWith(true)
+    expect(onBusyChange).toHaveBeenCalledWith(false)
+  })
+
+  it('surfaces an error when Drilldown Action Link is missing toggle id', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onError } = renderSurface({
+      html: `<a href="#" data-ssrs-action="drilldown">Broken toggle</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Broken toggle' }))
+
+    expect(onError).toHaveBeenCalledWith('Drilldown Action Link is missing toggle id')
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error for unrewritten session-actions toggle hrefs', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onError } = renderSurface({
+      html: `<a href="/api/sessions/session-1/actions/?/Example%20Reports/Data%20Sources&amp;rc:Toggle=32iT0">Unrewritten toggle</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Unrewritten toggle' }))
+
+    expect(onError).toHaveBeenCalledWith('Unrewritten Drilldown toggle link')
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error for unrewritten ReportServer toggle hrefs', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onError } = renderSurface({
+      html: `<a href="http://ssrs/ReportServer?/Example%20Reports/Data%20Sources&amp;rc:Toggle=32iT0">ReportServer toggle</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'ReportServer toggle' }))
+
+    expect(onError).toHaveBeenCalledWith('Unrewritten Drilldown toggle link')
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+  })
+
+  it('blocks leftover non-toggle session action URLs without a Drilldown error', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onError } = renderSurface({
+      html: `<a href="/api/sessions/session-1/actions/?/Sales/Child">Leftover action</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Leftover action' }))
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
   })
 
   it('does not double-submit Drillthrough while busy', async () => {
