@@ -7,7 +7,10 @@ import type { FindResponse } from './features/find/findApi'
 import { ParameterForm } from './features/view-report/ParameterForm'
 import type { ExecutionParameterSeed } from './features/view-report/executionParameterSeed'
 import { ViewerToolbar } from './features/zoom-page/ViewerToolbar'
-import { isViewerSessionExpiredError } from './shared/api/sessionHttp'
+import {
+  isApiUnreachableError,
+  isViewerSessionExpiredError,
+} from './shared/api/sessionHttp'
 import type { RenderResponse } from './shared/api/sessionTypes'
 import {
   buildReportPathSearch,
@@ -166,6 +169,13 @@ function App() {
       return
     }
 
+    if (isApiUnreachableError(error)) {
+      setApiStatus('error')
+      setDetail('API unavailable. Retry when the API is reachable.')
+      setSurfaceError(null)
+      return
+    }
+
     if (typeof error === 'string') {
       setSurfaceError(error || null)
       return
@@ -197,6 +207,9 @@ function App() {
 
   const mode = viewerModeFromReportPath(selectedReportPath)
   const reportMode = mode === 'report'
+  const apiAvailable = apiStatus === 'ok'
+  const keepReportChrome = Boolean(render)
+  const showMainUi = apiAvailable || keepReportChrome
   const hasSession = Boolean(render?.sessionId)
   const showReportViewBar = !maximized
   const showParameterForm = (!hasSession || parametersExpanded) && !maximized
@@ -205,6 +218,8 @@ function App() {
     Array.isArray(documentMapNodes) && documentMapNodes.length > 0
   const documentMapVisible = render?.documentMapVisible ?? true
   const showDocumentMapPane = !maximized && documentMapPresent && documentMapVisible
+  const hideStatusInReportMode = reportMode && apiAvailable
+  const apiActionsLocked = !apiAvailable
 
   const shellClass = [
     reportMode ? 'shell shell-report' : 'shell',
@@ -229,7 +244,7 @@ function App() {
       </p>
       <p
         className={
-          reportMode
+          hideStatusInReportMode
             ? `status status-${apiStatus} visually-hidden no-print`
             : `status status-${apiStatus} no-print`
         }
@@ -242,9 +257,9 @@ function App() {
           Retry
         </button>
       )}
-      {apiStatus === 'ok' && (
+      {showMainUi && (
         <>
-          {mode === 'catalog' && (
+          {apiAvailable && mode === 'catalog' && (
             <div className="no-print">
               <CatalogBrowser
                 selectedReportPath={selectedReportPath}
@@ -286,7 +301,7 @@ function App() {
                 <ParameterForm
                   reportPath={selectedReportPath}
                   executionSeed={executionSeed}
-                  busy={busy}
+                  busy={busy || apiActionsLocked}
                   onBusyChange={setBusy}
                   onViewed={handleViewed}
                   onClearSurface={clearSurface}
@@ -306,7 +321,7 @@ function App() {
                   reportPath={render.reportPath}
                   pageInfo={render.pageInfo}
                   zoomPercent={render.zoomPercent}
-                  busy={busy}
+                  busy={busy || apiActionsLocked}
                   canGoBack={render.canGoBack}
                   maximized={maximized}
                   documentMapPresent={documentMapPresent}
@@ -322,7 +337,7 @@ function App() {
                 <div className="no-print viewer-layout-map">
                   <DocumentMapSidebar
                     nodes={documentMapNodes}
-                    busy={busy}
+                    busy={busy || apiActionsLocked}
                     currentNodeId={documentMapCurrentId}
                     onNavigate={(id) => {
                       void handleDocumentMapNavigate(id)
@@ -332,7 +347,7 @@ function App() {
               )}
               <ReportSurface
                 html={render.html}
-                sessionId={render.sessionId}
+                sessionId={apiAvailable ? render.sessionId : null}
                 pageInfo={render.pageInfo}
                 busy={busy}
                 error={surfaceError}
