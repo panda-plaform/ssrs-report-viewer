@@ -481,23 +481,19 @@
 /* Shared primary action (View Report, availability Retry). */
 .primary-action,
 .parameters-actions button {
-  padding: 0.45rem 0.9rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid #2f6f3e;
   background: #2f6f3e;
   color: #fff;
   cursor: pointer;
   font: inherit;
+  font-size: 0.9rem;
 }
 
 .parameters-bar .parameters-actions {
   display: flex;
   align-items: center;
   grid-column: 1 / -1;
-}
-
-.parameters-bar .parameters-actions button {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.9rem;
 }
 
 .primary-action:disabled,
