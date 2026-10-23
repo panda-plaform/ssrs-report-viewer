@@ -157,11 +157,13 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
         </ul>
       )}
 
-      <p className="catalog-selection" role="status">
-        {selectedReportPath
-          ? `Selected Report: ${selectedReportPath}`
-          : 'Select a Report to enter parameters and View Report.'}
-      </p>
+      {loadState !== 'unavailable' && (
+        <p className="catalog-selection" role="status">
+          {selectedReportPath
+            ? `Selected Report: ${selectedReportPath}`
+            : 'Select a Report to enter parameters and View Report.'}
+        </p>
+      )}
     </section>
   )
 }

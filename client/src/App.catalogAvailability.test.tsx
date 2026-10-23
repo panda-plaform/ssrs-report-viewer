@@ -83,6 +83,9 @@ describe('Catalog Availability', () => {
     expect(alert).toContainElement(retry)
     expect(retry).toHaveClass('primary-action')
     expect(screen.getByRole('button', { name: 'Up' })).toHaveClass('primary-action')
+    expect(
+      screen.queryByText('Select a Report to enter parameters and View Report.'),
+    ).not.toBeInTheDocument()
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
   })
 
