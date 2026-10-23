@@ -104,7 +104,11 @@ export function CatalogBrowser({ selectedReportPath, onSelectReport, onError }: 
       {loadState === 'unavailable' && (
         <p className="status status-error" role="alert">
           {CATALOG_UNAVAILABLE_COPY}{' '}
-          <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => setReloadKey((key) => key + 1)}
+          >
             Retry
           </button>
         </p>

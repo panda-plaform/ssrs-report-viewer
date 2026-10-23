@@ -478,6 +478,8 @@
   cursor: not-allowed;
 }
 
+/* Shared primary action (View Report, availability Retry). */
+.primary-action,
 .parameters-actions button {
   padding: 0.45rem 0.9rem;
   border: 1px solid #2f6f3e;
@@ -498,6 +500,7 @@
   font-size: 0.9rem;
 }
 
+.primary-action:disabled,
 .parameters-actions button:disabled {
   opacity: 0.55;
   cursor: not-allowed;

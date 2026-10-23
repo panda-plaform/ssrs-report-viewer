@@ -79,7 +79,9 @@ describe('Catalog Availability', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(CATALOG_UNAVAILABLE_COPY)
     expect(alert).toHaveClass('status', 'status-error')
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(alert).toContainElement(retry)
+    expect(retry).toHaveClass('primary-action')
     expect(screen.queryByText(/SSRS fault|HTTP 500/i)).not.toBeInTheDocument()
   })
 
