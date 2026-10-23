@@ -174,7 +174,7 @@ describe('Report Viewer chrome composition', () => {
 
     const layout = document.querySelector('.viewer-layout')
     expect(layout).toHaveClass('viewer-layout-with-map')
-    expect(layout).toHaveAttribute('data-has-document-map', 'true')
+    expect(layout).toHaveAttribute('data-document-map-pane', 'true')
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Section A' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
@@ -190,7 +190,7 @@ describe('Report Viewer chrome composition', () => {
 
     const layout = document.querySelector('.viewer-layout')
     expect(layout).toHaveClass('viewer-layout-report-only')
-    expect(layout).toHaveAttribute('data-has-document-map', 'false')
+    expect(layout).toHaveAttribute('data-document-map-pane', 'false')
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Hide Document Map' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show Document Map' })).not.toBeInTheDocument()
@@ -206,7 +206,7 @@ describe('Report Viewer chrome composition', () => {
 
     const layout = document.querySelector('.viewer-layout')
     expect(layout).toHaveClass('viewer-layout-report-only')
-    expect(layout).toHaveAttribute('data-has-document-map', 'false')
+    expect(layout).toHaveAttribute('data-document-map-pane', 'false')
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
   })
@@ -226,7 +226,7 @@ describe('Report Viewer chrome composition', () => {
       expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', false)
     })
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
     expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
 
     vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce({
@@ -239,7 +239,7 @@ describe('Report Viewer chrome composition', () => {
       expect(setDocumentMapVisibility).toHaveBeenCalledWith('session-1', true)
     })
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'true')
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'true')
     expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
   })
 
@@ -305,7 +305,7 @@ describe('Report Viewer chrome composition', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('Document Map navigate failed')
     })
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'true')
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'true')
     expect(screen.getByRole('button', { name: 'Hide Document Map' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Section A' })).not.toHaveAttribute('aria-current')
   })
@@ -419,7 +419,7 @@ describe('Report Viewer chrome composition', () => {
     expect(screen.queryByRole('button', { name: 'Hide parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show parameters' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -446,7 +446,7 @@ describe('Report Viewer chrome composition', () => {
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
     expect(screen.queryByRole('navigation', { name: 'Document Map' })).not.toBeInTheDocument()
-    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-has-document-map', 'false')
+    expect(document.querySelector('.viewer-layout')).toHaveAttribute('data-document-map-pane', 'false')
     expect(screen.getByRole('button', { name: 'Show Document Map' })).toBeInTheDocument()
   })
 
@@ -729,8 +729,7 @@ describe('Document Map Visibility Preference round-trip', () => {
     await user.click(screen.getByRole('button', { name: 'View Report' }))
 
     await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
-    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array))
-    expect(viewReport.mock.calls[0]?.length).toBe(2)
+    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array), undefined)
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })
 
@@ -792,8 +791,7 @@ describe('Document Map Visibility Preference round-trip', () => {
     await user.click(screen.getByRole('button', { name: 'View Report' }))
 
     await screen.findByRole('toolbar', { name: 'Report Viewer toolbar' })
-    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array))
-    expect(viewReport.mock.calls[0]?.length).toBe(2)
+    expect(viewReport).toHaveBeenCalledWith('/Reports/Demo', expect.any(Array), undefined)
     expect(screen.getByRole('navigation', { name: 'Document Map' })).toBeInTheDocument()
   })
 })

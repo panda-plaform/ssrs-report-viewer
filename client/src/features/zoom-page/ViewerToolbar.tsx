@@ -67,7 +67,7 @@ type Props = {
   canGoBack: boolean
   maximized: boolean
   /** True when the Execution provides a Document Map tree (control shown only then). */
-  hasDocumentMap: boolean
+  documentMapPresent: boolean
   /** Viewer Session Document Map Visibility. */
   documentMapVisible: boolean
   onMaximizedChange: (maximized: boolean) => void
@@ -89,7 +89,7 @@ export function ViewerToolbar({
   busy,
   canGoBack,
   maximized,
-  hasDocumentMap,
+  documentMapPresent,
   documentMapVisible,
   onMaximizedChange,
   onUpdated,
@@ -455,7 +455,7 @@ export function ViewerToolbar({
         onBusyChange={onBusyChange}
       />
 
-      {hasDocumentMap && (
+      {documentMapPresent && (
         <>
           <span className="viewer-toolbar-sep" aria-hidden="true" />
           <button

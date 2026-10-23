@@ -192,10 +192,7 @@ export function ParameterForm({
     const documentMapVisible = readDocumentMapVisibilityPreference(reportPath)
 
     try {
-      const result =
-        documentMapVisible === undefined
-          ? await viewReport(reportPath, submissions)
-          : await viewReport(reportPath, submissions, documentMapVisible)
+      const result = await viewReport(reportPath, submissions, documentMapVisible)
       onViewed(result)
     } catch (err) {
       onClearSurface()

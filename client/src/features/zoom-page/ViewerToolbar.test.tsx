@@ -63,7 +63,7 @@ function renderToolbar(
     canGoBack: boolean
     busy: boolean
     maximized: boolean
-    hasDocumentMap: boolean
+    documentMapPresent: boolean
     documentMapVisible: boolean
   }> = {},
 ) {
@@ -82,7 +82,7 @@ function renderToolbar(
       busy={overrides.busy ?? false}
       canGoBack={overrides.canGoBack ?? false}
       maximized={overrides.maximized ?? false}
-      hasDocumentMap={overrides.hasDocumentMap ?? false}
+      documentMapPresent={overrides.documentMapPresent ?? false}
       documentMapVisible={overrides.documentMapVisible ?? true}
       onMaximizedChange={onMaximizedChange}
       onUpdated={onUpdated}
@@ -121,7 +121,7 @@ describe('ViewerToolbar native chrome', () => {
   })
 
   it('omits Document Map control when the Execution has no Document Map tree', () => {
-    renderToolbar({ hasDocumentMap: false })
+    renderToolbar({ documentMapPresent: false })
 
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
     expect(within(toolbar).queryByRole('button', { name: 'Hide Document Map' })).not.toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('ViewerToolbar native chrome', () => {
   })
 
   it('shows Hide Document Map when the tree is present and Document Map Visibility is true', () => {
-    renderToolbar({ hasDocumentMap: true, documentMapVisible: true })
+    renderToolbar({ documentMapPresent: true, documentMapVisible: true })
 
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
     const control = within(toolbar).getByRole('button', { name: 'Hide Document Map' })
@@ -137,7 +137,7 @@ describe('ViewerToolbar native chrome', () => {
   })
 
   it('shows Show Document Map when the tree is present and Document Map Visibility is false', () => {
-    renderToolbar({ hasDocumentMap: true, documentMapVisible: false })
+    renderToolbar({ documentMapPresent: true, documentMapVisible: false })
 
     const toolbar = screen.getByRole('toolbar', { name: 'Report Viewer toolbar' })
     const control = within(toolbar).getByRole('button', { name: 'Show Document Map' })
@@ -148,7 +148,7 @@ describe('ViewerToolbar native chrome', () => {
     const user = userEvent.setup()
     const hiddenResult = { ...pageResult, documentMapVisible: false }
     vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce(hiddenResult)
-    const { onUpdated } = renderToolbar({ hasDocumentMap: true, documentMapVisible: true })
+    const { onUpdated } = renderToolbar({ documentMapPresent: true, documentMapVisible: true })
 
     await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
 
@@ -162,7 +162,7 @@ describe('ViewerToolbar native chrome', () => {
     const user = userEvent.setup()
     const shownResult = { ...pageResult, documentMapVisible: true }
     vi.mocked(setDocumentMapVisibility).mockResolvedValueOnce(shownResult)
-    const { onUpdated } = renderToolbar({ hasDocumentMap: true, documentMapVisible: false })
+    const { onUpdated } = renderToolbar({ documentMapPresent: true, documentMapVisible: false })
 
     await user.click(screen.getByRole('button', { name: 'Show Document Map' }))
 
@@ -174,7 +174,7 @@ describe('ViewerToolbar native chrome', () => {
 
   it('does not toggle Document Map Visibility while busy', async () => {
     const user = userEvent.setup()
-    renderToolbar({ hasDocumentMap: true, documentMapVisible: true, busy: true })
+    renderToolbar({ documentMapPresent: true, documentMapVisible: true, busy: true })
 
     await user.click(screen.getByRole('button', { name: 'Hide Document Map' }))
 
@@ -614,7 +614,7 @@ describe('ViewerToolbar native chrome', () => {
         busy={false}
         canGoBack={false}
         maximized={false}
-        hasDocumentMap={false}
+        documentMapPresent={false}
         documentMapVisible={true}
         onMaximizedChange={() => {}}
         onUpdated={() => {}}
@@ -639,7 +639,7 @@ describe('ViewerToolbar native chrome', () => {
         busy={false}
         canGoBack={false}
         maximized={false}
-        hasDocumentMap={false}
+        documentMapPresent={false}
         documentMapVisible={true}
         onMaximizedChange={() => {}}
         onUpdated={() => {}}

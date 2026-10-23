@@ -308,7 +308,7 @@ function App() {
           {render ? (
             <div
               className={layoutClass}
-              data-has-document-map={showDocumentMapPane ? 'true' : 'false'}
+              data-document-map-pane={showDocumentMapPane ? 'true' : 'false'}
             >
               {render.sessionId && (
                 <ViewerToolbar
@@ -319,7 +319,7 @@ function App() {
                   busy={busy}
                   canGoBack={render.canGoBack}
                   maximized={maximized}
-                  hasDocumentMap={documentMapPresent}
+                  documentMapPresent={documentMapPresent}
                   documentMapVisible={documentMapVisible}
                   onMaximizedChange={setMaximized}
                   onUpdated={handleHtmlReplaced}
