@@ -342,9 +342,11 @@ public sealed class ActionLinkRewriterTests
     [Theory]
     [InlineData("rc%3AToggle")]
     [InlineData("rc%3atoggle")]
+    [InlineData("rs:ShowHideToggle")]
+    [InlineData("rs:showhidetoggle")]
     [InlineData("rs%3AShowHideToggle")]
     [InlineData("rs%3Ashowhidetoggle")]
-    public void Rewrite_maps_percent_encoded_toggle_query_keys(string toggleKey)
+    public void Rewrite_maps_toggle_query_key_variants(string toggleKey)
     {
         var html =
             $"""
