@@ -342,7 +342,11 @@ public sealed class ActionLinkRewriterTests
     [Theory]
     [InlineData("rc%3AToggle")]
     [InlineData("rc%3atoggle")]
-    public void Rewrite_maps_percent_encoded_toggle_query_keys(string toggleKey)
+    [InlineData("rs:ShowHideToggle")]
+    [InlineData("rs:showhidetoggle")]
+    [InlineData("rs%3AShowHideToggle")]
+    [InlineData("rs%3Ashowhidetoggle")]
+    public void Rewrite_maps_toggle_query_key_variants(string toggleKey)
     {
         var html =
             $"""
@@ -357,6 +361,27 @@ public sealed class ActionLinkRewriterTests
         Assert.Contains("data-ssrs-toggle-id=\"32iT0\"", rewritten, StringComparison.Ordinal);
         Assert.DoesNotContain("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
         Assert.DoesNotContain("ReportServer", rewritten, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Rewrite_maps_live_html4_show_hide_toggle_to_drilldown()
+    {
+        // Captured from Example Reports → Data Sources (HTML4.0): ReplacementRoot + embedded
+        // ReportServer URL, double-encoded amps, rs%3AShowHideToggle (not rc:Toggle).
+        var html =
+            """
+            <a tabindex="1" href="/api/sessions/s1/actions/http://thor/ReportServer?%2FExample%20Reports%2FData%20Sources&amp;amp;rc%3AHTMLFragment=false&amp;amp;rs%3AFormat=HTML4.0&amp;amp;rs%3AShowHideToggle=32iT0R0x0">
+              <IMG onerror="this.errored=true;" BORDER="0" SRC="/api/sessions/s1/resources/2022.1.0.0TogglePlus.gif" ALT="+"/>
+            </a>
+            """;
+
+        var rewritten = ActionLinkRewriter.Rewrite(html, "/api/sessions/s1/actions/");
+
+        Assert.Contains("data-ssrs-action=\"drilldown\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("data-ssrs-toggle-id=\"32iT0R0x0\"", rewritten, StringComparison.Ordinal);
+        Assert.Contains("ssrs-toggle-icon", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-ssrs-action=\"drillthrough\"", rewritten, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowHideToggle", rewritten, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

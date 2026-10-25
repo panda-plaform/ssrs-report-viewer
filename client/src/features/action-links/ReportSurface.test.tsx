@@ -250,6 +250,19 @@ describe('ReportSurface Action Links', () => {
     expect(onHtmlReplaced).not.toHaveBeenCalled()
   })
 
+  it('surfaces an error for unrewritten ShowHideToggle hrefs', async () => {
+    const user = userEvent.setup()
+    const { onHtmlReplaced, onError } = renderSurface({
+      html: `<a href="/api/sessions/session-1/actions/http://ssrs/ReportServer?%2FExample%20Reports%2FData%20Sources&amp;amp;rs%3AShowHideToggle=32iT0R0x0">Unrewritten show-hide</a>`,
+    })
+
+    await user.click(screen.getByRole('link', { name: 'Unrewritten show-hide' }))
+
+    expect(onError).toHaveBeenCalledWith('Unrewritten Drilldown toggle link')
+    expect(toggleDrilldown).not.toHaveBeenCalled()
+    expect(onHtmlReplaced).not.toHaveBeenCalled()
+  })
+
   it('blocks leftover non-toggle session action URLs without a Drilldown error', async () => {
     const user = userEvent.setup()
     const { onHtmlReplaced, onError } = renderSurface({
