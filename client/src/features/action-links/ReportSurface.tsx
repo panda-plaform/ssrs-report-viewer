@@ -15,11 +15,12 @@ export type HtmlReplacedOptions = {
 }
 
 /**
- * Defense-in-depth for leftover SSRS toggle hrefs (`rc:Toggle` / `rc%3AToggle`).
+ * Defense-in-depth for leftover SSRS toggle hrefs
+ * (`rc:Toggle` / `rs:ShowHideToggle`, literal or percent-encoded).
  * ActionLinkRewriter is the rewrite source of truth; this only catches misses.
  */
 export function isUnrewrittenDrilldownHref(href: string): boolean {
-  return /rc(:|%3[Aa])Toggle/i.test(href)
+  return /(?:rc(:|%3[Aa])Toggle|rs(:|%3[Aa])ShowHideToggle)/i.test(href)
 }
 
 type Props = {
